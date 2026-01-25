@@ -14,7 +14,22 @@ const RegisterSchema = z.object({
     password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
-export async function register(formData: FormData) {
+export type RegisterState =
+    | {
+          errors: {
+              name?: string[];
+              email?: string[];
+              password?: string[];
+          };
+          message: string;
+      }
+    | { message: string }
+    | undefined;
+
+export async function register(
+    _prevState: RegisterState,
+    formData: FormData,
+): Promise<RegisterState> {
     const validatedFields = RegisterSchema.safeParse({
         name: formData.get('name'),
         email: formData.get('email'),
@@ -34,9 +49,7 @@ export async function register(formData: FormData) {
     try {
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
-            return {
-                message: 'Email already in use.',
-            };
+            return { message: 'Email already in use.' };
         }
 
         await prisma.user.create({
@@ -47,9 +60,7 @@ export async function register(formData: FormData) {
             },
         });
     } catch (error) {
-        return {
-            message: 'Database Error: Failed to Create User.',
-        };
+        return { message: 'Database Error: Failed to Create User.' };
     }
 
     // Attempt to sign in immediately after registration
