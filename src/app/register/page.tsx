@@ -17,7 +17,7 @@ function SubmitButton() {
 }
 
 export default function RegisterPage() {
-    const [state, dispatch] = useActionState<RegisterState>(register, undefined);
+    const [state, dispatch] = useActionState<RegisterState, FormData>(register, undefined);
     const fieldErrors = state && 'errors' in state ? state.errors : undefined;
 
     return (
