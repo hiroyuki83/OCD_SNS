@@ -3,10 +3,15 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-const pooledUrl = process.env.POSTGRES_PRISMA_URL ?? process.env.DATABASE_URL;
+const migrateUrl =
+  process.env.POSTGRES_URL_NON_POOLING ??
+  process.env.DATABASE_URL ??
+  process.env.POSTGRES_PRISMA_URL;
 
-if (!pooledUrl) {
-  throw new Error("Missing POSTGRES_PRISMA_URL or DATABASE_URL.");
+if (!migrateUrl) {
+  throw new Error(
+    "Missing POSTGRES_URL_NON_POOLING, DATABASE_URL, or POSTGRES_PRISMA_URL.",
+  );
 }
 
 export default defineConfig({
@@ -15,6 +20,6 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: pooledUrl,
+    url: migrateUrl,
   },
 });
