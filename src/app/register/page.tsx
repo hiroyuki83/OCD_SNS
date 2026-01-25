@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState } from 'react';
-import { register } from '@/app/lib/actions';
+import { register, type RegisterState } from '@/app/lib/actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useFormStatus } from 'react-dom';
@@ -17,7 +17,8 @@ function SubmitButton() {
 }
 
 export default function RegisterPage() {
-    const [state, dispatch] = useActionState(register, undefined);
+    const [state, dispatch] = useActionState<RegisterState>(register, undefined);
+    const fieldErrors = state && 'errors' in state ? state.errors : undefined;
 
     return (
         <div className="flex min-h-screen justify-center items-center bg-black text-white">
@@ -35,7 +36,7 @@ export default function RegisterPage() {
                             placeholder="Name"
                             className="w-full bg-black border border-zinc-700 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
                         />
-                        {state?.errors?.name && <p className="text-red-500 text-sm mt-1">{state.errors.name}</p>}
+                        {fieldErrors?.name && <p className="text-red-500 text-sm mt-1">{fieldErrors.name}</p>}
                     </div>
                     <div>
                         <input
@@ -44,7 +45,7 @@ export default function RegisterPage() {
                             placeholder="Email"
                             className="w-full bg-black border border-zinc-700 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
                         />
-                        {state?.errors?.email && <p className="text-red-500 text-sm mt-1">{state.errors.email}</p>}
+                        {fieldErrors?.email && <p className="text-red-500 text-sm mt-1">{fieldErrors.email}</p>}
                     </div>
                     <div>
                         <input
@@ -53,7 +54,7 @@ export default function RegisterPage() {
                             placeholder="Password"
                             className="w-full bg-black border border-zinc-700 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
                         />
-                        {state?.errors?.password && <p className="text-red-500 text-sm mt-1">{state.errors.password}</p>}
+                        {fieldErrors?.password && <p className="text-red-500 text-sm mt-1">{fieldErrors.password}</p>}
                     </div>
                     {state?.message && <p className="text-red-500 text-sm text-center">{state.message}</p>}
                     <SubmitButton />
