@@ -4,14 +4,9 @@ import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
 const pooledUrl = process.env.POSTGRES_PRISMA_URL ?? process.env.DATABASE_URL;
-const directUrl = process.env.POSTGRES_URL_NON_POOLING ?? process.env.DATABASE_URL;
 
 if (!pooledUrl) {
   throw new Error("Missing POSTGRES_PRISMA_URL or DATABASE_URL.");
-}
-
-if (!directUrl) {
-  throw new Error("Missing POSTGRES_URL_NON_POOLING or DATABASE_URL.");
 }
 
 export default defineConfig({
@@ -21,6 +16,5 @@ export default defineConfig({
   },
   datasource: {
     url: pooledUrl,
-    directUrl,
   },
 });
