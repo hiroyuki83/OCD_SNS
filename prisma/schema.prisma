@@ -14,6 +14,338 @@ model User {
   email     String   @unique
   password  String
   name      String?
+  bio       String?
+  avatarUrl String?
+  headerUrl String?
+  autoHashtag String?
+  isPrivate Boolean  @default(false)
+  role      Role     @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  posts     Post[]
+  likes     Like[]
+  bookmarks Bookmark[]
+  following Follow[] @relation("UserFollowing")
+  followers Follow[] @relation("UserFollowers")
+  notificationsReceived Notification[] @relation("NotificationRecipient")
+  notificationsSent     Notification[] @relation("NotificationActor")
+  ybocsResults          YbocsResult[]
+  iesrResults           IesrResult[]
+  itqResults            ItqResult[]
+  lsasResults           LsasResult[]
+  replies               Reply[]
+  reactions             Reaction[]
+  blocksInitiated       Block[] @relation("UserBlocks")
+  blockedBy             Block[] @relation("UserBlockedBy")
+  mutesInitiated        Mute[] @relation("UserMutes")
+  mutedBy               Mute[] @relation("UserMutedBy")
+  actorLogs             AuditLog[] @relation("ActorLogs")
+  targetLogs            AuditLog[] @relation("TargetLogs")
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  content   String
+  imageUrl  String?
+  createdAt DateTime @default(now())
+  wakaruCount   Int @default(0)
+  ganbattaCount Int @default(0)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  quotePostId String?
+  quotePost   Post?    @relation("QuotePost", fields: [quotePostId], references: [id])
+  quotedBy    Post[]   @relation("QuotePost")
+  likes     Like[]
+  bookmarks Bookmark[]
+  notifications Notification[]
+  replies   Reply[]
+  reactions Reaction[]
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id])
+
+  @@unique([userId, postId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id])
+
+  @@unique([userId, postId])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  follower    User     @relation("UserFollowing", fields: [followerId], references: [id])
+  following   User     @relation("UserFollowers", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+}
+
+enum NotificationType {
+  LIKE
+  FOLLOW
+  WAKARU
+  GANBATTA
+}
+
+enum ReactionType {
+  WAKARU
+  GANBATTA
+}
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  userId    String
+  actorId   String
+  postId    String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user   User @relation("NotificationRecipient", fields: [userId], references: [id])
+  actor  User @relation("NotificationActor", fields: [actorId], references: [id])
+  post   Post? @relation(fields: [postId], references: [id])
+}
+
+model YbocsResult {
+  id               String   @id @default(cuid())
+  userId           String
+  createdAt        DateTime @default(now())
+  obsessionsScore  Int
+  compulsionsScore Int
+  totalScore       Int
+  cgiI             Int?
+  cgiS             Int?
+  q1               Int
+  q2               Int
+  q3               Int
+  q4               Int
+  q5               Int
+  q6               Int
+  q7               Int
+  q8               Int
+  q9               Int
+  q10              Int
+  symptomsCurrent  String[]
+  symptomsPast     String[]
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model IesrResult {
+  id                String   @id @default(cuid())
+  userId            String
+  createdAt         DateTime @default(now())
+  totalScore        Int
+  intrusionScore    Int
+  avoidanceScore    Int
+  hyperarousalScore Int
+  q1                Int
+  q2                Int
+  q3                Int
+  q4                Int
+  q5                Int
+  q6                Int
+  q7                Int
+  q8                Int
+  q9                Int
+  q10               Int
+  q11               Int
+  q12               Int
+  q13               Int
+  q14               Int
+  q15               Int
+  q16               Int
+  q17               Int
+  q18               Int
+  q19               Int
+  q20               Int
+  q21               Int
+  q22               Int
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model ItqResult {
+  id                String   @id @default(cuid())
+  userId            String
+  createdAt         DateTime @default(now())
+  eventDescription  String?
+  eventTiming       String
+  ptsdScore         Int
+  dsoScore          Int
+  reScore           Int
+  avScore           Int
+  thScore           Int
+  adScore           Int
+  nscScore          Int
+  drScore           Int
+  ptsdFunctional    Boolean
+  dsoFunctional     Boolean
+  ptsdMet           Boolean
+  dsoMet            Boolean
+  resultLabel       String
+  p1                Int
+  p2                Int
+  p3                Int
+  p4                Int
+  p5                Int
+  p6                Int
+  p7                Int
+  p8                Int
+  p9                Int
+  c1                Int
+  c2                Int
+  c3                Int
+  c4                Int
+  c5                Int
+  c6                Int
+  c7                Int
+  c8                Int
+  c9                Int
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model LsasResult {
+  id         String   @id @default(cuid())
+  userId     String
+  createdAt  DateTime @default(now())
+  totalScore Int
+  fearScore  Int
+  avoidScore Int
+  resultLabel String
+  f1         Int
+  a1         Int
+  f2         Int
+  a2         Int
+  f3         Int
+  a3         Int
+  f4         Int
+  a4         Int
+  f5         Int
+  a5         Int
+  f6         Int
+  a6         Int
+  f7         Int
+  a7         Int
+  f8         Int
+  a8         Int
+  f9         Int
+  a9         Int
+  f10        Int
+  a10        Int
+  f11        Int
+  a11        Int
+  f12        Int
+  a12        Int
+  f13        Int
+  a13        Int
+  f14        Int
+  a14        Int
+  f15        Int
+  a15        Int
+  f16        Int
+  a16        Int
+  f17        Int
+  a17        Int
+  f18        Int
+  a18        Int
+  f19        Int
+  a19        Int
+  f20        Int
+  a20        Int
+  f21        Int
+  a21        Int
+  f22        Int
+  a22        Int
+  f23        Int
+  a23        Int
+  f24        Int
+  a24        Int
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Reply {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  authorId  String
+  postId    String
+
+  author User @relation(fields: [authorId], references: [id])
+  post   Post @relation(fields: [postId], references: [id])
+}
+
+model Reaction {
+  id        String       @id @default(cuid())
+  type      ReactionType
+  createdAt DateTime     @default(now())
+  userId    String
+  postId    String
+
+  user User @relation(fields: [userId], references: [id])
+  post Post @relation(fields: [postId], references: [id])
+
+  @@unique([userId, postId, type])
+}
+
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("UserBlocks", fields: [blockerId], references: [id])
+  blocked User @relation("UserBlockedBy", fields: [blockedId], references: [id])
+
+  @@unique([blockerId, blockedId])
+}
+
+model Mute {
+  id        String   @id @default(cuid())
+  muterId   String
+  mutedId   String
+  createdAt DateTime @default(now())
+
+  muter User @relation("UserMutes", fields: [muterId], references: [id])
+  muted User @relation("UserMutedBy", fields: [mutedId], references: [id])
+
+  @@unique([muterId, mutedId])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  action       String
+  meta         Json
+  actorUserId  String
+  targetUserId String
+
+  actorUser  User @relation("ActorLogs", fields: [actorUserId], references: [id])
+  targetUser User @relation("TargetLogs", fields: [targetUserId], references: [id])
+
+  @@index([actorUserId, createdAt])
+  @@index([targetUserId, createdAt])
 }

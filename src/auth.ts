@@ -5,6 +5,13 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 
 import { prisma } from '@/lib/db';
+import { Role } from '@prisma/client';
+
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? 'behavior.cognition@gmail.com').toLowerCase();
+const MODERATOR_EMAILS = (process.env.MODERATOR_EMAILS ?? process.env.MODERATOR_EMAIL ?? '')
+    .split(/[,;\s]+/)
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
 
 async function getUser(email: string) {
     try {
@@ -16,8 +23,48 @@ async function getUser(email: string) {
     }
 }
 
+async function bootstrapRole(user: { id: string; email: string; role: Role }) {
+    const normalizedEmail = user.email.toLowerCase();
+    if (user.role !== Role.USER) return user;
+    if (normalizedEmail === ADMIN_EMAIL) {
+        return prisma.user.update({
+            where: { id: user.id },
+            data: { role: Role.ADMIN },
+        });
+    }
+    if (MODERATOR_EMAILS.includes(normalizedEmail)) {
+        return prisma.user.update({
+            where: { id: user.id },
+            data: { role: Role.MODERATOR },
+        });
+    }
+    return user;
+}
+
 const nextAuthResult = NextAuth({
     ...authConfig,
+    callbacks: {
+        ...authConfig.callbacks,
+        async jwt({ token, user }) {
+            if (user?.id) {
+                token.id = user.id;
+                token.sub = user.id;
+            }
+            if (user?.role) {
+                token.role = user.role;
+            }
+            return token;
+        },
+        async session({ session, token }) {
+            if (session.user && (token?.id || token?.sub)) {
+                session.user.id = (token.id ?? token.sub) as string;
+            }
+            if (session.user && token?.role) {
+                session.user.role = token.role as Role;
+            }
+            return session;
+        },
+    },
     providers: [
         Credentials({
             async authorize(credentials) {
@@ -31,7 +78,14 @@ const nextAuthResult = NextAuth({
                     if (!user) return null;
 
                     const passwordsMatch = await bcrypt.compare(password, user.password);
-                    if (passwordsMatch) return user;
+                    if (passwordsMatch) {
+                        const updatedUser = await bootstrapRole({
+                            id: user.id,
+                            email: user.email,
+                            role: user.role as Role,
+                        });
+                        return updatedUser;
+                    }
                 }
 
                 console.log('Invalid credentials');
