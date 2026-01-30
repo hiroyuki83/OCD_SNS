@@ -58,10 +58,10 @@ export default async function Sidebar() {
   const isAdmin = role === Role.ADMIN;
   const isModerator = role === Role.MODERATOR || isAdmin;
   const adminItems = [
-    ...(isModerator ? [{ label: LABEL_MODERATION, icon: Gavel, iconKey: "moderation", href: "/moderation" }] : []),
-    ...(isAdmin ? [{ label: LABEL_ADMIN, icon: Shield, iconKey: "admin", href: "/admin" }] : []),
+    ...(isModerator ? [{ label: LABEL_MODERATION, icon: Gavel, iconKey: "moderation" as const, href: "/moderation" }] : []),
+    ...(isAdmin ? [{ label: LABEL_ADMIN, icon: Shield, iconKey: "admin" as const, href: "/admin" }] : []),
   ] as const;
-  const allNavItems = [...navItems, ...adminItems] as const;
+  const allNavItems = [...navItems, ...adminItems];
 
   return (
     <>
