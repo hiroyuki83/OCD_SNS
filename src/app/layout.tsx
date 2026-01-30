@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
@@ -25,13 +25,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white text-black`}
       >
         <div className="flex justify-center min-h-screen max-w-[1265px] mx-auto">
           <Sidebar />
-          <main className="flex-1 min-w-0 border-r border-zinc-800 lg:border-r-0 lg:border-x min-h-screen">
+          <main className="flex-1 min-w-0 border-r border-border lg:border-r-0 lg:border-x min-h-screen">
             {children}
           </main>
           <RightSection />
