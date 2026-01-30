@@ -50,8 +50,9 @@ const nextAuthResult = NextAuth({
                 token.id = user.id;
                 token.sub = user.id;
             }
-            if (user?.role) {
-                token.role = user.role;
+            const roleValue = (user as { role?: Role } | undefined)?.role;
+            if (roleValue) {
+                token.role = roleValue;
             }
             return token;
         },
