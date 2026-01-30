@@ -1,4 +1,5 @@
 ﻿import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -9,9 +10,10 @@ const BodySchema = z.object({
 });
 
 export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } },
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
+  const { id } = await params;
   const actor = await requireRoleApi(Role.ADMIN);
   const body = await request.json().catch(() => null);
   const parsed = BodySchema.safeParse(body);
@@ -23,7 +25,7 @@ export async function PATCH(
 
   const result = await prisma.$transaction(async (tx) => {
     const target = await tx.user.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: { id: true, role: true },
     });
 
@@ -63,4 +65,3 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true });
 }
-
