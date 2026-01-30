@@ -1,4 +1,4 @@
-"use client";
+ï»¿"use client";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -36,7 +36,7 @@ export default function UsersTable({ users }: { users: UserRow[] }) {
     if (!nextRole || nextRole === savedRoles[user.id]) return;
 
     const label = user.email ?? user.name ?? user.id;
-    const confirmed = window.confirm(`${label} ‚ÌŒ ŒÀ‚ğ ${nextRole} ‚É•ÏX‚µ‚Ü‚·‚©H`);
+    const confirmed = window.confirm(`${label} ã®æ¨©é™ã‚’ ${nextRole} ã«å¤‰æ›´ã—ã¾ã™ã‹ï¼Ÿ`);
     if (!confirmed) return;
 
     setPendingId(user.id);
@@ -48,7 +48,7 @@ export default function UsersTable({ users }: { users: UserRow[] }) {
       });
 
       if (!res.ok) {
-        let message = "Œ ŒÀ‚ÌXV‚É¸”s‚µ‚Ü‚µ‚½B";
+        let message = "æ¨©é™ã®æ›´æ–°ã«å¤±æ•—ã—ã¾ã—ãŸã€‚";
         try {
           const data = await res.json();
           if (data?.error) message = data.error;
@@ -69,10 +69,10 @@ export default function UsersTable({ users }: { users: UserRow[] }) {
   return (
     <div className="border border-border rounded-xl overflow-hidden">
       <div className="grid grid-cols-12 bg-zinc-50 px-4 py-2 text-xs font-semibold text-zinc-500">
-        <div className="col-span-4">ƒ†[ƒU[</div>
-        <div className="col-span-3">ƒ[ƒ‹</div>
-        <div className="col-span-2">ì¬“ú</div>
-        <div className="col-span-3">Œ ŒÀ</div>
+        <div className="col-span-4">ãƒ¦ãƒ¼ã‚¶ãƒ¼</div>
+        <div className="col-span-3">ãƒ¡ãƒ¼ãƒ«</div>
+        <div className="col-span-2">ä½œæˆæ—¥</div>
+        <div className="col-span-3">æ¨©é™</div>
       </div>
       <div className="divide-y divide-border">
         {users.map((user) => {
@@ -113,7 +113,7 @@ export default function UsersTable({ users }: { users: UserRow[] }) {
                   onClick={() => updateRole(user)}
                   disabled={!hasChanges || isPending}
                 >
-                  {isPending ? "XV’†" : "XV"}
+                  {isPending ? "æ›´æ–°ä¸­" : "æ›´æ–°"}
                 </button>
               </div>
             </div>
@@ -123,3 +123,4 @@ export default function UsersTable({ users }: { users: UserRow[] }) {
     </div>
   );
 }
+

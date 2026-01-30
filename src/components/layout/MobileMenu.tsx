@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -86,7 +86,7 @@ export default function MobileMenu({
                         className="h-11 w-11 rounded-full object-cover"
                         priority
                     />
-                    <span className="text-sm text-zinc-500">メニュー</span>
+                    <span className="text-sm text-zinc-500">繝｡繝九Η繝ｼ</span>
                 </button>
             </div>
             {open && (
@@ -177,7 +177,7 @@ export default function MobileMenu({
                                         {user.avatarUrl ? (
                                             <img
                                                 src={user.avatarUrl}
-                                                alt="プロフィール画像"
+                                                alt="繝励Ο繝輔ぅ繝ｼ繝ｫ逕ｻ蜒・
                                                 className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                                             />
                                         ) : (
@@ -222,3 +222,4 @@ export default function MobileMenu({
         </div>
     );
 }
+
