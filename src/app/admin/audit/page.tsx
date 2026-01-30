@@ -1,4 +1,4 @@
-import { Role } from "@prisma/client";
+ï»¿import { Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 
@@ -12,7 +12,7 @@ const getRoleChangeLabel = (action: string, meta: unknown) => {
   const fromRole = typeof record.fromRole === "string" ? record.fromRole : null;
   const toRole = typeof record.toRole === "string" ? record.toRole : null;
   if (!fromRole || !toRole) return "-";
-  return `${fromRole} ¨ ${toRole}`;
+  return `${fromRole} â†’ ${toRole}`;
 };
 
 const formatMeta = (meta: unknown) => {
@@ -52,9 +52,9 @@ export default async function AdminAuditPage({
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold">ŠÄ¸ƒƒO</h1>
+          <h1 className="text-2xl font-semibold">ç›£æŸ»ãƒ­ã‚°</h1>
           <p className="text-sm text-zinc-500 mt-1">
-            ÅV200Œ‚Ü‚Å•\¦‚µ‚Ü‚·B{actionFilter ? `i${actionFilter}j` : ""}
+            æœ€æ–°200ä»¶ã¾ã§è¡¨ç¤ºã—ã¾ã™ã€‚{actionFilter ? `ï¼ˆ${actionFilter}ï¼‰` : ""}
           </p>
         </div>
       </div>
@@ -83,7 +83,7 @@ export default async function AdminAuditPage({
 
       <div className="border border-border rounded-xl overflow-hidden">
         <div className="grid grid-cols-12 bg-zinc-50 px-4 py-2 text-xs font-semibold text-zinc-500">
-          <div className="col-span-2">“ú</div>
+          <div className="col-span-2">æ—¥æ™‚</div>
           <div className="col-span-2">Action</div>
           <div className="col-span-2">Role</div>
           <div className="col-span-2">Actor</div>
@@ -92,7 +92,7 @@ export default async function AdminAuditPage({
         </div>
         <div className="divide-y divide-border">
           {logs.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-zinc-500">ƒƒO‚ª‚ ‚è‚Ü‚¹‚ñB</div>
+            <div className="px-4 py-6 text-sm text-zinc-500">ãƒ­ã‚°ãŒã‚ã‚Šã¾ã›ã‚“ã€‚</div>
           ) : (
             logs.map((log) => {
               const actorLabel = log.actorUser?.email ?? log.actorUserId;
@@ -119,3 +119,4 @@ export default async function AdminAuditPage({
     </div>
   );
 }
+

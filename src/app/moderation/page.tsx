@@ -1,8 +1,9 @@
-export default function ModerationPage() {
+ï»¿export default function ModerationPage() {
   return (
     <div className="p-6">
       <h1 className="text-xl font-semibold">Moderation</h1>
-      <p className="text-sm text-zinc-500 mt-2">€”õ’†‚Å‚·B</p>
+      <p className="text-sm text-zinc-500 mt-2">æº–å‚™ä¸­ã§ã™ã€‚</p>
     </div>
   );
 }
+
