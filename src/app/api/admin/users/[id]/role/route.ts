@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+ï»¿import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -16,7 +16,7 @@ export async function PATCH(
   const body = await request.json().catch(() => null);
   const parsed = BodySchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "role ‚ª•s³‚Å‚·B" }, { status: 400 });
+    return NextResponse.json({ error: "role ãŒä¸æ­£ã§ã™ã€‚" }, { status: 400 });
   }
 
   const nextRole = parsed.data.role;
@@ -27,7 +27,7 @@ export async function PATCH(
       select: { id: true, role: true },
     });
 
-    if (!target) return { error: "ƒ†[ƒU[‚ªŒ©‚Â‚©‚è‚Ü‚¹‚ñB", status: 404 } as const;
+    if (!target) return { error: "ãƒ¦ãƒ¼ã‚¶ãƒ¼ãŒè¦‹ã¤ã‹ã‚Šã¾ã›ã‚“ã€‚", status: 404 } as const;
 
     if (target.role === nextRole) {
       return { ok: true } as const;
@@ -36,7 +36,7 @@ export async function PATCH(
     if (target.role === Role.ADMIN && nextRole !== Role.ADMIN) {
       const adminCount = await tx.user.count({ where: { role: Role.ADMIN } });
       if (adminCount <= 1) {
-        return { error: "ÅŒã‚ÌADMIN‚Í~Ši‚Å‚«‚Ü‚¹‚ñB", status: 400 } as const;
+        return { error: "æœ€å¾Œã®ADMINã¯é™æ ¼ã§ãã¾ã›ã‚“ã€‚", status: 400 } as const;
       }
     }
 
@@ -63,3 +63,4 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true });
 }
+

@@ -1,4 +1,4 @@
-import { Role } from "@prisma/client";
+ï»¿import { Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 import UsersTable from "./UsersTable";
@@ -29,11 +29,12 @@ export default async function AdminUsersPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold">ƒ†[ƒU[ŠÇ—</h1>
-          <p className="text-sm text-zinc-500 mt-1">Œ ŒÀ‚Ì•ÏX‚ÍŠÄ¸ƒƒO‚É‹L˜^‚³‚ê‚Ü‚·B</p>
+          <h1 className="text-2xl font-semibold">ãƒ¦ãƒ¼ã‚¶ãƒ¼ç®¡ç†</h1>
+          <p className="text-sm text-zinc-500 mt-1">æ¨©é™ã®å¤‰æ›´ã¯ç›£æŸ»ãƒ­ã‚°ã«è¨˜éŒ²ã•ã‚Œã¾ã™ã€‚</p>
         </div>
       </div>
       <UsersTable users={viewUsers} />
     </div>
   );
 }
+

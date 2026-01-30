@@ -1,4 +1,4 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 import Link from "next/link";
 import { Bell, Bookmark, ClipboardCheck, Gavel, Home, LogOut, Pencil, Search, Settings, Shield, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,17 +8,17 @@ import NotificationsLink from "@/components/layout/NotificationsLink";
 import { prisma } from "@/lib/db";
 import { Role } from "@prisma/client";
 
-const LABEL_HOME = "ホ�Eム";
-const LABEL_TEST = "忁E��検査";
-const LABEL_NOTIFICATIONS = "通知";
-const LABEL_SEARCH = "検索";
-const LABEL_BOOKMARKS = "ブックマ�Eク";
-const LABEL_PROFILE = "自刁E�E投稿";
-const LABEL_POST = "投稿する";
-const LABEL_SETTINGS = "設宁E";
-const LABEL_LOGIN = "ログイン";
-const LABEL_REGISTER = "新規登録";
-const LABEL_LOGOUT = "ログアウチE";
+const LABEL_HOME = "繝帙・繝";
+const LABEL_TEST = "蠢・炊讀懈渊";
+const LABEL_NOTIFICATIONS = "騾夂衍";
+const LABEL_SEARCH = "讀懃ｴ｢";
+const LABEL_BOOKMARKS = "繝悶ャ繧ｯ繝槭・繧ｯ";
+const LABEL_PROFILE = "閾ｪ蛻・・謚慕ｨｿ";
+const LABEL_POST = "謚慕ｨｿ縺吶ｋ";
+const LABEL_SETTINGS = "險ｭ螳・";
+const LABEL_LOGIN = "繝ｭ繧ｰ繧､繝ｳ";
+const LABEL_REGISTER = "譁ｰ隕冗匳骭ｲ";
+const LABEL_LOGOUT = "繝ｭ繧ｰ繧｢繧ｦ繝・";
 const LABEL_ADMIN = "Admin";
 const LABEL_MODERATION = "Moderation";
 
@@ -148,7 +148,7 @@ export default async function Sidebar() {
                 {userProfile?.avatarUrl ? (
                   <img
                     src={userProfile.avatarUrl}
-                    alt="�v���t�B�[���摜"
+                    alt="プロフィール画像"
                     className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                   />
                 ) : (
@@ -194,3 +194,4 @@ export default async function Sidebar() {
     </>
   );
 }
+
