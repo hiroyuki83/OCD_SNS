@@ -177,7 +177,7 @@ export default function MobileMenu({
                                         {user.avatarUrl ? (
                                             <img
                                                 src={user.avatarUrl}
-                                                alt="繝励Ο繝輔ぅ繝ｼ繝ｫ逕ｻ蜒・
+                                                alt="プロフィール画像"
                                                 className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                                             />
                                         ) : (
