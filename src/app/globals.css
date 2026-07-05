@@ -48,6 +48,7 @@
 
 :root {
   --radius: 0.625rem;
+  --app-font-size: 14pt;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -119,7 +120,44 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    font-size: var(--app-font-size);
+  }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .app-nav-icon {
+    width: 26px;
+    height: 26px;
+  }
+  .app-compose-icon {
+    width: 22px;
+    height: 22px;
+  }
+  .feed-action-area,
+  .feed-action-area * {
+    pointer-events: auto;
+  }
+  .text-white {
+    color: #111827 !important;
+  }
+  .badge-text-white {
+    color: #ffffff !important;
+    font-weight: 700;
+  }
+  .text-zinc-200 {
+    color: #3f3f46 !important;
+  }
+  .text-zinc-300 {
+    color: #3f3f46 !important;
+  }
+  .text-zinc-400 {
+    color: #3f3f46 !important;
+  }
+  .text-zinc-500 {
+    color: #27272a !important;
   }
 }

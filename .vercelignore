@@ -1,0 +1,5 @@
+_worktrees
+dev.db
+*.db
+prisma/migrations_sqlite_backup
+src/generated

@@ -8,17 +8,17 @@ import NotificationsLink from "@/components/layout/NotificationsLink";
 import { prisma } from "@/lib/db";
 import { Role } from "@prisma/client";
 
-const LABEL_HOME = "繝帙・繝";
-const LABEL_TEST = "蠢・炊讀懈渊";
-const LABEL_NOTIFICATIONS = "騾夂衍";
-const LABEL_SEARCH = "讀懃ｴ｢";
-const LABEL_BOOKMARKS = "繝悶ャ繧ｯ繝槭・繧ｯ";
-const LABEL_PROFILE = "閾ｪ蛻・・謚慕ｨｿ";
-const LABEL_POST = "謚慕ｨｿ縺吶ｋ";
-const LABEL_SETTINGS = "險ｭ螳・";
-const LABEL_LOGIN = "繝ｭ繧ｰ繧､繝ｳ";
-const LABEL_REGISTER = "譁ｰ隕冗匳骭ｲ";
-const LABEL_LOGOUT = "繝ｭ繧ｰ繧｢繧ｦ繝・";
+const LABEL_HOME = "ホーム";
+const LABEL_TEST = "心理検査";
+const LABEL_NOTIFICATIONS = "通知";
+const LABEL_SEARCH = "検索";
+const LABEL_BOOKMARKS = "ブックマーク";
+const LABEL_PROFILE = "自分の投稿";
+const LABEL_POST = "投稿する";
+const LABEL_SETTINGS = "設定";
+const LABEL_LOGIN = "ログイン";
+const LABEL_REGISTER = "新規登録";
+const LABEL_LOGOUT = "ログアウト";
 const LABEL_ADMIN = "Admin";
 const LABEL_MODERATION = "Moderation";
 

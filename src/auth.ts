@@ -5,6 +5,7 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 
 import { prisma } from '@/lib/db';
+import { rateLimit } from '@/lib/rateLimit';
 import { Role } from '@prisma/client';
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? 'behavior.cognition@gmail.com').toLowerCase();
@@ -75,6 +76,10 @@ const nextAuthResult = NextAuth({
 
                 if (parsedCredentials.success) {
                     const { email, password } = parsedCredentials.data;
+                    const normalizedEmail = email.toLowerCase();
+                    if (!rateLimit(`login:${normalizedEmail}`, 10, 15 * 60 * 1000)) {
+                        return null;
+                    }
                     const user = await getUser(email);
                     if (!user) return null;
 
@@ -89,7 +94,6 @@ const nextAuthResult = NextAuth({
                     }
                 }
 
-                console.log('Invalid credentials');
                 return null;
             },
         }),

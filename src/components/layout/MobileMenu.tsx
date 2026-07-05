@@ -86,7 +86,7 @@ export default function MobileMenu({
                         className="h-11 w-11 rounded-full object-cover"
                         priority
                     />
-                    <span className="text-sm text-zinc-500">繝｡繝九Η繝ｼ</span>
+                    <span className="text-sm text-zinc-500">メニュー</span>
                 </button>
             </div>
             {open && (

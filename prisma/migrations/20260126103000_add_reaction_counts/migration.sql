@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Post" ADD COLUMN     "wakaruCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "ganbattaCount" INTEGER NOT NULL DEFAULT 0;
