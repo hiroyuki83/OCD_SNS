@@ -27,7 +27,7 @@ export default function LoginPage() {
                         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path>
                     </g>
                 </svg>
-                <h1 className="text-3xl font-bold text-center">Xにログイン</h1>
+                <h1 className="text-3xl font-bold text-center">CoCoにログイン</h1>
                 <form action={dispatch} className="space-y-4">
                     <div>
                         <input
@@ -50,6 +50,9 @@ export default function LoginPage() {
                     )}
                     <SubmitButton />
                 </form>
+                <p className="text-zinc-500 text-sm text-center">
+                    <Link href="/forgot-password" className="text-[#1d9bf0] hover:underline">パスワードを忘れた場合</Link>
+                </p>
                 <p className="text-zinc-500 text-sm text-center">
                     アカウントがない場合は <Link href="/register" className="text-[#1d9bf0] hover:underline">新規登録</Link>
                 </p>

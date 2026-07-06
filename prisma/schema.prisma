@@ -10,48 +10,49 @@ datasource db {
 }
 
 model User {
-  id                      String         @id @default(cuid())
-  email                   String         @unique
+  id                      String               @id @default(cuid())
+  email                   String               @unique
   password                String
   name                    String?
   bio                     String?
   avatarUrl               String?
   headerUrl               String?
   autoHashtag             String?
-  isPrivate               Boolean        @default(false)
-  role                    Role           @default(USER)
-  status                  AccountStatus  @default(ACTIVE)
+  isPrivate               Boolean              @default(false)
+  role                    Role                 @default(USER)
+  status                  AccountStatus        @default(ACTIVE)
   restrictionReason       String?
   suspendedUntil          DateTime?
-  createdAt               DateTime       @default(now())
-  updatedAt               DateTime       @updatedAt
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
   posts                   Post[]
   likes                   Like[]
   bookmarks               Bookmark[]
-  following               Follow[]       @relation("UserFollowing")
-  followers               Follow[]       @relation("UserFollowers")
-  notificationsReceived   Notification[] @relation("NotificationRecipient")
-  notificationsSent       Notification[] @relation("NotificationActor")
+  following               Follow[]             @relation("UserFollowing")
+  followers               Follow[]             @relation("UserFollowers")
+  notificationsReceived   Notification[]       @relation("NotificationRecipient")
+  notificationsSent       Notification[]       @relation("NotificationActor")
   ybocsResults            YbocsResult[]
   iesrResults             IesrResult[]
   itqResults              ItqResult[]
   lsasResults             LsasResult[]
   replies                 Reply[]
   reactions               Reaction[]
-  blocksInitiated         Block[]        @relation("UserBlocks")
-  blockedBy               Block[]        @relation("UserBlockedBy")
-  mutesInitiated          Mute[]         @relation("UserMutes")
-  mutedBy                 Mute[]         @relation("UserMutedBy")
-  actorLogs               AuditLog[]     @relation("ActorLogs")
-  targetLogs              AuditLog[]     @relation("TargetLogs")
-  reportsMade             Report[]       @relation("ReportsMade")
-  reportsTargetingUser    Report[]       @relation("ReportsTargetUser")
-  reportsReviewed         Report[]       @relation("ReportsReviewed")
-  reportsAssigned         Report[]       @relation("ReportsAssigned")
-  hiddenPosts             Post[]         @relation("PostHiddenBy")
-  announcementsCreated    Announcement[] @relation("AnnouncementsCreated")
-  adminNotesAuthored      AdminNote[]    @relation("AdminNotesAuthored")
-  adminNotesTargetingUser AdminNote[]    @relation("AdminNotesTargetUser")
+  blocksInitiated         Block[]              @relation("UserBlocks")
+  blockedBy               Block[]              @relation("UserBlockedBy")
+  mutesInitiated          Mute[]               @relation("UserMutes")
+  mutedBy                 Mute[]               @relation("UserMutedBy")
+  actorLogs               AuditLog[]           @relation("ActorLogs")
+  targetLogs              AuditLog[]           @relation("TargetLogs")
+  reportsMade             Report[]             @relation("ReportsMade")
+  reportsTargetingUser    Report[]             @relation("ReportsTargetUser")
+  reportsReviewed         Report[]             @relation("ReportsReviewed")
+  reportsAssigned         Report[]             @relation("ReportsAssigned")
+  hiddenPosts             Post[]               @relation("PostHiddenBy")
+  announcementsCreated    Announcement[]       @relation("AnnouncementsCreated")
+  adminNotesAuthored      AdminNote[]          @relation("AdminNotesAuthored")
+  adminNotesTargetingUser AdminNote[]          @relation("AdminNotesTargetUser")
+  passwordResetTokens     PasswordResetToken[]
 }
 
 model Post {
@@ -439,6 +440,20 @@ model AdminNote {
 
   @@index([targetUserId, createdAt])
   @@index([authorId, createdAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+  tokenHash String    @unique
+  userId    String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 model Announcement {
