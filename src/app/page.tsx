@@ -28,5 +28,32 @@ export default async function Home({
     });
     avatarUrl = user?.avatarUrl ?? null;
   }
-  return <Feed focusCompose={focusCompose} initialViewerId={userId} initialViewerAvatarUrl={avatarUrl} />;
+
+  const now = new Date();
+  const announcements = await prisma.announcement.findMany({
+    where: {
+      isActive: true,
+      AND: [
+        { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+        { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    take: 3,
+    select: {
+      id: true,
+      title: true,
+      body: true,
+      href: true,
+    },
+  });
+
+  return (
+    <Feed
+      focusCompose={focusCompose}
+      initialViewerId={userId}
+      initialViewerAvatarUrl={avatarUrl}
+      announcements={announcements}
+    />
+  );
 }

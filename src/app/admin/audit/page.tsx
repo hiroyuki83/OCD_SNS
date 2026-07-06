@@ -57,6 +57,8 @@ export default async function AdminAuditPage({
     { label: "POST_RESTORE", href: "/admin/audit?action=POST_RESTORE" },
     { label: "REPORT_RESOLVE", href: "/admin/audit?action=REPORT_RESOLVE" },
     { label: "REPORT_REJECT", href: "/admin/audit?action=REPORT_REJECT" },
+    { label: "ANNOUNCEMENT_CREATE", href: "/admin/audit?action=ANNOUNCEMENT_CREATE" },
+    { label: "ANNOUNCEMENT_STATUS", href: "/admin/audit?action=ANNOUNCEMENT_STATUS" },
   ];
 
   return (

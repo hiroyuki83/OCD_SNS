@@ -8,6 +8,7 @@ export default async function AdminIndexPage() {
 
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
+  const now = new Date();
 
   const [
     userCount,
@@ -18,6 +19,7 @@ export default async function AdminIndexPage() {
     hiddenPostCount,
     restrictedUserCount,
     suspendedUserCount,
+    activeAnnouncementCount,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.post.count({ where: { isHidden: false } }),
@@ -27,6 +29,15 @@ export default async function AdminIndexPage() {
     prisma.post.count({ where: { isHidden: true } }),
     prisma.user.count({ where: { status: AccountStatus.POST_RESTRICTED } }),
     prisma.user.count({ where: { status: AccountStatus.SUSPENDED } }),
+    prisma.announcement.count({
+      where: {
+        isActive: true,
+        AND: [
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+        ],
+      },
+    }),
   ]);
 
   const stats = [
@@ -36,6 +47,7 @@ export default async function AdminIndexPage() {
     { label: "非表示投稿", value: hiddenPostCount, helper: "モデレーション済み" },
     { label: "投稿制限", value: restrictedUserCount, helper: "制限中ユーザー" },
     { label: "停止中", value: suspendedUserCount, helper: "アカウント停止" },
+    { label: "公開お知らせ", value: activeAnnouncementCount, helper: "ホームに表示中" },
   ];
 
   return (
@@ -76,6 +88,13 @@ export default async function AdminIndexPage() {
         >
           <div className="text-lg font-semibold text-zinc-900">Moderation</div>
           <div className="text-sm text-zinc-500 mt-1">通報、投稿非表示、ユーザー制限</div>
+        </Link>
+        <Link
+          href="/admin/announcements"
+          className="border border-border rounded-xl p-4 hover:bg-zinc-50 transition-colors"
+        >
+          <div className="text-lg font-semibold text-zinc-900">Announcements</div>
+          <div className="text-sm text-zinc-500 mt-1">運営からのお知らせを管理</div>
         </Link>
       </div>
     </div>

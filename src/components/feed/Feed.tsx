@@ -38,14 +38,23 @@ type FeedResponse = {
     viewerAvatarUrl: string | null;
 };
 
+type AnnouncementNotice = {
+    id: string;
+    title: string;
+    body: string;
+    href: string | null;
+};
+
 export default function Feed({
     focusCompose = false,
     initialViewerId = null,
     initialViewerAvatarUrl = null,
+    announcements = [],
 }: {
     focusCompose?: boolean;
     initialViewerId?: string | null;
     initialViewerAvatarUrl?: string | null;
+    announcements?: AnnouncementNotice[];
 }) {
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -252,6 +261,30 @@ export default function Feed({
                     </Link>
                 </div>
             </div>
+
+            {announcements.length > 0 && (
+                <div className="border-b border-border bg-sky-50/70">
+                    {announcements.map((announcement) => (
+                        <div key={announcement.id} className="px-4 py-3">
+                            <div className="text-xs font-semibold text-sky-700">運営からのお知らせ</div>
+                            <div className="mt-1 text-sm font-semibold text-zinc-900">{announcement.title}</div>
+                            <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-zinc-700">
+                                {announcement.body}
+                            </p>
+                            {announcement.href && (
+                                <a
+                                    href={announcement.href}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-2 inline-block text-sm font-semibold text-[#1d9bf0] hover:underline"
+                                >
+                                    詳しく見る
+                                </a>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {data.viewerId && (
                 <CreatePostForm autoFocus={focusCompose} avatarUrl={data.viewerAvatarUrl} />
