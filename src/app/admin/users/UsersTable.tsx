@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -133,7 +134,12 @@ export default function UsersTable({ users }: { users: UserRow[] }) {
           return (
             <div key={user.id} className="grid grid-cols-12 items-center px-4 py-3 text-sm">
               <div className="col-span-3">
-                <div className="font-medium text-zinc-900">{user.name ?? "(no name)"}</div>
+                <Link
+                  href={`/admin/users/${user.id}`}
+                  className="font-medium text-zinc-900 hover:underline"
+                >
+                  {user.name ?? "(no name)"}
+                </Link>
                 <div className="text-xs text-zinc-500">{user.id}</div>
               </div>
               <div className="col-span-3 text-zinc-700">{user.email ?? "-"}</div>
