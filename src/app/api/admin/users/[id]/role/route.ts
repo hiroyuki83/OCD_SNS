@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { requireRoleApi } from "@/lib/rbac";
+import { checkRoleApi } from "@/lib/rbac";
 
 const BodySchema = z.object({
   role: z.enum([Role.USER, Role.MODERATOR, Role.ADMIN]),
@@ -14,7 +14,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const actor = await requireRoleApi(Role.ADMIN);
+  const authz = await checkRoleApi(Role.ADMIN);
+  if ("error" in authz) {
+    return NextResponse.json({ error: authz.error }, { status: authz.status });
+  }
+
+  const actor = authz.user;
   const body = await request.json().catch(() => null);
   const parsed = BodySchema.safeParse(body);
   if (!parsed.success) {

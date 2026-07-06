@@ -40,6 +40,20 @@ export async function requireAnyRole(roles: Role[]) {
   return user;
 }
 
+export async function checkRoleApi(role: Role) {
+  const user = await getCurrentUserWithRole();
+  if (!user) return { error: "ログインが必要です。", status: 401 } as const;
+  if (user.role !== role) return { error: "権限がありません。", status: 403 } as const;
+  return { user } as const;
+}
+
+export async function checkAnyRoleApi(roles: Role[]) {
+  const user = await getCurrentUserWithRole();
+  if (!user) return { error: "ログインが必要です。", status: 401 } as const;
+  if (!roles.includes(user.role)) return { error: "権限がありません。", status: 403 } as const;
+  return { user } as const;
+}
+
 export async function requireRoleApi(role: Role) {
   const user = await getCurrentUserWithRole();
   if (!user) throw new Response("Unauthorized", { status: 401 });
