@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AccountStatus, ReportReason, ReportStatus, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
+import UserAccessPanel from "../UserAccessPanel";
 
 const statusLabels: Record<ReportStatus, string> = {
   OPEN: "未対応",
@@ -180,6 +181,17 @@ export default async function AdminUserDetailPage({
           <StatBox key={stat.label} {...stat} />
         ))}
       </div>
+
+      <UserAccessPanel
+        user={{
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          suspendedUntil: user.suspendedUntil?.toISOString() ?? null,
+        }}
+      />
 
       <div className="mb-6 rounded-lg border border-border p-4">
         <h2 className="text-base font-semibold text-zinc-900">プロフィール</h2>
