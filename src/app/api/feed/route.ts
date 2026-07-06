@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { publicHandleFromEmail } from '@/lib/publicUser';
+import { AccountStatus } from '@prisma/client';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -61,10 +62,12 @@ export async function GET(request: Request) {
             ? followingIds.length > 0
                 ? await prisma.post.findMany({
                       where: {
+                          isHidden: false,
                           authorId: {
                               in: followingIds,
                               ...(excludedAuthorIds.length > 0 ? { notIn: excludedAuthorIds } : {}),
                           },
+                          author: { status: { not: AccountStatus.SUSPENDED } },
                       },
                   include: {
                           author: {
@@ -80,6 +83,8 @@ export async function GET(request: Request) {
                 : []
             : await prisma.post.findMany({
                   where: {
+                      isHidden: false,
+                      author: { status: { not: AccountStatus.SUSPENDED } },
                       createdAt: { gte: weekAgo },
                       ...(userId
                           ? {

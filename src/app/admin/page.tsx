@@ -27,6 +27,13 @@ export default async function AdminIndexPage() {
           <div className="text-lg font-semibold text-zinc-900">Audit logs</div>
           <div className="text-sm text-zinc-500 mt-1">監査ログの確認</div>
         </Link>
+        <Link
+          href="/moderation"
+          className="border border-border rounded-xl p-4 hover:bg-zinc-50 transition-colors"
+        >
+          <div className="text-lg font-semibold text-zinc-900">Moderation</div>
+          <div className="text-sm text-zinc-500 mt-1">通報、投稿非表示、ユーザー制限</div>
+        </Link>
       </div>
     </div>
   );

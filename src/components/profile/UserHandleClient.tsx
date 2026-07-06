@@ -57,6 +57,7 @@ export default function UserHandleClient() {
     const [localBlocked, setLocalBlocked] = useState(false);
     const [localMuted, setLocalMuted] = useState(false);
     const [localBlockedBy, setLocalBlockedBy] = useState(false);
+    const [reportingUser, setReportingUser] = useState(false);
 
     const fetchProfile = useMemo(
         () => async () => {
@@ -105,6 +106,35 @@ export default function UserHandleClient() {
             body: JSON.stringify({ postId, action }),
         });
         await fetchProfile();
+    };
+
+    const reportUser = async () => {
+        if (!profile?.viewerId || !profile.user.id || reportingUser) return;
+        const detail = window.prompt('通報理由を入力してください。空欄でも送信できます。');
+        if (detail === null) return;
+
+        setReportingUser(true);
+        try {
+            const res = await fetch('/api/report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetUserId: profile.user.id, reason: 'OTHER', detail }),
+            });
+            if (!res.ok) {
+                let message = '通報に失敗しました。';
+                try {
+                    const payload = await res.json();
+                    if (payload?.error) message = payload.error;
+                } catch {
+                    // ignore
+                }
+                alert(message);
+                return;
+            }
+            alert('通報を受け付けました。');
+        } finally {
+            setReportingUser(false);
+        }
     };
 
     if (!handle) {
@@ -228,6 +258,16 @@ export default function UserHandleClient() {
                             >
                                 {localBlocked ? 'ブロック解除' : 'ブロック'}
                             </button>
+                            {viewerId !== user.id && (
+                                <button
+                                    type="button"
+                                    onClick={reportUser}
+                                    className="text-xs text-zinc-500 hover:text-red-500"
+                                    disabled={reportingUser}
+                                >
+                                    {reportingUser ? '送信中' : '通報'}
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>

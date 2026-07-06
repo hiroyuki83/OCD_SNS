@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { publicHandleFromEmail } from '@/lib/publicUser';
-import type { Prisma } from '@prisma/client';
+import { AccountStatus, type Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -55,8 +55,10 @@ export async function GET(request: Request) {
 
     const posts = await prisma.post.findMany({
         where: {
+            isHidden: false,
             content: { contains: query, mode: insensitive },
             ...(excludedAuthorIds.length > 0 ? { authorId: { notIn: excludedAuthorIds } } : {}),
+            author: { status: { not: AccountStatus.SUSPENDED } },
         },
         orderBy: { createdAt: 'desc' },
         include: {

@@ -12,6 +12,8 @@ export default async function AdminUsersPage() {
       name: true,
       email: true,
       role: true,
+      status: true,
+      suspendedUntil: true,
       createdAt: true,
     },
     orderBy: { createdAt: "desc" },
@@ -22,6 +24,8 @@ export default async function AdminUsersPage() {
     name: user.name,
     email: user.email,
     role: user.role,
+    status: user.status,
+    suspendedUntil: user.suspendedUntil?.toISOString() ?? null,
     createdAt: user.createdAt.toISOString(),
   }));
 
@@ -30,7 +34,7 @@ export default async function AdminUsersPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold">ユーザー管理</h1>
-          <p className="text-sm text-zinc-500 mt-1">権限の変更は監査ログに記録されます。</p>
+          <p className="text-sm text-zinc-500 mt-1">権限とアカウント状態の変更は監査ログに記録されます。</p>
         </div>
       </div>
       <UsersTable users={viewUsers} />

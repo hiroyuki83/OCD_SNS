@@ -6,9 +6,15 @@ const formatDate = (date: Date) =>
   date.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
 
 const getRoleChangeLabel = (action: string, meta: unknown) => {
-  if (action !== "ROLE_CHANGE") return "-";
   if (!meta || typeof meta !== "object") return "-";
   const record = meta as Record<string, unknown>;
+  if (action === "USER_STATUS_CHANGE") {
+    const fromStatus = typeof record.fromStatus === "string" ? record.fromStatus : null;
+    const toStatus = typeof record.toStatus === "string" ? record.toStatus : null;
+    if (!fromStatus || !toStatus) return "-";
+    return `${fromStatus} → ${toStatus}`;
+  }
+  if (action !== "ROLE_CHANGE") return "-";
   const fromRole = typeof record.fromRole === "string" ? record.fromRole : null;
   const toRole = typeof record.toRole === "string" ? record.toRole : null;
   if (!fromRole || !toRole) return "-";
@@ -46,6 +52,11 @@ export default async function AdminAuditPage({
   const filters = [
     { label: "All", href: "/admin/audit" },
     { label: "ROLE_CHANGE", href: "/admin/audit?action=ROLE_CHANGE" },
+    { label: "USER_STATUS_CHANGE", href: "/admin/audit?action=USER_STATUS_CHANGE" },
+    { label: "POST_HIDE", href: "/admin/audit?action=POST_HIDE" },
+    { label: "POST_RESTORE", href: "/admin/audit?action=POST_RESTORE" },
+    { label: "REPORT_RESOLVE", href: "/admin/audit?action=REPORT_RESOLVE" },
+    { label: "REPORT_REJECT", href: "/admin/audit?action=REPORT_REJECT" },
   ];
 
   return (
@@ -85,7 +96,7 @@ export default async function AdminAuditPage({
         <div className="grid grid-cols-12 bg-zinc-50 px-4 py-2 text-xs font-semibold text-zinc-500">
           <div className="col-span-2">日時</div>
           <div className="col-span-2">Action</div>
-          <div className="col-span-2">Role</div>
+          <div className="col-span-2">Change</div>
           <div className="col-span-2">Actor</div>
           <div className="col-span-2">Target</div>
           <div className="col-span-2">Meta</div>

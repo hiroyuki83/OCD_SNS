@@ -7,6 +7,7 @@ import { AuthError } from 'next-auth';
 import { revalidatePath } from 'next/cache';
 import { put } from '@vercel/blob';
 import { auth } from '@/auth';
+import { AccountStatus } from '@prisma/client';
 
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
@@ -158,6 +159,22 @@ export async function createPost(
     }
     if (!userId) {
         return { message: 'ログインしてください。' };
+    }
+    const moderationState = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { status: true, suspendedUntil: true, restrictionReason: true },
+    });
+    if (moderationState?.status === AccountStatus.SUSPENDED) {
+        if (!moderationState.suspendedUntil || moderationState.suspendedUntil > new Date()) {
+            return { message: moderationState.restrictionReason ?? 'アカウントが停止中のため投稿できません。' };
+        }
+        await prisma.user.update({
+            where: { id: userId },
+            data: { status: AccountStatus.ACTIVE, suspendedUntil: null, restrictionReason: null },
+        });
+    }
+    if (moderationState?.status === AccountStatus.POST_RESTRICTED) {
+        return { message: moderationState.restrictionReason ?? '投稿が制限されています。' };
     }
     if (!rateLimit(`create-post:${userId}`, 20, 60 * 1000)) {
         return { message: '投稿が多すぎます。少し待ってから再度お試しください。' };

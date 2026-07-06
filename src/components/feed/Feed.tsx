@@ -58,6 +58,7 @@ export default function Feed({
     });
     const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
     const [hasLoaded, setHasLoaded] = useState(false);
+    const [reportingPostId, setReportingPostId] = useState<string | null>(null);
 
     useEffect(() => {
         const nextTab = searchParams.get('tab') === 'following' ? 'following' : 'for-you';
@@ -178,6 +179,39 @@ export default function Feed({
     ) => {
         event.stopPropagation();
         runPostAction(postId, action);
+    };
+
+    const reportPost = async (
+        event: React.MouseEvent<HTMLButtonElement>,
+        postId: string,
+    ) => {
+        event.stopPropagation();
+        if (!data.viewerId || reportingPostId) return;
+        const detail = window.prompt('通報理由を入力してください。空欄でも送信できます。');
+        if (detail === null) return;
+
+        setReportingPostId(postId);
+        try {
+            const res = await fetch('/api/report', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ postId, reason: 'OTHER', detail }),
+            });
+            if (!res.ok) {
+                let message = '通報に失敗しました。';
+                try {
+                    const payload = await res.json();
+                    if (payload?.error) message = payload.error;
+                } catch {
+                    // ignore
+                }
+                alert(message);
+                return;
+            }
+            alert('通報を受け付けました。');
+        } finally {
+            setReportingPostId(null);
+        }
     };
 
     return (
@@ -349,6 +383,16 @@ export default function Feed({
                                                 削除
                                             </button>
                                         </form>
+                                    )}
+                                    {data.viewerId && post.author.id !== data.viewerId && (
+                                        <button
+                                            type="button"
+                                            onClick={(event) => reportPost(event, post.id)}
+                                            className="text-xs text-zinc-500 hover:text-red-500"
+                                            disabled={reportingPostId === post.id}
+                                        >
+                                            {reportingPostId === post.id ? '送信中' : '通報'}
+                                        </button>
                                     )}
                                 </div>
                             </div>

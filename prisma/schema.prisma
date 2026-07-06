@@ -10,23 +10,26 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String?
-  bio       String?
-  avatarUrl String?
-  headerUrl String?
-  autoHashtag String?
-  isPrivate Boolean  @default(false)
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  posts     Post[]
-  likes     Like[]
-  bookmarks Bookmark[]
-  following Follow[] @relation("UserFollowing")
-  followers Follow[] @relation("UserFollowers")
+  id                    String         @id @default(cuid())
+  email                 String         @unique
+  password              String
+  name                  String?
+  bio                   String?
+  avatarUrl             String?
+  headerUrl             String?
+  autoHashtag           String?
+  isPrivate             Boolean        @default(false)
+  role                  Role           @default(USER)
+  status                AccountStatus  @default(ACTIVE)
+  restrictionReason     String?
+  suspendedUntil        DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  posts                 Post[]
+  likes                 Like[]
+  bookmarks             Bookmark[]
+  following             Follow[]       @relation("UserFollowing")
+  followers             Follow[]       @relation("UserFollowers")
   notificationsReceived Notification[] @relation("NotificationRecipient")
   notificationsSent     Notification[] @relation("NotificationActor")
   ybocsResults          YbocsResult[]
@@ -35,31 +38,41 @@ model User {
   lsasResults           LsasResult[]
   replies               Reply[]
   reactions             Reaction[]
-  blocksInitiated       Block[] @relation("UserBlocks")
-  blockedBy             Block[] @relation("UserBlockedBy")
-  mutesInitiated        Mute[] @relation("UserMutes")
-  mutedBy               Mute[] @relation("UserMutedBy")
-  actorLogs             AuditLog[] @relation("ActorLogs")
-  targetLogs            AuditLog[] @relation("TargetLogs")
+  blocksInitiated       Block[]        @relation("UserBlocks")
+  blockedBy             Block[]        @relation("UserBlockedBy")
+  mutesInitiated        Mute[]         @relation("UserMutes")
+  mutedBy               Mute[]         @relation("UserMutedBy")
+  actorLogs             AuditLog[]     @relation("ActorLogs")
+  targetLogs            AuditLog[]     @relation("TargetLogs")
+  reportsMade           Report[]       @relation("ReportsMade")
+  reportsTargetingUser  Report[]       @relation("ReportsTargetUser")
+  reportsReviewed       Report[]       @relation("ReportsReviewed")
+  hiddenPosts           Post[]         @relation("PostHiddenBy")
 }
 
 model Post {
-  id        String   @id @default(cuid())
-  content   String
-  imageUrl  String?
-  createdAt DateTime @default(now())
-  wakaruCount   Int @default(0)
-  ganbattaCount Int @default(0)
-  authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  quotePostId String?
-  quotePost   Post?    @relation("QuotePost", fields: [quotePostId], references: [id])
-  quotedBy    Post[]   @relation("QuotePost")
-  likes     Like[]
-  bookmarks Bookmark[]
+  id            String         @id @default(cuid())
+  content       String
+  imageUrl      String?
+  createdAt     DateTime       @default(now())
+  wakaruCount   Int            @default(0)
+  ganbattaCount Int            @default(0)
+  authorId      String
+  author        User           @relation(fields: [authorId], references: [id])
+  quotePostId   String?
+  quotePost     Post?          @relation("QuotePost", fields: [quotePostId], references: [id])
+  quotedBy      Post[]         @relation("QuotePost")
+  isHidden      Boolean        @default(false)
+  hiddenAt      DateTime?
+  hiddenReason  String?
+  hiddenById    String?
+  hiddenBy      User?          @relation("PostHiddenBy", fields: [hiddenById], references: [id])
+  likes         Like[]
+  bookmarks     Bookmark[]
   notifications Notification[]
-  replies   Reply[]
-  reactions Reaction[]
+  replies       Reply[]
+  reactions     Reaction[]
+  reports       Report[]       @relation("PostReports")
 }
 
 model Like {
@@ -113,6 +126,27 @@ enum Role {
   ADMIN
 }
 
+enum AccountStatus {
+  ACTIVE
+  POST_RESTRICTED
+  SUSPENDED
+}
+
+enum ReportReason {
+  HARASSMENT
+  SPAM
+  IMPERSONATION
+  SELF_HARM
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWING
+  RESOLVED
+  REJECTED
+}
+
 model Notification {
   id        String           @id @default(cuid())
   type      NotificationType
@@ -120,11 +154,11 @@ model Notification {
   actorId   String
   postId    String?
   readAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime         @default(now())
 
-  user   User @relation("NotificationRecipient", fields: [userId], references: [id])
-  actor  User @relation("NotificationActor", fields: [actorId], references: [id])
-  post   Post? @relation(fields: [postId], references: [id])
+  user  User  @relation("NotificationRecipient", fields: [userId], references: [id])
+  actor User  @relation("NotificationActor", fields: [actorId], references: [id])
+  post  Post? @relation(fields: [postId], references: [id])
 }
 
 model YbocsResult {
@@ -187,102 +221,102 @@ model IesrResult {
 }
 
 model ItqResult {
-  id                String   @id @default(cuid())
-  userId            String
-  createdAt         DateTime @default(now())
-  eventDescription  String?
-  eventTiming       String
-  ptsdScore         Int
-  dsoScore          Int
-  reScore           Int
-  avScore           Int
-  thScore           Int
-  adScore           Int
-  nscScore          Int
-  drScore           Int
-  ptsdFunctional    Boolean
-  dsoFunctional     Boolean
-  ptsdMet           Boolean
-  dsoMet            Boolean
-  resultLabel       String
-  p1                Int
-  p2                Int
-  p3                Int
-  p4                Int
-  p5                Int
-  p6                Int
-  p7                Int
-  p8                Int
-  p9                Int
-  c1                Int
-  c2                Int
-  c3                Int
-  c4                Int
-  c5                Int
-  c6                Int
-  c7                Int
-  c8                Int
-  c9                Int
+  id               String   @id @default(cuid())
+  userId           String
+  createdAt        DateTime @default(now())
+  eventDescription String?
+  eventTiming      String
+  ptsdScore        Int
+  dsoScore         Int
+  reScore          Int
+  avScore          Int
+  thScore          Int
+  adScore          Int
+  nscScore         Int
+  drScore          Int
+  ptsdFunctional   Boolean
+  dsoFunctional    Boolean
+  ptsdMet          Boolean
+  dsoMet           Boolean
+  resultLabel      String
+  p1               Int
+  p2               Int
+  p3               Int
+  p4               Int
+  p5               Int
+  p6               Int
+  p7               Int
+  p8               Int
+  p9               Int
+  c1               Int
+  c2               Int
+  c3               Int
+  c4               Int
+  c5               Int
+  c6               Int
+  c7               Int
+  c8               Int
+  c9               Int
 
   user User @relation(fields: [userId], references: [id])
 }
 
 model LsasResult {
-  id         String   @id @default(cuid())
-  userId     String
-  createdAt  DateTime @default(now())
-  totalScore Int
-  fearScore  Int
-  avoidScore Int
+  id          String   @id @default(cuid())
+  userId      String
+  createdAt   DateTime @default(now())
+  totalScore  Int
+  fearScore   Int
+  avoidScore  Int
   resultLabel String
-  f1         Int
-  a1         Int
-  f2         Int
-  a2         Int
-  f3         Int
-  a3         Int
-  f4         Int
-  a4         Int
-  f5         Int
-  a5         Int
-  f6         Int
-  a6         Int
-  f7         Int
-  a7         Int
-  f8         Int
-  a8         Int
-  f9         Int
-  a9         Int
-  f10        Int
-  a10        Int
-  f11        Int
-  a11        Int
-  f12        Int
-  a12        Int
-  f13        Int
-  a13        Int
-  f14        Int
-  a14        Int
-  f15        Int
-  a15        Int
-  f16        Int
-  a16        Int
-  f17        Int
-  a17        Int
-  f18        Int
-  a18        Int
-  f19        Int
-  a19        Int
-  f20        Int
-  a20        Int
-  f21        Int
-  a21        Int
-  f22        Int
-  a22        Int
-  f23        Int
-  a23        Int
-  f24        Int
-  a24        Int
+  f1          Int
+  a1          Int
+  f2          Int
+  a2          Int
+  f3          Int
+  a3          Int
+  f4          Int
+  a4          Int
+  f5          Int
+  a5          Int
+  f6          Int
+  a6          Int
+  f7          Int
+  a7          Int
+  f8          Int
+  a8          Int
+  f9          Int
+  a9          Int
+  f10         Int
+  a10         Int
+  f11         Int
+  a11         Int
+  f12         Int
+  a12         Int
+  f13         Int
+  a13         Int
+  f14         Int
+  a14         Int
+  f15         Int
+  a15         Int
+  f16         Int
+  a16         Int
+  f17         Int
+  a17         Int
+  f18         Int
+  a18         Int
+  f19         Int
+  a19         Int
+  f20         Int
+  a20         Int
+  f21         Int
+  a21         Int
+  f22         Int
+  a22         Int
+  f23         Int
+  a23         Int
+  f24         Int
+  a24         Int
 
   user User @relation(fields: [userId], references: [id])
 }
@@ -348,4 +382,29 @@ model AuditLog {
 
   @@index([actorUserId, createdAt])
   @@index([targetUserId, createdAt])
+}
+
+model Report {
+  id             String       @id @default(cuid())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  reason         ReportReason
+  detail         String?
+  status         ReportStatus @default(OPEN)
+  reporterId     String
+  targetUserId   String
+  postId         String?
+  reviewedById   String?
+  reviewedAt     DateTime?
+  resolutionNote String?
+
+  reporter   User  @relation("ReportsMade", fields: [reporterId], references: [id])
+  targetUser User  @relation("ReportsTargetUser", fields: [targetUserId], references: [id])
+  post       Post? @relation("PostReports", fields: [postId], references: [id])
+  reviewedBy User? @relation("ReportsReviewed", fields: [reviewedById], references: [id])
+
+  @@index([status, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([reporterId, createdAt])
+  @@index([postId, createdAt])
 }

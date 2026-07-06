@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
 import { toggleBookmark } from '@/app/lib/actions';
 import HashtagText from '@/components/shared/HashtagText';
+import { AccountStatus } from '@prisma/client';
 
 export default async function BookmarksPage() {
     const session = await auth();
@@ -25,7 +26,13 @@ export default async function BookmarksPage() {
     }
 
     const bookmarks = await prisma.bookmark.findMany({
-        where: { userId },
+        where: {
+            userId,
+            post: {
+                isHidden: false,
+                author: { status: { not: AccountStatus.SUSPENDED } },
+            },
+        },
         orderBy: { createdAt: 'desc' },
         include: {
             post: {

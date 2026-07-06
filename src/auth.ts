@@ -6,7 +6,7 @@ import bcrypt from 'bcryptjs';
 
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
-import { Role } from '@prisma/client';
+import { AccountStatus, Role } from '@prisma/client';
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? 'behavior.cognition@gmail.com').toLowerCase();
 const MODERATOR_EMAILS = (process.env.MODERATOR_EMAILS ?? process.env.MODERATOR_EMAIL ?? '')
@@ -82,6 +82,20 @@ const nextAuthResult = NextAuth({
                     }
                     const user = await getUser(email);
                     if (!user) return null;
+
+                    if (user.status === AccountStatus.SUSPENDED) {
+                        if (!user.suspendedUntil || user.suspendedUntil > new Date()) {
+                            return null;
+                        }
+                        await prisma.user.update({
+                            where: { id: user.id },
+                            data: {
+                                status: AccountStatus.ACTIVE,
+                                suspendedUntil: null,
+                                restrictionReason: null,
+                            },
+                        });
+                    }
 
                     const passwordsMatch = await bcrypt.compare(password, user.password);
                     if (passwordsMatch) {

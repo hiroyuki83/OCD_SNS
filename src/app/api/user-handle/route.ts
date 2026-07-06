@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { publicHandleFromEmail } from '@/lib/publicUser';
+import { AccountStatus } from '@prisma/client';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
 
     const user = await prisma.user.findFirst({
         where: { email: { startsWith: `${handle}@` } },
-        select: { id: true, name: true, email: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true },
+        select: { id: true, name: true, email: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true, status: true },
     });
     if (!user) {
         return NextResponse.json({ user: null }, { status: 404 });
@@ -58,10 +59,10 @@ export async function GET(request: Request) {
           ])
         : [false, false, false, false];
 
-    const posts = isBlocked || isMuted || isBlockedBy
+    const posts = isBlocked || isMuted || isBlockedBy || user.status === AccountStatus.SUSPENDED
         ? []
         : await prisma.post.findMany({
-              where: { authorId: user.id },
+              where: { authorId: user.id, isHidden: false },
               orderBy: { createdAt: 'desc' },
               select: {
                   id: true,

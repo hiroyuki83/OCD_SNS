@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
+import { AccountStatus } from '@prisma/client';
 
 type ActionType = 'like' | 'wakaru' | 'ganbatta' | 'bookmark';
 
@@ -15,18 +16,47 @@ export async function POST(request: Request) {
 
     const session = await auth();
     let userId = session?.user?.id ?? null;
+    let userStatus: AccountStatus | null = null;
+    let suspendedUntil: Date | null = null;
+    if (userId) {
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { status: true, suspendedUntil: true },
+        });
+        userStatus = user?.status ?? null;
+        suspendedUntil = user?.suspendedUntil ?? null;
+    }
     if (!userId && session?.user?.email) {
         const user = await prisma.user.findUnique({
             where: { email: session.user.email },
-            select: { id: true },
+            select: { id: true, status: true, suspendedUntil: true },
         });
         userId = user?.id ?? null;
+        userStatus = user?.status ?? null;
+        suspendedUntil = user?.suspendedUntil ?? null;
     }
     if (!userId) {
         return NextResponse.json({ ok: false }, { status: 401 });
     }
+    if (userStatus === AccountStatus.SUSPENDED) {
+        if (!suspendedUntil || suspendedUntil > new Date()) {
+            return NextResponse.json({ ok: false }, { status: 403 });
+        }
+        await prisma.user.update({
+            where: { id: userId },
+            data: { status: AccountStatus.ACTIVE, suspendedUntil: null, restrictionReason: null },
+        });
+    }
     if (!rateLimit(`post-action:${userId}`, 120, 60 * 1000)) {
         return NextResponse.json({ ok: false }, { status: 429 });
+    }
+
+    const visiblePost = await prisma.post.findUnique({
+        where: { id: postId },
+        select: { id: true, isHidden: true, author: { select: { status: true } } },
+    });
+    if (!visiblePost || visiblePost.isHidden || visiblePost.author.status === AccountStatus.SUSPENDED) {
+        return NextResponse.json({ ok: false }, { status: 404 });
     }
 
     if (action === 'like') {
