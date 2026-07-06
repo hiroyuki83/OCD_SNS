@@ -1,4 +1,5 @@
 import { AccountStatus, Prisma, Role } from "@prisma/client";
+import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 import UsersTable from "./UsersTable";
@@ -80,6 +81,12 @@ export default async function AdminUsersPage({
           <h1 className="text-2xl font-semibold">ユーザー管理</h1>
           <p className="text-sm text-zinc-500 mt-1">権限とアカウント状態の変更は監査ログに記録されます。</p>
         </div>
+        <Link
+          href="/admin/users/new"
+          className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white"
+        >
+          ユーザーを作成
+        </Link>
       </div>
 
       <form className="mb-4 rounded-lg border border-border p-4" action="/admin/users">
