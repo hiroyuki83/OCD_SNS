@@ -2,7 +2,9 @@
 
 import { useActionState, useRef, useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import Link from 'next/link';
 import { createPost, type CreatePostState } from '@/app/lib/actions';
+import { getPostSafetyNotice } from '@/lib/contentSafety';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -32,6 +34,7 @@ export default function CreatePostForm({
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [content, setContent] = useState('');
     const overLimit = content.length > 1000;
+    const safetyNotice = getPostSafetyNotice(content);
     const [clipboardMessage, setClipboardMessage] = useState<string | null>(null);
 
     useEffect(() => {
@@ -136,6 +139,14 @@ export default function CreatePostForm({
                 )}
                 {overLimit && (
                     <p className="text-sm text-red-500">1000文字を超えています</p>
+                )}
+                {safetyNotice && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                        {safetyNotice}{' '}
+                        <Link href="/safety" className="font-semibold underline">
+                            相談先を見る
+                        </Link>
+                    </div>
                 )}
                 {state?.message && (
                     <p className="text-sm text-zinc-400">{state.message}</p>

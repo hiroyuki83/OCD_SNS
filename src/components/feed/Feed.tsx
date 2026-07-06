@@ -8,6 +8,7 @@ import { deletePost } from '@/app/lib/actions';
 import CreatePostForm from '@/components/feed/CreatePostForm';
 import HashtagText from '@/components/shared/HashtagText';
 import { formatPostTime } from '@/lib/formatTime';
+import { REPORT_REASONS, type ReportReasonValue } from '@/lib/reportReasons';
 
 type FeedPost = {
     id: string;
@@ -187,6 +188,11 @@ export default function Feed({
     ) => {
         event.stopPropagation();
         if (!data.viewerId || reportingPostId) return;
+        const reasonGuide = REPORT_REASONS.map((reason, index) => `${index + 1}. ${reason.label}`).join('\n');
+        const selected = window.prompt(`通報理由を番号で選んでください。\n${reasonGuide}`);
+        if (selected === null) return;
+        const selectedIndex = Number.parseInt(selected, 10) - 1;
+        const reason: ReportReasonValue = REPORT_REASONS[selectedIndex]?.value ?? 'OTHER';
         const detail = window.prompt('通報理由を入力してください。空欄でも送信できます。');
         if (detail === null) return;
 
@@ -195,7 +201,7 @@ export default function Feed({
             const res = await fetch('/api/report', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ postId, reason: 'OTHER', detail }),
+                body: JSON.stringify({ postId, reason, detail }),
             });
             if (!res.ok) {
                 let message = '通報に失敗しました。';

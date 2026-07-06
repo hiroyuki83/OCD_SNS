@@ -1,6 +1,6 @@
 ﻿import Image from "next/image";
 import Link from "next/link";
-import { Bell, Bookmark, ClipboardCheck, Gavel, Home, LogOut, Pencil, Search, Settings, Shield, User } from "lucide-react";
+import { Bell, Bookmark, ClipboardCheck, Gavel, HeartHandshake, Home, LogOut, Pencil, Search, Settings, Shield, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { auth, signOut } from "@/auth";
 import MobileMenu from "@/components/layout/MobileMenu";
@@ -11,6 +11,7 @@ import { Role } from "@prisma/client";
 const LABEL_HOME = "ホーム";
 const LABEL_TEST = "心理検査";
 const LABEL_NOTIFICATIONS = "通知";
+const LABEL_SAFETY = "安全";
 const LABEL_SEARCH = "検索";
 const LABEL_BOOKMARKS = "ブックマーク";
 const LABEL_PROFILE = "自分の投稿";
@@ -50,6 +51,7 @@ export default async function Sidebar() {
     { label: LABEL_HOME, icon: Home, iconKey: "home", href: "/" },
     { label: LABEL_TEST, icon: ClipboardCheck, iconKey: "test", href: "/test" },
     { label: LABEL_NOTIFICATIONS, icon: Bell, iconKey: "notifications", href: "/notifications" },
+    { label: LABEL_SAFETY, icon: HeartHandshake, iconKey: "safety", href: "/safety" },
     { label: LABEL_SEARCH, icon: Search, iconKey: "search", href: "/explore" },
     { label: LABEL_BOOKMARKS, icon: Bookmark, iconKey: "bookmarks", href: "/bookmarks" },
     { label: LABEL_PROFILE, icon: User, iconKey: "profile", href: "/profile" },

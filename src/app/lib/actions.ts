@@ -11,6 +11,7 @@ import { AccountStatus } from '@prisma/client';
 
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
+import { validatePublicPostContent } from '@/lib/contentSafety';
 
 const RegisterSchema = z.object({
     name: z.string().min(1, '名前は必須です'),
@@ -203,6 +204,10 @@ export async function createPost(
     const contentResult = CreatePostSchema.safeParse({ content: finalContent });
     if (!contentResult.success) {
         return { message: contentResult.error.issues[0]?.message ?? '本文が不正です。' };
+    }
+    const safetyError = validatePublicPostContent(finalContent);
+    if (safetyError) {
+        return { message: safetyError };
     }
 
     const hasImage = image instanceof File && image.size > 0;
