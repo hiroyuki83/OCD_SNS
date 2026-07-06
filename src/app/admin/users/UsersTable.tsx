@@ -122,7 +122,11 @@ export default function UsersTable({ users }: { users: UserRow[] }) {
         <div className="col-span-2">状態</div>
       </div>
       <div className="divide-y divide-border">
-        {users.map((user) => {
+        {users.length === 0 ? (
+          <div className="px-4 py-6 text-sm text-zinc-500">
+            条件に一致するユーザーはありません。
+          </div>
+        ) : users.map((user) => {
           const selectedRole = selectedRoles[user.id] ?? user.role;
           const savedRole = savedRoles[user.id] ?? user.role;
           const selectedStatus = selectedStatuses[user.id] ?? user.status;
