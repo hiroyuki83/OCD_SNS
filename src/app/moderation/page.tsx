@@ -1,4 +1,5 @@
-import { AccountStatus, ReportReason, ReportStatus, Role } from '@prisma/client';
+import Link from 'next/link';
+import { AccountStatus, Prisma, ReportReason, ReportStatus, Role } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
 import {
@@ -35,6 +36,21 @@ const reportStatuses = [
   ReportStatus.REJECTED,
 ] as const;
 
+const reportReasons = [
+  ReportReason.HARASSMENT,
+  ReportReason.SPAM,
+  ReportReason.IMPERSONATION,
+  ReportReason.SELF_HARM,
+  ReportReason.OTHER,
+] as const;
+
+function moderationHref(status: ReportStatus, reason: ReportReason | null, query: string) {
+  const params = new URLSearchParams({ status });
+  if (reason) params.set('reason', reason);
+  if (query) params.set('q', query);
+  return `/moderation?${params.toString()}`;
+}
+
 function NoteInput({ placeholder = '対応メモ' }: { placeholder?: string }) {
   return (
     <input
@@ -49,16 +65,54 @@ function NoteInput({ placeholder = '対応メモ' }: { placeholder?: string }) {
 export default async function ModerationPage({
   searchParams,
 }: {
-  searchParams?: { status?: string };
+  searchParams?: { status?: string; reason?: string; q?: string };
 }) {
   await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
 
   const statusParam = searchParams?.status?.trim();
   const statusFilter = reportStatuses.find((status) => status === statusParam) ?? ReportStatus.OPEN;
+  const reasonParam = searchParams?.reason?.trim();
+  const reasonFilter = reportReasons.find((reason) => reason === reasonParam) ?? null;
+  const query = searchParams?.q?.trim() ?? '';
+  const baseFilters: Prisma.ReportWhereInput[] = [];
 
-  const [reports, counts] = await Promise.all([
+  if (reasonFilter) {
+    baseFilters.push({ reason: reasonFilter });
+  }
+  if (query) {
+    baseFilters.push({
+      OR: [
+        { id: { contains: query } },
+        { detail: { contains: query, mode: 'insensitive' } },
+        { reporterId: { contains: query } },
+        { targetUserId: { contains: query } },
+        { reporter: {
+          OR: [
+            { id: { contains: query } },
+            { email: { contains: query, mode: 'insensitive' } },
+            { name: { contains: query, mode: 'insensitive' } },
+          ],
+        } },
+        { targetUser: {
+          OR: [
+            { id: { contains: query } },
+            { email: { contains: query, mode: 'insensitive' } },
+            { name: { contains: query, mode: 'insensitive' } },
+          ],
+        } },
+        { post: { content: { contains: query, mode: 'insensitive' } } },
+      ],
+    });
+  }
+
+  const countWhere: Prisma.ReportWhereInput | undefined = baseFilters.length ? { AND: baseFilters } : undefined;
+  const where: Prisma.ReportWhereInput = {
+    AND: [{ status: statusFilter }, ...baseFilters],
+  };
+
+  const [reports, counts, filteredCount] = await Promise.all([
     prisma.report.findMany({
-      where: { status: statusFilter },
+      where,
       orderBy: { createdAt: 'desc' },
       take: 100,
       include: {
@@ -79,8 +133,10 @@ export default async function ModerationPage({
     }),
     prisma.report.groupBy({
       by: ['status'],
+      where: countWhere,
       _count: { _all: true },
     }),
+    prisma.report.count({ where }),
   ]);
 
   const countMap = new Map(counts.map((item) => [item.status, item._count._all]));
@@ -100,7 +156,7 @@ export default async function ModerationPage({
           return (
             <a
               key={status}
-              href={`/moderation?status=${status}`}
+              href={moderationHref(status, reasonFilter, query)}
               className={
                 'rounded-full border px-3 py-1 text-xs font-semibold transition-colors ' +
                 (active
@@ -113,6 +169,63 @@ export default async function ModerationPage({
           );
         })}
       </div>
+
+      <form className="mb-5 rounded-lg border border-border p-4" action="/moderation">
+        <div className="grid gap-3 xl:grid-cols-12">
+          <label className="block text-sm font-medium text-zinc-700 xl:col-span-5">
+            検索
+            <input
+              name="q"
+              defaultValue={query}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+              placeholder="通報者、対象者、投稿本文、通報詳細"
+            />
+          </label>
+          <label className="block text-sm font-medium text-zinc-700 xl:col-span-2">
+            状態
+            <select
+              name="status"
+              defaultValue={statusFilter}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+            >
+              {reportStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {statusLabels[status]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm font-medium text-zinc-700 xl:col-span-3">
+            理由
+            <select
+              name="reason"
+              defaultValue={reasonFilter ?? ''}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+            >
+              <option value="">すべて</option>
+              {reportReasons.map((reason) => (
+                <option key={reason} value={reason}>
+                  {reasonLabels[reason]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex items-end gap-2 xl:col-span-2">
+            <button className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white">
+              絞り込み
+            </button>
+            <a
+              href="/moderation"
+              className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-700 hover:text-zinc-900"
+            >
+              解除
+            </a>
+          </div>
+        </div>
+        <div className="mt-3 text-xs text-zinc-500">
+          {filteredCount} 件を表示しています。最大100件まで表示します。
+        </div>
+      </form>
 
       <div className="flex flex-col gap-3">
         {reports.length === 0 ? (
@@ -138,7 +251,14 @@ export default async function ModerationPage({
                       {reasonLabels[report.reason]} / {statusLabels[report.status]}
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
-                      {formatDate(report.createdAt)} ・ reporter: {reporterLabel} ・ target: {targetLabel}
+                      {formatDate(report.createdAt)} ・ reporter:{' '}
+                      <Link href={`/admin/users/${report.reporter.id}`} className="hover:underline">
+                        {reporterLabel}
+                      </Link>{' '}
+                      ・ target:{' '}
+                      <Link href={`/admin/users/${report.targetUser.id}`} className="hover:underline">
+                        {targetLabel}
+                      </Link>
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
                       target status: {report.targetUser.status}
