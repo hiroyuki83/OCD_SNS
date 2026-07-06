@@ -32,8 +32,11 @@ const formatMeta = (meta: unknown) => {
 
 const actionOptions = [
   "USER_CREATE",
+  "PASSWORD_RESET",
+  "ADMIN_NOTE_CREATE",
   "ROLE_CHANGE",
   "USER_STATUS_CHANGE",
+  "REPORT_ROUTING",
   "POST_HIDE",
   "POST_RESTORE",
   "REPORT_REVIEWING",

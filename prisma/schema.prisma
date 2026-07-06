@@ -10,45 +10,48 @@ datasource db {
 }
 
 model User {
-  id                    String         @id @default(cuid())
-  email                 String         @unique
-  password              String
-  name                  String?
-  bio                   String?
-  avatarUrl             String?
-  headerUrl             String?
-  autoHashtag           String?
-  isPrivate             Boolean        @default(false)
-  role                  Role           @default(USER)
-  status                AccountStatus  @default(ACTIVE)
-  restrictionReason     String?
-  suspendedUntil        DateTime?
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
-  posts                 Post[]
-  likes                 Like[]
-  bookmarks             Bookmark[]
-  following             Follow[]       @relation("UserFollowing")
-  followers             Follow[]       @relation("UserFollowers")
-  notificationsReceived Notification[] @relation("NotificationRecipient")
-  notificationsSent     Notification[] @relation("NotificationActor")
-  ybocsResults          YbocsResult[]
-  iesrResults           IesrResult[]
-  itqResults            ItqResult[]
-  lsasResults           LsasResult[]
-  replies               Reply[]
-  reactions             Reaction[]
-  blocksInitiated       Block[]        @relation("UserBlocks")
-  blockedBy             Block[]        @relation("UserBlockedBy")
-  mutesInitiated        Mute[]         @relation("UserMutes")
-  mutedBy               Mute[]         @relation("UserMutedBy")
-  actorLogs             AuditLog[]     @relation("ActorLogs")
-  targetLogs            AuditLog[]     @relation("TargetLogs")
-  reportsMade           Report[]       @relation("ReportsMade")
-  reportsTargetingUser  Report[]       @relation("ReportsTargetUser")
-  reportsReviewed       Report[]       @relation("ReportsReviewed")
-  hiddenPosts           Post[]         @relation("PostHiddenBy")
-  announcementsCreated  Announcement[] @relation("AnnouncementsCreated")
+  id                      String         @id @default(cuid())
+  email                   String         @unique
+  password                String
+  name                    String?
+  bio                     String?
+  avatarUrl               String?
+  headerUrl               String?
+  autoHashtag             String?
+  isPrivate               Boolean        @default(false)
+  role                    Role           @default(USER)
+  status                  AccountStatus  @default(ACTIVE)
+  restrictionReason       String?
+  suspendedUntil          DateTime?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  posts                   Post[]
+  likes                   Like[]
+  bookmarks               Bookmark[]
+  following               Follow[]       @relation("UserFollowing")
+  followers               Follow[]       @relation("UserFollowers")
+  notificationsReceived   Notification[] @relation("NotificationRecipient")
+  notificationsSent       Notification[] @relation("NotificationActor")
+  ybocsResults            YbocsResult[]
+  iesrResults             IesrResult[]
+  itqResults              ItqResult[]
+  lsasResults             LsasResult[]
+  replies                 Reply[]
+  reactions               Reaction[]
+  blocksInitiated         Block[]        @relation("UserBlocks")
+  blockedBy               Block[]        @relation("UserBlockedBy")
+  mutesInitiated          Mute[]         @relation("UserMutes")
+  mutedBy                 Mute[]         @relation("UserMutedBy")
+  actorLogs               AuditLog[]     @relation("ActorLogs")
+  targetLogs              AuditLog[]     @relation("TargetLogs")
+  reportsMade             Report[]       @relation("ReportsMade")
+  reportsTargetingUser    Report[]       @relation("ReportsTargetUser")
+  reportsReviewed         Report[]       @relation("ReportsReviewed")
+  reportsAssigned         Report[]       @relation("ReportsAssigned")
+  hiddenPosts             Post[]         @relation("PostHiddenBy")
+  announcementsCreated    Announcement[] @relation("AnnouncementsCreated")
+  adminNotesAuthored      AdminNote[]    @relation("AdminNotesAuthored")
+  adminNotesTargetingUser AdminNote[]    @relation("AdminNotesTargetUser")
 }
 
 model Post {
@@ -146,6 +149,13 @@ enum ReportStatus {
   REVIEWING
   RESOLVED
   REJECTED
+}
+
+enum ReportPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }
 
 model Notification {
@@ -386,28 +396,49 @@ model AuditLog {
 }
 
 model Report {
-  id             String       @id @default(cuid())
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id             String         @id @default(cuid())
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   reason         ReportReason
   detail         String?
-  status         ReportStatus @default(OPEN)
+  status         ReportStatus   @default(OPEN)
+  priority       ReportPriority @default(NORMAL)
   reporterId     String
   targetUserId   String
   postId         String?
   reviewedById   String?
   reviewedAt     DateTime?
+  assignedToId   String?
+  dueAt          DateTime?
   resolutionNote String?
 
   reporter   User  @relation("ReportsMade", fields: [reporterId], references: [id])
   targetUser User  @relation("ReportsTargetUser", fields: [targetUserId], references: [id])
   post       Post? @relation("PostReports", fields: [postId], references: [id])
   reviewedBy User? @relation("ReportsReviewed", fields: [reviewedById], references: [id])
+  assignedTo User? @relation("ReportsAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
 
   @@index([status, createdAt])
+  @@index([priority, status, createdAt])
+  @@index([assignedToId, status, createdAt])
   @@index([targetUserId, createdAt])
   @@index([reporterId, createdAt])
   @@index([postId, createdAt])
+}
+
+model AdminNote {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  body         String
+  targetUserId String
+  authorId     String
+
+  targetUser User @relation("AdminNotesTargetUser", fields: [targetUserId], references: [id], onDelete: Cascade)
+  author     User @relation("AdminNotesAuthored", fields: [authorId], references: [id])
+
+  @@index([targetUserId, createdAt])
+  @@index([authorId, createdAt])
 }
 
 model Announcement {

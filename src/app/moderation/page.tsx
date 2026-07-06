@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AccountStatus, Prisma, ReportReason, ReportStatus, Role } from '@prisma/client';
+import { AccountStatus, Prisma, ReportPriority, ReportReason, ReportStatus, Role } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
 import {
@@ -9,6 +9,7 @@ import {
   resolveReport,
   restorePost,
   setReportedUserStatus,
+  updateReportRouting,
 } from './actions';
 
 const statusLabels: Record<ReportStatus, string> = {
@@ -26,14 +27,41 @@ const reasonLabels: Record<ReportReason, string> = {
   OTHER: 'その他',
 };
 
+const priorityLabels: Record<ReportPriority, string> = {
+  LOW: '低',
+  NORMAL: '通常',
+  HIGH: '高',
+  URGENT: '緊急',
+};
+
+const priorityClassNames: Record<ReportPriority, string> = {
+  LOW: 'bg-zinc-100 text-zinc-600',
+  NORMAL: 'bg-blue-50 text-blue-700',
+  HIGH: 'bg-amber-100 text-amber-700',
+  URGENT: 'bg-red-100 text-red-700',
+};
+
 const formatDate = (date: Date) =>
   date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+
+const formatDateInput = (date: Date | null) => {
+  if (!date) return '';
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
+  return localDate.toISOString().slice(0, 16);
+};
 
 const reportStatuses = [
   ReportStatus.OPEN,
   ReportStatus.REVIEWING,
   ReportStatus.RESOLVED,
   ReportStatus.REJECTED,
+] as const;
+
+const reportPriorities = [
+  ReportPriority.LOW,
+  ReportPriority.NORMAL,
+  ReportPriority.HIGH,
+  ReportPriority.URGENT,
 ] as const;
 
 const reportReasons = [
@@ -44,10 +72,18 @@ const reportReasons = [
   ReportReason.OTHER,
 ] as const;
 
-function moderationHref(status: ReportStatus, reason: ReportReason | null, query: string) {
+function moderationHref(
+  status: ReportStatus,
+  reason: ReportReason | null,
+  query: string,
+  priority: ReportPriority | null,
+  assignee: string,
+) {
   const params = new URLSearchParams({ status });
   if (reason) params.set('reason', reason);
   if (query) params.set('q', query);
+  if (priority) params.set('priority', priority);
+  if (assignee) params.set('assigned', assignee);
   return `/moderation?${params.toString()}`;
 }
 
@@ -65,7 +101,7 @@ function NoteInput({ placeholder = '対応メモ' }: { placeholder?: string }) {
 export default async function ModerationPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; reason?: string; q?: string };
+  searchParams?: { status?: string; reason?: string; q?: string; priority?: string; assigned?: string };
 }) {
   await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
 
@@ -73,11 +109,22 @@ export default async function ModerationPage({
   const statusFilter = reportStatuses.find((status) => status === statusParam) ?? ReportStatus.OPEN;
   const reasonParam = searchParams?.reason?.trim();
   const reasonFilter = reportReasons.find((reason) => reason === reasonParam) ?? null;
+  const priorityParam = searchParams?.priority?.trim();
+  const priorityFilter = reportPriorities.find((priority) => priority === priorityParam) ?? null;
+  const assigneeFilter = searchParams?.assigned?.trim() ?? '';
   const query = searchParams?.q?.trim() ?? '';
   const baseFilters: Prisma.ReportWhereInput[] = [];
 
   if (reasonFilter) {
     baseFilters.push({ reason: reasonFilter });
+  }
+  if (priorityFilter) {
+    baseFilters.push({ priority: priorityFilter });
+  }
+  if (assigneeFilter === 'unassigned') {
+    baseFilters.push({ assignedToId: null });
+  } else if (assigneeFilter) {
+    baseFilters.push({ assignedToId: assigneeFilter });
   }
   if (query) {
     baseFilters.push({
@@ -110,7 +157,7 @@ export default async function ModerationPage({
     AND: [{ status: statusFilter }, ...baseFilters],
   };
 
-  const [reports, counts, filteredCount] = await Promise.all([
+  const [reports, counts, filteredCount, moderatorUsers] = await Promise.all([
     prisma.report.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -119,6 +166,7 @@ export default async function ModerationPage({
         reporter: { select: { id: true, email: true, name: true } },
         targetUser: { select: { id: true, email: true, name: true, role: true, status: true, suspendedUntil: true } },
         reviewedBy: { select: { id: true, email: true, name: true } },
+        assignedTo: { select: { id: true, email: true, name: true } },
         post: {
           select: {
             id: true,
@@ -137,6 +185,12 @@ export default async function ModerationPage({
       _count: { _all: true },
     }),
     prisma.report.count({ where }),
+    prisma.user.findMany({
+      where: { role: { in: [Role.ADMIN, Role.MODERATOR] } },
+      orderBy: [{ role: 'desc' }, { createdAt: 'asc' }],
+      select: { id: true, email: true, name: true, role: true },
+      take: 100,
+    }),
   ]);
 
   const countMap = new Map(counts.map((item) => [item.status, item._count._all]));
@@ -156,7 +210,7 @@ export default async function ModerationPage({
           return (
             <a
               key={status}
-              href={moderationHref(status, reasonFilter, query)}
+              href={moderationHref(status, reasonFilter, query, priorityFilter, assigneeFilter)}
               className={
                 'rounded-full border px-3 py-1 text-xs font-semibold transition-colors ' +
                 (active
@@ -172,7 +226,7 @@ export default async function ModerationPage({
 
       <form className="mb-5 rounded-lg border border-border p-4" action="/moderation">
         <div className="grid gap-3 xl:grid-cols-12">
-          <label className="block text-sm font-medium text-zinc-700 xl:col-span-5">
+          <label className="block text-sm font-medium text-zinc-700 xl:col-span-4">
             検索
             <input
               name="q"
@@ -195,7 +249,7 @@ export default async function ModerationPage({
               ))}
             </select>
           </label>
-          <label className="block text-sm font-medium text-zinc-700 xl:col-span-3">
+          <label className="block text-sm font-medium text-zinc-700 xl:col-span-2">
             理由
             <select
               name="reason"
@@ -210,7 +264,38 @@ export default async function ModerationPage({
               ))}
             </select>
           </label>
-          <div className="flex items-end gap-2 xl:col-span-2">
+          <label className="block text-sm font-medium text-zinc-700 xl:col-span-2">
+            優先度
+            <select
+              name="priority"
+              defaultValue={priorityFilter ?? ''}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+            >
+              <option value="">すべて</option>
+              {reportPriorities.map((priority) => (
+                <option key={priority} value={priority}>
+                  {priorityLabels[priority]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm font-medium text-zinc-700 xl:col-span-2">
+            担当者
+            <select
+              name="assigned"
+              defaultValue={assigneeFilter}
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+            >
+              <option value="">すべて</option>
+              <option value="unassigned">未担当</option>
+              {moderatorUsers.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.email ?? user.name ?? user.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex items-end gap-2 xl:col-span-12">
             <button className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white">
               絞り込み
             </button>
@@ -237,6 +322,9 @@ export default async function ModerationPage({
             const canAct = report.status === ReportStatus.OPEN || report.status === ReportStatus.REVIEWING;
             const reporterLabel = report.reporter.email ?? report.reporter.name ?? report.reporter.id;
             const targetLabel = report.targetUser.email ?? report.targetUser.name ?? report.targetUser.id;
+            const assigneeLabel = report.assignedTo
+              ? report.assignedTo.email ?? report.assignedTo.name ?? report.assignedTo.id
+              : '未担当';
             const excerpt = report.post?.content?.trim()
               ? report.post.content.trim().slice(0, 160)
               : report.post?.imageUrl
@@ -249,6 +337,19 @@ export default async function ModerationPage({
                   <div>
                     <div className="text-sm font-semibold text-zinc-900">
                       {reasonLabels[report.reason]} / {statusLabels[report.status]}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
+                      <span className={`rounded-full px-2 py-0.5 ${priorityClassNames[report.priority]}`}>
+                        優先度: {priorityLabels[report.priority]}
+                      </span>
+                      <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-zinc-600">
+                        担当: {assigneeLabel}
+                      </span>
+                      {report.dueAt && (
+                        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-zinc-600">
+                          期限: {formatDate(report.dueAt)}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
                       {formatDate(report.createdAt)} ・ reporter:{' '}
@@ -295,6 +396,65 @@ export default async function ModerationPage({
                 )}
 
                 <div className="flex flex-col gap-2">
+                  <form
+                    action={updateReportRouting.bind(null, report.id)}
+                    className="grid gap-2 rounded-md bg-zinc-50 p-3 md:grid-cols-12"
+                  >
+                    <label className="block text-xs font-semibold text-zinc-600 md:col-span-2">
+                      優先度
+                      <select
+                        name="priority"
+                        defaultValue={report.priority}
+                        className="mt-1 w-full rounded-md border border-border bg-white px-2 py-1 text-xs"
+                      >
+                        {reportPriorities.map((priority) => (
+                          <option key={priority} value={priority}>
+                            {priorityLabels[priority]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs font-semibold text-zinc-600 md:col-span-3">
+                      担当者
+                      <select
+                        name="assignedToId"
+                        defaultValue={report.assignedToId ?? ''}
+                        className="mt-1 w-full rounded-md border border-border bg-white px-2 py-1 text-xs"
+                      >
+                        <option value="">未担当</option>
+                        {moderatorUsers.map((user) => (
+                          <option key={user.id} value={user.id}>
+                            {user.email ?? user.name ?? user.id}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs font-semibold text-zinc-600 md:col-span-3">
+                      対応期限
+                      <input
+                        name="dueAt"
+                        type="datetime-local"
+                        defaultValue={formatDateInput(report.dueAt)}
+                        className="mt-1 w-full rounded-md border border-border bg-white px-2 py-1 text-xs"
+                      />
+                    </label>
+                    <label className="block text-xs font-semibold text-zinc-600 md:col-span-3">
+                      メモ
+                      <input
+                        name="note"
+                        type="text"
+                        maxLength={500}
+                        placeholder="割り当て理由など"
+                        className="mt-1 w-full rounded-md border border-border bg-white px-2 py-1 text-xs"
+                      />
+                    </label>
+                    <div className="flex items-end md:col-span-1">
+                      <button className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-zinc-700 hover:text-zinc-900">
+                        保存
+                      </button>
+                    </div>
+                  </form>
+
                   {canAct && (
                     <div className="flex flex-wrap gap-2">
                       <form action={markReportReviewing.bind(null, report.id)}>

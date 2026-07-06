@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { AccountStatus, ReportStatus, Role } from '@prisma/client';
+import { AccountStatus, ReportPriority, ReportStatus, Role } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
 
@@ -10,8 +10,95 @@ function noteFromFormData(formData: FormData) {
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, 500) : null;
 }
 
+function priorityFromFormData(formData: FormData) {
+  const value = formData.get('priority');
+  if (value === ReportPriority.LOW) return ReportPriority.LOW;
+  if (value === ReportPriority.NORMAL) return ReportPriority.NORMAL;
+  if (value === ReportPriority.HIGH) return ReportPriority.HIGH;
+  if (value === ReportPriority.URGENT) return ReportPriority.URGENT;
+  return null;
+}
+
+function optionalText(formData: FormData, key: string) {
+  const value = formData.get(key);
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function optionalDate(formData: FormData, key: string) {
+  const value = optionalText(formData, key);
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 async function requireModerator() {
   return requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+}
+
+export async function updateReportRouting(reportId: string, formData: FormData) {
+  const actor = await requireModerator();
+  const priority = priorityFromFormData(formData);
+  if (!priority) return;
+
+  const assignedToId = optionalText(formData, 'assignedToId');
+  const dueAt = optionalDate(formData, 'dueAt');
+  const note = noteFromFormData(formData);
+
+  const report = await prisma.report.findUnique({
+    where: { id: reportId },
+    select: {
+      id: true,
+      targetUserId: true,
+      priority: true,
+      assignedToId: true,
+      dueAt: true,
+    },
+  });
+  if (!report) return;
+
+  if (assignedToId) {
+    const assignee = await prisma.user.findFirst({
+      where: {
+        id: assignedToId,
+        role: { in: [Role.ADMIN, Role.MODERATOR] },
+      },
+      select: { id: true },
+    });
+    if (!assignee) return;
+  }
+
+  await prisma.$transaction([
+    prisma.report.update({
+      where: { id: report.id },
+      data: {
+        priority,
+        assignedToId,
+        dueAt,
+      },
+    }),
+    prisma.auditLog.create({
+      data: {
+        action: 'REPORT_ROUTING',
+        actorUserId: actor.id,
+        targetUserId: report.targetUserId,
+        meta: {
+          reportId: report.id,
+          fromPriority: report.priority,
+          toPriority: priority,
+          fromAssignedToId: report.assignedToId,
+          toAssignedToId: assignedToId,
+          fromDueAt: report.dueAt,
+          toDueAt: dueAt,
+          note,
+        },
+      },
+    }),
+  ]);
+
+  revalidatePath('/moderation');
+  revalidatePath('/admin/audit');
 }
 
 export async function markReportReviewing(reportId: string) {

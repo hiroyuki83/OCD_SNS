@@ -21,6 +21,22 @@ const CreateUserSchema = z
     message: '確認用パスワードが一致しません。',
   });
 
+const ResetPasswordSchema = z
+  .object({
+    userId: z.string().min(1),
+    password: z.string().min(8, 'パスワードは8文字以上です。').max(128, 'パスワードは128文字以内です。'),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    path: ['confirmPassword'],
+    message: '確認用パスワードが一致しません。',
+  });
+
+const AdminNoteSchema = z.object({
+  userId: z.string().min(1),
+  body: z.string().trim().min(1, 'メモ本文を入力してください。').max(1000, 'メモは1000文字以内です。'),
+});
+
 export type CreateUserState =
   | {
       errors?: {
@@ -31,6 +47,27 @@ export type CreateUserState =
         role?: string[];
       };
       message?: string;
+    }
+  | undefined;
+
+export type ResetPasswordState =
+  | {
+      errors?: {
+        password?: string[];
+        confirmPassword?: string[];
+      };
+      message?: string;
+      ok?: boolean;
+    }
+  | undefined;
+
+export type AdminNoteState =
+  | {
+      errors?: {
+        body?: string[];
+      };
+      message?: string;
+      ok?: boolean;
     }
   | undefined;
 
@@ -99,4 +136,107 @@ export async function createAdminUser(
   revalidatePath('/admin/users');
   revalidatePath('/admin/audit');
   redirect(`/admin/users/${createdUserId}`);
+}
+
+export async function resetUserPassword(
+  _prevState: ResetPasswordState,
+  formData: FormData,
+): Promise<ResetPasswordState> {
+  const actor = await requireRole(Role.ADMIN);
+  const parsed = ResetPasswordSchema.safeParse({
+    userId: formData.get('userId'),
+    password: formData.get('password'),
+    confirmPassword: formData.get('confirmPassword'),
+  });
+
+  if (!parsed.success) {
+    return {
+      errors: parsed.error.flatten().fieldErrors,
+      message: '入力内容を確認してください。',
+    };
+  }
+
+  const { userId, password } = parsed.data;
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, role: true },
+  });
+  if (!target) {
+    return { message: 'ユーザーが見つかりません。' };
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: target.id },
+      data: { password: hashedPassword },
+    }),
+    prisma.auditLog.create({
+      data: {
+        action: 'PASSWORD_RESET',
+        actorUserId: actor.id,
+        targetUserId: target.id,
+        meta: {
+          email: target.email,
+          role: target.role,
+        },
+      },
+    }),
+  ]);
+
+  revalidatePath(`/admin/users/${target.id}`);
+  revalidatePath('/admin/audit');
+  return { ok: true, message: 'パスワードを再設定しました。' };
+}
+
+export async function createAdminNote(
+  _prevState: AdminNoteState,
+  formData: FormData,
+): Promise<AdminNoteState> {
+  const actor = await requireRole(Role.ADMIN);
+  const parsed = AdminNoteSchema.safeParse({
+    userId: formData.get('userId'),
+    body: formData.get('body'),
+  });
+
+  if (!parsed.success) {
+    return {
+      errors: parsed.error.flatten().fieldErrors,
+      message: '入力内容を確認してください。',
+    };
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id: parsed.data.userId },
+    select: { id: true },
+  });
+  if (!target) {
+    return { message: 'ユーザーが見つかりません。' };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const note = await tx.adminNote.create({
+      data: {
+        targetUserId: target.id,
+        authorId: actor.id,
+        body: parsed.data.body,
+      },
+      select: { id: true },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        action: 'ADMIN_NOTE_CREATE',
+        actorUserId: actor.id,
+        targetUserId: target.id,
+        meta: {
+          noteId: note.id,
+        },
+      },
+    });
+  });
+
+  revalidatePath(`/admin/users/${target.id}`);
+  revalidatePath('/admin/audit');
+  return { ok: true, message: '管理者メモを追加しました。' };
 }

@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { AccountStatus, ReportReason, ReportStatus, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
+import AdminNotesPanel from "../AdminNotesPanel";
 import UserAccessPanel from "../UserAccessPanel";
+import UserPasswordResetForm from "../UserPasswordResetForm";
 
 const statusLabels: Record<ReportStatus, string> = {
   OPEN: "未対応",
@@ -65,6 +67,7 @@ export default async function AdminUserDetailPage({
     recentPosts,
     reportsTargetingUser,
     reportsMade,
+    adminNotes,
     auditLogs,
   ] = await Promise.all([
     prisma.user.findUnique({
@@ -123,6 +126,14 @@ export default async function AdminUserDetailPage({
       include: {
         targetUser: { select: { id: true, email: true, name: true } },
         post: { select: { id: true, content: true, isHidden: true } },
+      },
+    }),
+    prisma.adminNote.findMany({
+      where: { targetUserId: userId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      include: {
+        author: { select: { id: true, email: true, name: true } },
       },
     }),
     prisma.auditLog.findMany({
@@ -191,6 +202,18 @@ export default async function AdminUserDetailPage({
           status: user.status,
           suspendedUntil: user.suspendedUntil?.toISOString() ?? null,
         }}
+      />
+
+      <UserPasswordResetForm userId={user.id} />
+
+      <AdminNotesPanel
+        userId={user.id}
+        notes={adminNotes.map((note) => ({
+          id: note.id,
+          body: note.body,
+          createdAt: note.createdAt.toISOString(),
+          authorLabel: note.author.email ?? note.author.name ?? note.author.id,
+        }))}
       />
 
       <div className="mb-6 rounded-lg border border-border p-4">
