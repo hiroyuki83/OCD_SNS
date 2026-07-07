@@ -209,9 +209,10 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
       targetUserId: true,
       status: true,
       reason: true,
+      post: { select: { deletedAt: true } },
     },
   });
-  if (!report?.postId) return;
+  if (!report?.postId || report.post?.deletedAt) return;
 
   await prisma.$transaction([
     prisma.post.update({
@@ -250,6 +251,11 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
 export async function restorePost(postId: string, targetUserId: string, formData: FormData) {
   const actor = await requireModerator();
   const note = noteFromFormData(formData);
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { deletedAt: true },
+  });
+  if (!post || post.deletedAt) return;
 
   await prisma.$transaction([
     prisma.post.update({

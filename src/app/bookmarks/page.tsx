@@ -30,6 +30,7 @@ export default async function BookmarksPage() {
             userId,
             post: {
                 isHidden: false,
+                deletedAt: null,
                 author: { status: { not: AccountStatus.SUSPENDED } },
             },
         },

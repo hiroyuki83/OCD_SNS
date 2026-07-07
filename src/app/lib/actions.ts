@@ -254,8 +254,9 @@ export async function toggleLike(postId: string) {
 
     const post = await prisma.post.findUnique({
         where: { id: postId },
-        select: { authorId: true },
+        select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
     });
+    if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) return;
 
     const existing = await prisma.like.findUnique({
         where: {
@@ -319,8 +320,9 @@ export async function addWakaru(postId: string) {
         });
         const post = await tx.post.findUnique({
             where: { id: postId },
-            select: { authorId: true },
+            select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
         });
+        if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) return;
         if (existing) {
             await tx.reaction.delete({ where: { id: existing.id } });
             await tx.post.update({
@@ -385,8 +387,9 @@ export async function addGanbatta(postId: string) {
         });
         const post = await tx.post.findUnique({
             where: { id: postId },
-            select: { authorId: true },
+            select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
         });
+        if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) return;
         if (existing) {
             await tx.reaction.delete({ where: { id: existing.id } });
             await tx.post.update({
@@ -441,17 +444,32 @@ export async function deletePost(postId: string) {
 
     const post = await prisma.post.findUnique({
         where: { id: postId },
-        select: { authorId: true },
+        select: { authorId: true, deletedAt: true },
     });
-    if (!post || post.authorId !== userId) return;
+    if (!post || post.authorId !== userId || post.deletedAt) return;
 
-    await prisma.like.deleteMany({ where: { postId } });
-    await prisma.bookmark.deleteMany({ where: { postId } });
-    await prisma.notification.deleteMany({ where: { postId } });
-    await prisma.reply.deleteMany({ where: { postId } });
-    await prisma.reaction.deleteMany({ where: { postId } });
-    await prisma.post.delete({ where: { id: postId } });
+    await prisma.$transaction([
+        prisma.notification.deleteMany({ where: { postId } }),
+        prisma.post.update({
+            where: { id: postId },
+            data: {
+                deletedAt: new Date(),
+                deletedById: userId,
+            },
+        }),
+        prisma.auditLog.create({
+            data: {
+                action: 'POST_DELETE_SELF',
+                actorUserId: userId,
+                targetUserId: userId,
+                meta: { postId },
+            },
+        }),
+    ]);
     revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/bookmarks');
+    revalidatePath('/post');
 }
 
 
@@ -735,6 +753,12 @@ export async function toggleBookmark(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
+
+    const post = await prisma.post.findUnique({
+        where: { id: postId },
+        select: { id: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
+    });
+    if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) return;
 
     const existing = await prisma.bookmark.findUnique({
         where: {

@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
     const posts = canViewPosts
         ? await prisma.post.findMany({
-              where: { authorId: user.id },
+              where: { authorId: user.id, isHidden: false, deletedAt: null },
               orderBy: { createdAt: 'desc' },
               select: { id: true, content: true, imageUrl: true, createdAt: true },
           })

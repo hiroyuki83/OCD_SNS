@@ -71,6 +71,8 @@ model Post {
   hiddenAt      DateTime?
   hiddenReason  String?
   hiddenById    String?
+  deletedAt     DateTime?
+  deletedById   String?
   hiddenBy      User?          @relation("PostHiddenBy", fields: [hiddenById], references: [id])
   likes         Like[]
   bookmarks     Bookmark[]
@@ -78,6 +80,9 @@ model Post {
   replies       Reply[]
   reactions     Reaction[]
   reports       Report[]       @relation("PostReports")
+
+  @@index([deletedAt, createdAt])
+  @@index([authorId, deletedAt, createdAt])
 }
 
 model Like {

@@ -5,14 +5,16 @@ import { rateLimit } from '@/lib/rateLimit';
 import { AccountStatus } from '@prisma/client';
 
 type ActionType = 'like' | 'wakaru' | 'ganbatta' | 'bookmark';
+const ACTION_TYPES = ['like', 'wakaru', 'ganbatta', 'bookmark'] as const;
 
 export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const postId = typeof body?.postId === 'string' ? body.postId : '';
-    const action = body?.action as ActionType | undefined;
-    if (!postId || !action) {
+    const action = typeof body?.action === 'string' ? body.action : '';
+    if (!postId || !ACTION_TYPES.includes(action as ActionType)) {
         return NextResponse.json({ ok: false }, { status: 400 });
     }
+    const actionType = action as ActionType;
 
     const session = await auth();
     let userId = session?.user?.id ?? null;
@@ -53,27 +55,28 @@ export async function POST(request: Request) {
 
     const visiblePost = await prisma.post.findUnique({
         where: { id: postId },
-        select: { id: true, isHidden: true, author: { select: { status: true } } },
+        select: { id: true, authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
     });
-    if (!visiblePost || visiblePost.isHidden || visiblePost.author.status === AccountStatus.SUSPENDED) {
+    if (
+        !visiblePost ||
+        visiblePost.deletedAt ||
+        visiblePost.isHidden ||
+        visiblePost.author.status === AccountStatus.SUSPENDED
+    ) {
         return NextResponse.json({ ok: false }, { status: 404 });
     }
 
-    if (action === 'like') {
-        const post = await prisma.post.findUnique({
-            where: { id: postId },
-            select: { authorId: true },
-        });
+    if (actionType === 'like') {
         const existing = await prisma.like.findUnique({
             where: { userId_postId: { userId, postId } },
         });
         if (existing) {
             await prisma.like.delete({ where: { id: existing.id } });
-            if (post?.authorId) {
+            if (visiblePost.authorId) {
                 await prisma.notification.deleteMany({
                     where: {
                         type: 'LIKE',
-                        userId: post.authorId,
+                        userId: visiblePost.authorId,
                         actorId: userId,
                         postId,
                     },
@@ -81,11 +84,11 @@ export async function POST(request: Request) {
             }
         } else {
             await prisma.like.create({ data: { userId, postId } });
-            if (post?.authorId && post.authorId !== userId) {
+            if (visiblePost.authorId && visiblePost.authorId !== userId) {
                 await prisma.notification.create({
                     data: {
                         type: 'LIKE',
-                        userId: post.authorId,
+                        userId: visiblePost.authorId,
                         actorId: userId,
                         postId,
                     },
@@ -94,7 +97,7 @@ export async function POST(request: Request) {
         }
     }
 
-    if (action === 'bookmark') {
+    if (actionType === 'bookmark') {
         const existing = await prisma.bookmark.findUnique({
             where: { userId_postId: { userId, postId } },
         });
@@ -105,16 +108,17 @@ export async function POST(request: Request) {
         }
     }
 
-    if (action === 'wakaru' || action === 'ganbatta') {
-        const type = action === 'wakaru' ? 'WAKARU' : 'GANBATTA';
+    if (actionType === 'wakaru' || actionType === 'ganbatta') {
+        const type = actionType === 'wakaru' ? 'WAKARU' : 'GANBATTA';
         await prisma.$transaction(async (tx) => {
             const existing = await tx.reaction.findUnique({
                 where: { userId_postId_type: { userId, postId, type } },
             });
             const post = await tx.post.findUnique({
                 where: { id: postId },
-                select: { authorId: true },
+                select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
             });
+            if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) return;
             if (existing) {
                 await tx.reaction.delete({ where: { id: existing.id } });
                 await tx.post.update({

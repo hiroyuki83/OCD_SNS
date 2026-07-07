@@ -21,6 +21,7 @@ export async function GET(request: Request) {
             authorId: true,
             isHidden: true,
             hiddenReason: true,
+            deletedAt: true,
             author: {
                 select: { id: true, name: true, email: true, avatarUrl: true, isPrivate: true, status: true },
             },
@@ -49,6 +50,10 @@ export async function GET(request: Request) {
     }
 
     const isModerator = viewerRole === Role.ADMIN || viewerRole === Role.MODERATOR;
+    if (post.deletedAt) {
+        return NextResponse.json({ post: null }, { status: 404 });
+    }
+
     if ((post.isHidden || post.author.status === AccountStatus.SUSPENDED) && !isModerator) {
         return NextResponse.json({ post: null }, { status: 404 });
     }

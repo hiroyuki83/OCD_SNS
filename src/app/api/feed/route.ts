@@ -63,6 +63,7 @@ export async function GET(request: Request) {
                 ? await prisma.post.findMany({
                       where: {
                           isHidden: false,
+                          deletedAt: null,
                           authorId: {
                               in: followingIds,
                               ...(excludedAuthorIds.length > 0 ? { notIn: excludedAuthorIds } : {}),
@@ -84,6 +85,7 @@ export async function GET(request: Request) {
             : await prisma.post.findMany({
                   where: {
                       isHidden: false,
+                      deletedAt: null,
                       author: { status: { not: AccountStatus.SUSPENDED } },
                       createdAt: { gte: weekAgo },
                       ...(userId

@@ -31,7 +31,7 @@ export default async function ProfilePage() {
 
     const [posts] = await Promise.all([
         prisma.post.findMany({
-            where: { authorId: userId },
+            where: { authorId: userId, deletedAt: null },
             orderBy: { createdAt: 'desc' },
             include: { likes: true, bookmarks: true, reactions: true },
         }),

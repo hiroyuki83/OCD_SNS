@@ -62,7 +62,7 @@ export async function GET(request: Request) {
     const posts = isBlocked || isMuted || isBlockedBy || user.status === AccountStatus.SUSPENDED
         ? []
         : await prisma.post.findMany({
-              where: { authorId: user.id, isHidden: false },
+              where: { authorId: user.id, isHidden: false, deletedAt: null },
               orderBy: { createdAt: 'desc' },
               select: {
                   id: true,

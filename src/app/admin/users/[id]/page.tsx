@@ -59,6 +59,7 @@ export default async function AdminUserDetailPage({
     user,
     visiblePostCount,
     hiddenPostCount,
+    deletedPostCount,
     openReports,
     reviewingReports,
     reportsMadeCount,
@@ -87,8 +88,9 @@ export default async function AdminUserDetailPage({
         updatedAt: true,
       },
     }),
-    prisma.post.count({ where: { authorId: userId, isHidden: false } }),
-    prisma.post.count({ where: { authorId: userId, isHidden: true } }),
+    prisma.post.count({ where: { authorId: userId, isHidden: false, deletedAt: null } }),
+    prisma.post.count({ where: { authorId: userId, isHidden: true, deletedAt: null } }),
+    prisma.post.count({ where: { authorId: userId, deletedAt: { not: null } } }),
     prisma.report.count({ where: { targetUserId: userId, status: ReportStatus.OPEN } }),
     prisma.report.count({ where: { targetUserId: userId, status: ReportStatus.REVIEWING } }),
     prisma.report.count({ where: { reporterId: userId } }),
@@ -105,6 +107,7 @@ export default async function AdminUserDetailPage({
         createdAt: true,
         isHidden: true,
         hiddenReason: true,
+        deletedAt: true,
         wakaruCount: true,
         ganbattaCount: true,
         _count: { select: { likes: true } },
@@ -116,7 +119,7 @@ export default async function AdminUserDetailPage({
       take: 10,
       include: {
         reporter: { select: { id: true, email: true, name: true } },
-        post: { select: { id: true, content: true, isHidden: true } },
+        post: { select: { id: true, content: true, isHidden: true, deletedAt: true } },
       },
     }),
     prisma.report.findMany({
@@ -125,7 +128,7 @@ export default async function AdminUserDetailPage({
       take: 10,
       include: {
         targetUser: { select: { id: true, email: true, name: true } },
-        post: { select: { id: true, content: true, isHidden: true } },
+        post: { select: { id: true, content: true, isHidden: true, deletedAt: true } },
       },
     }),
     prisma.adminNote.findMany({
@@ -152,6 +155,7 @@ export default async function AdminUserDetailPage({
   const stats = [
     { label: "公開投稿", value: visiblePostCount, helper: "表示中の投稿" },
     { label: "非表示投稿", value: hiddenPostCount, helper: "モデレーション済み" },
+    { label: "削除済み投稿", value: deletedPostCount, helper: "本人削除の証跡" },
     { label: "未対応通報", value: openReports, helper: `対応中 ${reviewingReports} 件` },
     { label: "通報送信", value: reportsMadeCount, helper: "このユーザーが送った通報" },
     { label: "フォロワー", value: followerCount, helper: "このユーザーをフォロー" },
@@ -266,7 +270,7 @@ export default async function AdminUserDetailPage({
               <div key={post.id} className="rounded-lg border border-border p-4">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
                   <span>{formatDate(post.createdAt)}</span>
-                  <span>{post.isHidden ? "非表示" : "表示中"}</span>
+                  <span>{post.deletedAt ? "削除済み" : post.isHidden ? "非表示" : "表示中"}</span>
                 </div>
                 <p className="whitespace-pre-wrap break-words text-sm text-zinc-800">
                   {shortText(post.content)}
@@ -279,9 +283,11 @@ export default async function AdminUserDetailPage({
                   <span>いいね {post._count.likes}</span>
                   <span>わかる {post.wakaruCount}</span>
                   <span>頑張った {post.ganbattaCount}</span>
-                  <Link href={`/post?id=${post.id}`} className="text-[#1d9bf0] hover:underline">
-                    投稿を開く
-                  </Link>
+                  {!post.deletedAt && (
+                    <Link href={`/post?id=${post.id}`} className="text-[#1d9bf0] hover:underline">
+                      投稿を開く
+                    </Link>
+                  )}
                 </div>
               </div>
             ))
@@ -313,6 +319,7 @@ export default async function AdminUserDetailPage({
                       <div className="mt-2 rounded-md bg-zinc-50 p-2 text-xs text-zinc-600">
                         投稿: {shortText(report.post.content, 80)}
                         {report.post.isHidden ? " / 非表示" : ""}
+                        {report.post.deletedAt ? " / 削除済み" : ""}
                       </div>
                     )}
                   </div>

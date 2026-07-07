@@ -56,6 +56,7 @@ export async function GET(request: Request) {
     const posts = await prisma.post.findMany({
         where: {
             isHidden: false,
+            deletedAt: null,
             content: { contains: query, mode: insensitive },
             ...(excludedAuthorIds.length > 0 ? { authorId: { notIn: excludedAuthorIds } } : {}),
             author: { status: { not: AccountStatus.SUSPENDED } },

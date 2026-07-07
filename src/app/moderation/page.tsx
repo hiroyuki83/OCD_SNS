@@ -174,6 +174,7 @@ export default async function ModerationPage({
             imageUrl: true,
             isHidden: true,
             hiddenReason: true,
+            deletedAt: true,
             createdAt: true,
           },
         },
@@ -382,7 +383,7 @@ export default async function ModerationPage({
                 {report.post && (
                   <div className="mb-3 rounded-md border border-border p-3">
                     <div className="mb-1 text-xs font-semibold text-zinc-500">
-                      投稿 {report.post.isHidden ? '非表示中' : '表示中'}
+                      投稿 {report.post.deletedAt ? '削除済み' : report.post.isHidden ? '非表示中' : '表示中'}
                     </div>
                     <div className="whitespace-pre-wrap break-words text-sm text-zinc-800">{excerpt}</div>
                     {report.post.hiddenReason && (
@@ -477,7 +478,7 @@ export default async function ModerationPage({
                     </div>
                   )}
 
-                  {canAct && report.post && !report.post.isHidden && (
+                  {canAct && report.post && !report.post.deletedAt && !report.post.isHidden && (
                     <form action={hideReportedPost.bind(null, report.id)} className="flex flex-wrap gap-2">
                       <NoteInput placeholder="非表示理由" />
                       <button className="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white">
@@ -486,7 +487,7 @@ export default async function ModerationPage({
                     </form>
                   )}
 
-                  {report.post?.isHidden && (
+                  {report.post?.isHidden && !report.post.deletedAt && (
                     <form
                       action={restorePost.bind(null, report.post.id, report.targetUser.id)}
                       className="flex flex-wrap gap-2"
