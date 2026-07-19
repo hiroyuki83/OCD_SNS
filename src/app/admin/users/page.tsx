@@ -134,12 +134,12 @@ export default async function AdminUsersPage({
             <button className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white">
               絞り込み
             </button>
-            <a
+            <Link
               href="/admin/users"
               className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-700 hover:text-zinc-900"
             >
               解除
-            </a>
+            </Link>
           </div>
         </div>
         <div className="mt-3 text-xs text-zinc-500">

@@ -54,6 +54,9 @@ export default function LoginPage() {
                     <Link href="/forgot-password" className="text-[#1d9bf0] hover:underline">パスワードを忘れた場合</Link>
                 </p>
                 <p className="text-zinc-500 text-sm text-center">
+                    <Link href="/verify-email" className="text-[#1d9bf0] hover:underline">確認メールを再送する</Link>
+                </p>
+                <p className="text-zinc-500 text-sm text-center">
                     アカウントがない場合は <Link href="/register" className="text-[#1d9bf0] hover:underline">新規登録</Link>
                 </p>
             </div>

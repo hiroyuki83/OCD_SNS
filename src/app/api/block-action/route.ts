@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     if (!userId || userId === targetUserId) {
         return NextResponse.json({ ok: false }, { status: 401 });
     }
-    if (!rateLimit(`block-action:${userId}`, 60, 60 * 1000)) {
+    if (!(await rateLimit(`block-action:${userId}`, 60, 60 * 1000))) {
         return NextResponse.json({ ok: false }, { status: 429 });
     }
 

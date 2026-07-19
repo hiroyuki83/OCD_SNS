@@ -8,7 +8,7 @@ import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { AccountStatus, Role } from '@prisma/client';
 
-const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? 'behavior.cognition@gmail.com').toLowerCase();
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? '').toLowerCase();
 const MODERATOR_EMAILS = (process.env.MODERATOR_EMAILS ?? process.env.MODERATOR_EMAIL ?? '')
     .split(/[,;\s]+/)
     .map((email) => email.trim().toLowerCase())
@@ -27,7 +27,7 @@ async function getUser(email: string) {
 async function bootstrapRole(user: { id: string; email: string; role: Role }) {
     const normalizedEmail = user.email.toLowerCase();
     if (user.role !== Role.USER) return user;
-    if (normalizedEmail === ADMIN_EMAIL) {
+    if (ADMIN_EMAIL && normalizedEmail === ADMIN_EMAIL) {
         return prisma.user.update({
             where: { id: user.id },
             data: { role: Role.ADMIN },
@@ -77,11 +77,12 @@ const nextAuthResult = NextAuth({
                 if (parsedCredentials.success) {
                     const { email, password } = parsedCredentials.data;
                     const normalizedEmail = email.toLowerCase();
-                    if (!rateLimit(`login:${normalizedEmail}`, 10, 15 * 60 * 1000)) {
+                    if (!(await rateLimit(`login:${normalizedEmail}`, 10, 15 * 60 * 1000))) {
                         return null;
                     }
                     const user = await getUser(email);
                     if (!user) return null;
+                    if (!user.emailVerifiedAt) return null;
 
                     if (user.status === AccountStatus.SUSPENDED) {
                         if (!user.suspendedUntil || user.suspendedUntil > new Date()) {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AccountStatus, ReportStatus, Role } from "@prisma/client";
+import { AccountStatus, ReportPriority, ReportStatus, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 
@@ -15,6 +15,7 @@ export default async function AdminIndexPage() {
     postCount,
     todayPostCount,
     openReportCount,
+    urgentReportCount,
     reviewingReportCount,
     hiddenPostCount,
     deletedPostCount,
@@ -26,6 +27,12 @@ export default async function AdminIndexPage() {
     prisma.post.count({ where: { isHidden: false, deletedAt: null } }),
     prisma.post.count({ where: { createdAt: { gte: startOfToday }, isHidden: false, deletedAt: null } }),
     prisma.report.count({ where: { status: ReportStatus.OPEN } }),
+    prisma.report.count({
+      where: {
+        priority: ReportPriority.URGENT,
+        status: { in: [ReportStatus.OPEN, ReportStatus.REVIEWING] },
+      },
+    }),
     prisma.report.count({ where: { status: ReportStatus.REVIEWING } }),
     prisma.post.count({ where: { isHidden: true, deletedAt: null } }),
     prisma.post.count({ where: { deletedAt: { not: null } } }),
@@ -46,6 +53,7 @@ export default async function AdminIndexPage() {
     { label: "ユーザー", value: userCount, helper: "登録済みアカウント" },
     { label: "公開投稿", value: postCount, helper: `本日 ${todayPostCount} 件` },
     { label: "未対応通報", value: openReportCount, helper: `対応中 ${reviewingReportCount} 件` },
+    { label: "緊急通報", value: urgentReportCount, helper: "未解決の緊急案件" },
     { label: "非表示投稿", value: hiddenPostCount, helper: "モデレーション済み" },
     { label: "削除済み投稿", value: deletedPostCount, helper: "本人削除の証跡" },
     { label: "投稿制限", value: restrictedUserCount, helper: "制限中ユーザー" },

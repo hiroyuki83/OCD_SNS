@@ -12,7 +12,7 @@ const CreateUserSchema = z
   .object({
     name: z.string().trim().max(50, '名前は50文字以内です。').optional(),
     email: z.string().trim().toLowerCase().email('正しいメールアドレスを入力してください。'),
-    password: z.string().min(8, 'パスワードは8文字以上です。').max(128, 'パスワードは128文字以内です。'),
+    password: z.string().min(10, 'パスワードは10文字以上です。').max(128, 'パスワードは128文字以内です。'),
     confirmPassword: z.string(),
     role: z.enum([Role.USER, Role.MODERATOR, Role.ADMIN]),
   })
@@ -24,7 +24,7 @@ const CreateUserSchema = z
 const ResetPasswordSchema = z
   .object({
     userId: z.string().min(1),
-    password: z.string().min(8, 'パスワードは8文字以上です。').max(128, 'パスワードは128文字以内です。'),
+    password: z.string().min(10, 'パスワードは10文字以上です。').max(128, 'パスワードは128文字以内です。'),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -102,6 +102,7 @@ export async function createAdminUser(
         data: {
           name,
           email,
+          emailVerifiedAt: new Date(),
           password: hashedPassword,
           role,
         },
@@ -169,7 +170,7 @@ export async function resetUserPassword(
   await prisma.$transaction([
     prisma.user.update({
       where: { id: target.id },
-      data: { password: hashedPassword },
+      data: { password: hashedPassword, emailVerifiedAt: new Date() },
     }),
     prisma.auditLog.create({
       data: {

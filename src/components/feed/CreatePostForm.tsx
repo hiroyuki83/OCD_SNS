@@ -33,6 +33,7 @@ export default function CreatePostForm({
     const inputRef = useRef<HTMLTextAreaElement | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [content, setContent] = useState('');
+    const [safetyAcknowledged, setSafetyAcknowledged] = useState(false);
     const overLimit = content.length > 1000;
     const safetyNotice = getPostSafetyNotice(content);
     const [clipboardMessage, setClipboardMessage] = useState<string | null>(null);
@@ -40,8 +41,12 @@ export default function CreatePostForm({
     useEffect(() => {
         if (state?.message === '投稿しました。') {
             formRef.current?.reset();
-            setContent('');
-            setClipboardMessage(null);
+            const frame = window.requestAnimationFrame(() => {
+                setContent('');
+                setClipboardMessage(null);
+                setSafetyAcknowledged(false);
+            });
+            return () => window.cancelAnimationFrame(frame);
         }
     }, [state?.message]);
 
@@ -127,7 +132,7 @@ export default function CreatePostForm({
                         <input
                             type="file"
                             name="image"
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
                             className="hidden"
                             ref={fileInputRef}
                         />
@@ -148,8 +153,30 @@ export default function CreatePostForm({
                         </Link>
                     </div>
                 )}
+                {state?.safety?.requiresAcknowledgement && (
+                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-900">
+                        <p className="font-semibold">今すぐ危険がある場合は、投稿より先に支援につながってください。</p>
+                        <p className="mt-1 leading-6">
+                            地域の緊急窓口や身近な人に連絡できます。投稿は、この案内を確認した後も続けられます。
+                        </p>
+                        <Link href="/safety" className="mt-2 inline-block font-semibold underline">
+                            相談先を確認する
+                        </Link>
+                        <label className="mt-3 flex items-start gap-2 font-medium">
+                            <input
+                                type="checkbox"
+                                name="safetyAcknowledged"
+                                value="true"
+                                checked={safetyAcknowledged}
+                                onChange={(event) => setSafetyAcknowledged(event.target.checked)}
+                                className="mt-1"
+                            />
+                            案内を確認し、この内容で投稿を続けます
+                        </label>
+                    </div>
+                )}
                 {state?.message && (
-                    <p className="text-sm text-zinc-400">{state.message}</p>
+                    <p className="text-sm text-zinc-500" aria-live="polite">{state.message}</p>
                 )}
             </div>
         </form>

@@ -1,4 +1,8 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CoCo
+
+CoCo is a Next.js and Prisma social application with moderation, audit logging, psychological self-checks, and account safety controls.
+
+Copy `.env.example` to a local environment file and set the database, authentication, Blob, and email values. Production registration and password reset email require `RESEND_API_KEY` and `EMAIL_FROM`.
 
 ## Getting Started
 

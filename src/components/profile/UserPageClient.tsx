@@ -24,23 +24,24 @@ type UserProfile = {
 export default function UserPageClient() {
     const searchParams = useSearchParams();
     const userId = searchParams.get('id') ?? '';
-    const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+    const [result, setResult] = useState<{
+        userId: string;
+        profile: UserProfile | null;
+        error: boolean;
+    }>({ userId: '', profile: null, error: false });
 
     useEffect(() => {
         if (!userId) return;
         let active = true;
-        setStatus('loading');
         fetch(`/api/user?id=${encodeURIComponent(userId)}`)
             .then((res) => (res.ok ? res.json() : Promise.reject(res)))
             .then((data) => {
                 if (!active) return;
-                setProfile(data?.user ?? null);
-                setStatus(data?.user ? 'idle' : 'error');
+                setResult({ userId, profile: data?.user ?? null, error: !data?.user });
             })
             .catch(() => {
                 if (!active) return;
-                setStatus('error');
+                setResult({ userId, profile: null, error: true });
             });
         return () => {
             active = false;
@@ -56,11 +57,11 @@ export default function UserPageClient() {
         );
     }
 
-    if (status === 'loading') {
+    if (result.userId !== userId) {
         return <div className="p-6 text-sm text-zinc-500">読み込み中...</div>;
     }
 
-    if (status === 'error' || !profile) {
+    if (result.error || !result.profile) {
         return (
             <div className="p-6 text-sm text-zinc-500">
                 ユーザーが見つかりませんでした。{' '}
@@ -69,6 +70,7 @@ export default function UserPageClient() {
         );
     }
 
+    const profile = result.profile;
     return (
         <div className="min-h-screen border-r border-border">
             <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center px-4">

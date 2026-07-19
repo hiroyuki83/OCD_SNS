@@ -49,7 +49,7 @@ export async function POST(request: Request) {
             data: { status: AccountStatus.ACTIVE, suspendedUntil: null, restrictionReason: null },
         });
     }
-    if (!rateLimit(`post-action:${userId}`, 120, 60 * 1000)) {
+    if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) {
         return NextResponse.json({ ok: false }, { status: 429 });
     }
 

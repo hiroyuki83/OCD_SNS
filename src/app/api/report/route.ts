@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
   }
 
-  if (!rateLimit(`report:${reporterId}`, 10, 60 * 60 * 1000)) {
+  if (!(await rateLimit(`report:${reporterId}`, 10, 60 * 60 * 1000))) {
     return NextResponse.json(
       { error: "通報が多すぎます。しばらくしてから再度お試しください。" },
       { status: 429 },

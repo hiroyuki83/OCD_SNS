@@ -28,8 +28,11 @@ export default function FontSizeSetting() {
         const saved = window.localStorage.getItem(STORAGE_KEY);
         const parsed = saved ? Number(saved) : NaN;
         const initial = Number.isFinite(parsed) ? parsed : DEFAULT_POINT;
-        setSize(initial);
-        applyFontSize(initial);
+        const frame = window.requestAnimationFrame(() => {
+            setSize(initial);
+            applyFontSize(initial);
+        });
+        return () => window.cancelAnimationFrame(frame);
     }, []);
 
     const handleChange = (value: number) => {

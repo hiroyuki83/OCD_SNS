@@ -12,6 +12,7 @@ datasource db {
 model User {
   id                      String               @id @default(cuid())
   email                   String               @unique
+  emailVerifiedAt         DateTime?
   password                String
   name                    String?
   bio                     String?
@@ -53,6 +54,7 @@ model User {
   adminNotesAuthored      AdminNote[]          @relation("AdminNotesAuthored")
   adminNotesTargetingUser AdminNote[]          @relation("AdminNotesTargetUser")
   passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
 }
 
 model Post {
@@ -459,6 +461,29 @@ model PasswordResetToken {
 
   @@index([userId, createdAt])
   @@index([expiresAt])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+  tokenHash String    @unique
+  userId    String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+}
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
 }
 
 model Announcement {

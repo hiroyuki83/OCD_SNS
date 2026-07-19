@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
+import { isEmailDeliveryConfigured, sendTransactionalEmail } from '@/lib/email';
 
 const requestSchema = z.object({
   email: z.string().trim().toLowerCase().email('正しいメールアドレスを入力してください。'),
@@ -13,7 +14,7 @@ const requestSchema = z.object({
 const resetSchema = z
   .object({
     token: z.string().min(32),
-    password: z.string().min(8, 'パスワードは8文字以上です。').max(128, 'パスワードは128文字以内です。'),
+    password: z.string().min(10, 'パスワードは10文字以上です。').max(128, 'パスワードは128文字以内です。'),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -54,38 +55,18 @@ function appOrigin() {
 }
 
 async function sendPasswordResetEmail(email: string, resetUrl: string) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.PASSWORD_RESET_FROM_EMAIL;
-  if (!apiKey || !from) {
-    console.warn('Password reset email is not configured. Set RESEND_API_KEY and PASSWORD_RESET_FROM_EMAIL.');
-    return;
-  }
-
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from,
-      to: email,
-      subject: 'CoCo パスワード再設定',
-      text: [
-        'CoCo のパスワード再設定リクエストを受け付けました。',
-        '',
-        '以下のリンクから1時間以内に新しいパスワードを設定してください。',
-        resetUrl,
-        '',
-        'このメールに心当たりがない場合は、何もしないでください。',
-      ].join('\n'),
-    }),
+  await sendTransactionalEmail({
+    to: email,
+    subject: 'CoCo パスワード再設定',
+    text: [
+      'CoCo のパスワード再設定リクエストを受け付けました。',
+      '',
+      '以下のリンクから1時間以内に新しいパスワードを設定してください。',
+      resetUrl,
+      '',
+      'このメールに心当たりがない場合は、何もしないでください。',
+    ].join('\n'),
   });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Failed to send password reset email: ${res.status} ${body}`);
-  }
 }
 
 export async function requestPasswordReset(
@@ -101,8 +82,11 @@ export async function requestPasswordReset(
   }
 
   const email = parsed.data.email;
-  if (!rateLimit(`password-reset:${email}`, 3, 60 * 60 * 1000)) {
+  if (!(await rateLimit(`password-reset:${email}`, 3, 60 * 60 * 1000))) {
     return { ok: true, message: genericRequestMessage };
+  }
+  if (!isEmailDeliveryConfigured()) {
+    return { message: '現在メール送信を利用できません。管理者にお問い合わせください。' };
   }
 
   const user = await prisma.user.findUnique({
@@ -176,7 +160,7 @@ export async function resetPassword(
   await prisma.$transaction([
     prisma.user.update({
       where: { id: resetToken.userId },
-      data: { password: hashedPassword },
+      data: { password: hashedPassword, emailVerifiedAt: new Date() },
     }),
     prisma.passwordResetToken.update({
       where: { id: resetToken.id },

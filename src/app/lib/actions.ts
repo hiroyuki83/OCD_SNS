@@ -7,16 +7,18 @@ import { AuthError } from 'next-auth';
 import { revalidatePath } from 'next/cache';
 import { put } from '@vercel/blob';
 import { auth } from '@/auth';
-import { AccountStatus } from '@prisma/client';
+import { AccountStatus, ReportPriority, ReportReason } from '@prisma/client';
 
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
-import { validatePublicPostContent } from '@/lib/contentSafety';
+import { evaluatePostSafety, validatePublicPostContent } from '@/lib/contentSafety';
+import { isEmailDeliveryConfigured } from '@/lib/email';
+import { sendEmailVerification } from '@/lib/emailVerification';
 
 const RegisterSchema = z.object({
     name: z.string().min(1, '名前は必須です'),
-    email: z.string().email('正しいメールアドレスを入力してください'),
-    password: z.string().min(6, 'パスワードは6文字以上です'),
+    email: z.string().trim().toLowerCase().email('正しいメールアドレスを入力してください'),
+    password: z.string().min(10, 'パスワードは10文字以上です').max(128, 'パスワードは128文字以内です'),
 });
 
 export type RegisterState =
@@ -27,8 +29,9 @@ export type RegisterState =
               password?: string[];
           };
           message: string;
+          ok?: boolean;
       }
-    | { message: string }
+    | { message: string; ok?: boolean }
     | undefined;
 
 export async function register(
@@ -50,50 +53,47 @@ export async function register(
 
     const { name, email, password } = validatedFields.data;
     const normalizedEmail = email.toLowerCase();
-    if (!rateLimit(`register:${normalizedEmail}`, 3, 60 * 60 * 1000)) {
+    if (!(await rateLimit(`register:${normalizedEmail}`, 3, 60 * 60 * 1000))) {
         return { message: '登録試行が多すぎます。しばらくしてから再度お試しください。' };
+    }
+    if (!isEmailDeliveryConfigured()) {
+        return { message: '現在、新規登録用メールを送信できません。管理者にお問い合わせください。' };
     }
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    let createdUser: { id: string; email: string };
     try {
-        const existingUser = await prisma.user.findUnique({ where: { email } });
+        const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
         if (existingUser) {
             return { message: 'このメールアドレスは既に使用されています。' };
         }
 
-        await prisma.user.create({
+        createdUser = await prisma.user.create({
             data: {
                 name,
-                email,
+                email: normalizedEmail,
                 password: hashedPassword,
             },
+            select: { id: true, email: true },
         });
-    } catch (error) {
+    } catch {
         return { message: 'データベースエラー: 登録に失敗しました。' };
     }
 
     try {
-        await signIn('credentials', { email, password, redirectTo: '/' });
+        await sendEmailVerification(createdUser);
     } catch (error) {
-        if (error instanceof AuthError) {
-            switch (error.type) {
-                case 'CredentialsSignin':
-                    return { message: '認証に失敗しました。' };
-                default:
-                    return { message: 'エラーが発生しました。' };
-            }
-        }
-        throw error;
+        console.error('Failed to send registration verification email:', error);
+        return {
+            message: 'アカウントは作成されましたが、確認メールを送信できませんでした。確認メールの再送をお試しください。',
+        };
     }
+
+    return { ok: true, message: '確認メールを送信しました。メール内のリンクから登録を完了してください。' };
 }
 
-const LoginSchema = z.object({
-    email: z.string().email(),
-    password: z.string().min(1),
-});
-
 export async function authenticate(
-    prevState: string | undefined,
+    _prevState: string | undefined,
     formData: FormData,
 ) {
     try {
@@ -121,17 +121,19 @@ const CreatePostSchema = z.object({
 export type CreatePostState =
     | {
           message: string;
+          safety?: { requiresAcknowledgement: true };
       }
     | undefined;
 
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 async function uploadImage(file: File, pathPrefix: string) {
     if (file.size > MAX_IMAGE_SIZE_BYTES) {
         return { error: '画像は5MB以下にしてください。' } as const;
     }
-    if (!file.type.startsWith('image/')) {
-        return { error: '画像ファイルのみアップロードできます。' } as const;
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+        return { error: 'JPEG、PNG、WebP、GIF形式の画像を選んでください。' } as const;
     }
     const safeName = file.name.replace(/[^\w.\-]/g, '_');
     try {
@@ -177,7 +179,7 @@ export async function createPost(
     if (moderationState?.status === AccountStatus.POST_RESTRICTED) {
         return { message: moderationState.restrictionReason ?? '投稿が制限されています。' };
     }
-    if (!rateLimit(`create-post:${userId}`, 20, 60 * 1000)) {
+    if (!(await rateLimit(`create-post:${userId}`, 20, 60 * 1000))) {
         return { message: '投稿が多すぎます。少し待ってから再度お試しください。' };
     }
 
@@ -215,6 +217,15 @@ export async function createPost(
         return { message: '本文か画像のどちらかは必要です。' };
     }
 
+    const safetyAssessment = evaluatePostSafety(finalContent);
+    const safetyAcknowledged = formData.get('safetyAcknowledged') === 'true';
+    if (safetyAssessment.level === 'urgent' && !safetyAcknowledged) {
+        return {
+            message: '安全を確認するため、案内を読んでから投稿を続けてください。',
+            safety: { requiresAcknowledgement: true },
+        };
+    }
+
     let imageUrl: string | null = null;
     if (hasImage) {
         const upload = await uploadImage(image, `posts/${userId}`);
@@ -223,12 +234,37 @@ export async function createPost(
     }
 
     try {
-        await prisma.post.create({
-            data: {
-                content: finalContent || '',
-                imageUrl,
-                authorId: userId,
-            },
+        await prisma.$transaction(async (tx) => {
+            const post = await tx.post.create({
+                data: {
+                    content: finalContent || '',
+                    imageUrl,
+                    authorId: userId,
+                },
+                select: { id: true },
+            });
+
+            if (safetyAssessment.level === 'urgent') {
+                await tx.report.create({
+                    data: {
+                        reporterId: userId,
+                        targetUserId: userId,
+                        postId: post.id,
+                        reason: ReportReason.SELF_HARM,
+                        priority: ReportPriority.URGENT,
+                        dueAt: new Date(Date.now() + 60 * 60 * 1000),
+                        detail: '投稿時の自動検知により作成。安全案内を表示し、本人の確認後に投稿されました。',
+                    },
+                });
+                await tx.auditLog.create({
+                    data: {
+                        action: 'SAFETY_FLAG_POST',
+                        actorUserId: userId,
+                        targetUserId: userId,
+                        meta: { postId: post.id, level: safetyAssessment.level },
+                    },
+                });
+            }
         });
     } catch (error) {
         console.error('Failed to create post:', error);
@@ -236,6 +272,11 @@ export async function createPost(
     }
 
     revalidatePath('/');
+    if (safetyAssessment.level === 'urgent') {
+        revalidatePath('/moderation');
+        revalidatePath('/admin');
+        revalidatePath('/admin/audit');
+    }
     return { message: '投稿しました。' };
 }
 

@@ -10,8 +10,6 @@ export const authConfig = {
     callbacks: {
         authorized({ auth, request: { nextUrl } }) {
             const isLoggedIn = !!auth?.user;
-            const isOnDashboard = nextUrl.pathname.startsWith('/'); // Protect all routes for now or customize
-
             // Allow access to login and register pages
             if (nextUrl.pathname.startsWith('/login') || nextUrl.pathname.startsWith('/register')) {
                 if (isLoggedIn) return Response.redirect(new URL('/', nextUrl)); // Redirect to home if already logged in

@@ -16,52 +16,40 @@ type PostResponse = {
 
 export default function PostPageClient() {
     const searchParams = useSearchParams();
-    const [postId, setPostId] = useState('');
-    const [post, setPost] = useState<PostResponse | null>(null);
-    const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
-
-    useEffect(() => {
-        const idFromParams = searchParams.get('id');
-        if (idFromParams) {
-            setPostId(idFromParams);
-            return;
-        }
-        if (typeof window !== 'undefined') {
-            const url = new URL(window.location.href);
-            const idFromWindow = url.searchParams.get('id');
-            if (idFromWindow) setPostId(idFromWindow);
-        }
-    }, [searchParams]);
+    const postId = searchParams.get('id') ?? '';
+    const [result, setResult] = useState<{
+        postId: string;
+        post: PostResponse | null;
+        error: boolean;
+    }>({ postId: '', post: null, error: false });
 
     useEffect(() => {
         if (!postId) return;
         let active = true;
-        setStatus('loading');
         fetch(`/api/post?id=${encodeURIComponent(postId)}`)
             .then((res) => (res.ok ? res.json() : Promise.reject(res)))
             .then((data) => {
                 if (!active) return;
-                setPost(data?.post ?? null);
-                setStatus(data?.post ? 'idle' : 'error');
+                setResult({ postId, post: data?.post ?? null, error: !data?.post });
             })
             .catch(() => {
                 if (!active) return;
-                setStatus('error');
+                setResult({ postId, post: null, error: true });
             });
         return () => {
             active = false;
         };
     }, [postId]);
 
-    if (status === 'loading') {
-        return <div className="p-6 text-sm text-zinc-500">読み込み中...</div>;
-    }
-
     if (!postId) {
         return <div className="p-6 text-sm text-zinc-500">読み込み中...</div>;
     }
 
-    if (status === 'error' || !post) {
+    if (result.postId !== postId) {
+        return <div className="p-6 text-sm text-zinc-500">読み込み中...</div>;
+    }
+
+    if (result.error || !result.post) {
         return (
             <div className="p-6 text-sm text-zinc-500">
                 投稿が見つかりませんでした。
@@ -70,6 +58,7 @@ export default function PostPageClient() {
         );
     }
 
+    const post = result.post;
     const handle = post.author.email.split('@')[0];
     const createdAt = formatPostTime(post.createdAt);
 

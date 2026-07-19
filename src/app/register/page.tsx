@@ -56,9 +56,20 @@ export default function RegisterPage() {
                         />
                         {fieldErrors?.password && <p className="text-red-500 text-sm mt-1">{fieldErrors.password}</p>}
                     </div>
-                    {state?.message && <p className="text-red-500 text-sm text-center">{state.message}</p>}
-                    <SubmitButton />
+                    {state?.message && (
+                        <p className={`text-sm text-center ${state.ok ? 'text-green-700' : 'text-red-500'}`}>
+                            {state.message}
+                        </p>
+                    )}
+                    {!state?.ok && <SubmitButton />}
                 </form>
+                {state?.ok && (
+                    <p className="text-center text-sm">
+                        <Link href="/verify-email" className="text-[#1d9bf0] hover:underline">
+                            確認メールを再送する
+                        </Link>
+                    </p>
+                )}
                 <p className="text-zinc-500 text-sm text-center">
                     すでにアカウントがある場合は <Link href="/login" className="text-[#1d9bf0] hover:underline">ログイン</Link>
                 </p>
