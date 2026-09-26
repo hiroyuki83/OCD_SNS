@@ -45,7 +45,11 @@ export default async function Sidebar() {
     if (resolvedUserId) {
       const [socialUnread, warningUnread] = await Promise.all([
         prisma.notification.count({
-          where: { userId: resolvedUserId, readAt: null },
+          where: {
+            userId: resolvedUserId,
+            readAt: null,
+            actor: visibleAccountFilter(new Date()),
+          },
         }),
         prisma.moderationWarning.count({
           where: { targetUserId: resolvedUserId, readAt: null },
