@@ -66,6 +66,7 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
     },
   });
   if (!report) return;
+  if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   if (assignedToId) {
     const assignee = await prisma.user.findFirst({
