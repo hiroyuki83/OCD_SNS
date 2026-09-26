@@ -19,6 +19,8 @@ export async function reviewWarningAppeal(
   outcome: WarningAppealStatus,
   formData: FormData,
 ) {
+  appealId = appealId.trim();
+  if (!appealId || appealId.length > 128) return;
   const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
   if (outcome !== WarningAppealStatus.UPHELD && outcome !== WarningAppealStatus.OVERTURNED) {
     return;
