@@ -149,14 +149,16 @@ export async function POST(request: Request) {
                     data: [{ userId, postId, type }],
                     skipDuplicates: true,
                 });
-                await tx.post.update({
-                    where: { id: postId },
-                    data:
-                        type === 'WAKARU'
-                            ? { wakaruCount: { increment: 1 } }
-                            : { ganbattaCount: { increment: 1 } },
-                });
-                if (post?.authorId && post.authorId !== userId) {
+                if (createdReaction.count === 1) {
+                    await tx.post.update({
+                        where: { id: postId },
+                        data:
+                            type === 'WAKARU'
+                                ? { wakaruCount: { increment: 1 } }
+                                : { ganbattaCount: { increment: 1 } },
+                    });
+                }
+                if (createdReaction.count === 1 && post?.authorId && post.authorId !== userId) {
                     await tx.notification.create({
                         data: {
                             type,
