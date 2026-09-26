@@ -68,6 +68,7 @@ export default function ExploreClient() {
                         type="text"
                         name="q"
                         defaultValue={query}
+                        maxLength={100}
                         placeholder="検索"
                         className="w-full rounded-full bg-zinc-100 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d9bf0]"
                     />
