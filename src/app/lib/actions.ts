@@ -521,12 +521,6 @@ export async function deletePost(postId: string) {
     if (!userId) return;
     if (!(await rateLimit(`post-delete:${userId}`, 30, 60 * 1000))) return;
 
-    const post = await prisma.post.findUnique({
-        where: { id: postId },
-        select: { authorId: true, deletedAt: true },
-    });
-    if (!post || post.authorId !== userId || post.deletedAt) return;
-
     await prisma.$transaction([
         prisma.notification.deleteMany({ where: { postId } }),
         prisma.post.update({
