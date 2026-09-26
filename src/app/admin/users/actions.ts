@@ -13,7 +13,7 @@ import { isEmailDeliveryConfigured, sendTransactionalEmail } from '@/lib/email';
 
 const CreateUserSchema = z.object({
   name: z.string().trim().max(50, '名前は50文字以内です。').optional(),
-  email: z.string().trim().toLowerCase().email('正しいメールアドレスを入力してください。'),
+  email: z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます。').email('正しいメールアドレスを入力してください。'),
   role: z.enum([Role.USER, Role.MODERATOR, Role.ADMIN]),
   currentPassword: z.string().min(1, '現在のADMINパスワードを入力してください。').max(128),
   adminConfirmation: z.string().trim().max(64).optional(),
