@@ -522,11 +522,21 @@ export default async function ModerationPage({
                       </form>
                       <form
                         action={setReportedUserStatus.bind(null, report.id, AccountStatus.SUSPENDED)}
-                        className="flex min-w-[240px] flex-1 gap-2"
+                        className="flex min-w-[320px] flex-1 flex-wrap gap-2"
                       >
                         <NoteInput placeholder="停止理由" />
+                        <select
+                          name="durationDays"
+                          defaultValue="7"
+                          className="rounded-md border border-border bg-white px-2 py-1 text-xs"
+                          aria-label="アカウント停止期間"
+                        >
+                          <option value="1">1日</option>
+                          <option value="7">7日</option>
+                          <option value="30">30日</option>
+                        </select>
                         <button className="rounded-full border border-red-300 px-3 py-1 text-xs font-semibold text-red-700">
-                          7日停止
+                          アカウント停止
                         </button>
                       </form>
                     </div>
