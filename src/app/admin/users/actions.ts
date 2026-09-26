@@ -59,8 +59,11 @@ function tokenHash(token: string) {
 }
 
 function appOrigin() {
-  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL.replace(/\/$/, '');
-  if (process.env.AUTH_URL) return process.env.AUTH_URL.replace(/\/$/, '');
+  const configuredOrigin = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL;
+  if (configuredOrigin) return configuredOrigin.replace(/\/$/, '');
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return 'http://localhost:3000';
 }
