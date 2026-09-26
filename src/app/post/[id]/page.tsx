@@ -4,7 +4,8 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
 import { addGanbatta, addWakaru, deletePost, toggleBookmark, toggleLike } from '@/app/lib/actions';
-import { AccountStatus, type Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import { isSuspensionActive } from '@/lib/accountStatus';
 import HashtagText from '@/components/shared/HashtagText';
 import { getAccessiblePostForViewer } from '@/lib/postAccess';
 
@@ -85,7 +86,7 @@ export default async function PostPage({ params }: { params?: { id?: string } })
         );
     }
 
-    if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) {
+    if (!post || post.deletedAt || post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) {
         return (
             <div className="p-6 text-sm text-zinc-500">
                 投稿が見つかりませんでした。
