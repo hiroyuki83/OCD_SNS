@@ -38,6 +38,7 @@ export async function reviewWarningAppeal(
       status: true,
       userId: true,
       warningId: true,
+      user: { select: { role: true } },
     },
   });
   if (!appeal || appeal.status !== WarningAppealStatus.PENDING) return;
