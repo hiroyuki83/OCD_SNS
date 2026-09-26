@@ -29,11 +29,17 @@ export default async function ProfilePage() {
         select: { name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true },
     });
 
-    const [posts] = await Promise.all([
+    const [posts, pendingFollowRequestCount] = await Promise.all([
         prisma.post.findMany({
             where: { authorId: userId, deletedAt: null },
             orderBy: { createdAt: 'desc' },
             include: { likes: true, bookmarks: true, reactions: true },
+        }),
+        prisma.follow.count({
+            where: {
+                followingId: userId,
+                acceptedAt: null,
+            },
         }),
     ]);
 
@@ -77,6 +83,10 @@ export default async function ProfilePage() {
                                 {user?.isPrivate ? '鍵を外す' : '鍵をかける'}
                             </button>
                         </form>
+                        <Link href="/profile/followers" className="text-xs text-[#1d9bf0] hover:underline">
+                            フォロワー
+                            {pendingFollowRequestCount > 0 ? `（承認待ち ${pendingFollowRequestCount}）` : ''}
+                        </Link>
                         <Link href="/profile/following" className="text-xs text-[#1d9bf0] hover:underline">
                             フォロー一覧
                         </Link>
