@@ -10,6 +10,7 @@ import {
   restorePost,
   setReportedUserStatus,
   updateReportRouting,
+  warnReportedUser,
 } from './actions';
 
 const statusLabels: Record<ReportStatus, string> = {
@@ -495,6 +496,15 @@ export default async function ModerationPage({
                       <NoteInput placeholder="再表示理由" />
                       <button className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-zinc-700 hover:text-zinc-900">
                         投稿を再表示
+                      </button>
+                    </form>
+                  )}
+
+                  {canAct && (
+                    <form action={warnReportedUser.bind(null, report.id)} className="flex flex-wrap gap-2">
+                      <NoteInput placeholder="警告理由（必須）" />
+                      <button className="rounded-full border border-amber-400 px-3 py-1 text-xs font-semibold text-amber-800">
+                        警告して解決
                       </button>
                     </form>
                   )}
