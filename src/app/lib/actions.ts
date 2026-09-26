@@ -592,7 +592,7 @@ export async function followUser(targetUserId: string) {
         });
     }
 
-    if (!existingFollow) {
+    if (createdFollow.count === 1) {
         await prisma.notification.create({
             data: {
                 type: 'FOLLOW',
