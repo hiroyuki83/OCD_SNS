@@ -192,11 +192,12 @@ export default function UserHandleClient() {
 
     const toggleBlock = async () => {
         if (!viewerId) return;
-        await fetch('/api/block-action', {
+        const res = await fetch('/api/block-action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ targetUserId: user.id, action: localBlocked ? 'unblock' : 'block' }),
         });
+        if (!res.ok) return;
         setLocalBlocked((prev) => !prev);
         if (!localBlocked) {
             setLocalFollowing(false);
