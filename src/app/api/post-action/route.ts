@@ -124,8 +124,11 @@ export async function POST(request: Request) {
             });
             if (!post || post.deletedAt || post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) return;
             if (removedReaction.count > 0) {
-                await tx.post.update({
-                    where: { id: postId },
+                await tx.post.updateMany({
+                    where:
+                        type === 'WAKARU'
+                            ? { id: postId, wakaruCount: { gt: 0 } }
+                            : { id: postId, ganbattaCount: { gt: 0 } },
                     data:
                         type === 'WAKARU'
                             ? { wakaruCount: { decrement: 1 } }
