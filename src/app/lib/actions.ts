@@ -799,6 +799,7 @@ export async function muteUser(targetUserId: string) {
     });
 
     revalidatePath('/');
+    revalidatePath('/profile');
     revalidatePath('/profile/mutes');
 }
 
