@@ -691,6 +691,7 @@ export async function rejectFollowRequest(followerId: string) {
     ]);
 
     revalidatePath('/');
+    revalidatePath('/profile');
     revalidatePath('/profile/followers');
     revalidatePath('/profile/following');
     revalidatePath('/notifications');
