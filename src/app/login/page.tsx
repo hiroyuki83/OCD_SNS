@@ -44,6 +44,9 @@ export default function LoginPage() {
                         <input
                             name="password"
                             type="password"
+                            minLength={1}
+                            maxLength={128}
+                            required
                             placeholder="パスワード"
                             autoComplete="current-password"
                             className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
