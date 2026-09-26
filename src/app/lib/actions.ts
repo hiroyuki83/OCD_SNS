@@ -66,7 +66,7 @@ export async function register(
 
     let createdUser: { id: string; email: string };
     try {
-        const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+        const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
         if (existingUser) {
             return { message: 'このメールアドレスは既に使用されています。' };
         }
