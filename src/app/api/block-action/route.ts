@@ -4,6 +4,9 @@ import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { validateJsonMutationRequest } from '@/lib/requestSecurity';
 
+const BLOCK_ACTIONS = ['block', 'unblock'] as const;
+type BlockAction = (typeof BLOCK_ACTIONS)[number];
+
 export async function POST(request: Request) {
     const requestCheck = validateJsonMutationRequest(request);
     if (!requestCheck.ok) {
@@ -12,9 +15,9 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => ({}));
     const targetUserId = typeof body?.targetUserId === 'string' ? body.targetUserId : '';
-    const action = body?.action === 'unblock' ? 'unblock' : 'block';
-    if (!targetUserId) {
-        return NextResponse.json({ ok: false }, { status: 400 });
+    const action = typeof body?.action === 'string' ? body.action : '';
+    if (!targetUserId || !BLOCK_ACTIONS.includes(action as BlockAction)) {
+        return NextResponse.json({ ok: false, error: '不正な操作です。' }, { status: 400 });
     }
 
     const session = await auth();
@@ -26,9 +29,13 @@ export async function POST(request: Request) {
         });
         userId = user?.id ?? null;
     }
-    if (!userId || userId === targetUserId) {
+    if (!userId) {
         return NextResponse.json({ ok: false }, { status: 401 });
     }
+    if (userId === targetUserId) {
+        return NextResponse.json({ ok: false, error: '自分自身はブロックできません。' }, { status: 400 });
+    }
+
     const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } });
     if (!targetUser) {
         return NextResponse.json({ ok: false }, { status: 404 });
