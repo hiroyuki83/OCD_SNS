@@ -25,7 +25,7 @@ export async function GET(request: Request) {
         where: { handle },
         select: { id: true, name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true, status: true, suspendedUntil: true },
     });
-    if (!user) {
+    if (!user || isSuspensionActive(user.status, user.suspendedUntil)) {
         return NextResponse.json({ user: null }, { status: 404 });
     }
 
