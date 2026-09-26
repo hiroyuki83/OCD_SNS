@@ -67,7 +67,7 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
 
     setPending("role");
     try {
-      const res = await fetch(`/api/admin/users/${user.id}/role`, {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/role`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -121,7 +121,7 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
 
     setPending("status");
     try {
-      const res = await fetch(`/api/admin/users/${user.id}/status`, {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
