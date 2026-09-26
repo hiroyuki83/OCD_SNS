@@ -60,15 +60,17 @@ export default async function FollowingPage() {
             <div className="flex flex-col">
                 {following.map((entry) => (
                     <div key={entry.id} className="p-4 border-b border-border flex items-center gap-4">
-                        {entry.following.avatarUrl ? (
-                            <img
-                                src={entry.following.avatarUrl}
-                                alt="ユーザー画像"
-                                className="w-10 h-10 rounded-full object-cover"
-                            />
-                        ) : (
-                            <div className="w-10 h-10 rounded-full bg-slate-400" />
-                        )}
+                        <Link href={`/user/${entry.following.handle}`} aria-label={`@${entry.following.handle} のプロフィール`}>
+                            {entry.following.avatarUrl ? (
+                                <img
+                                    src={entry.following.avatarUrl}
+                                    alt="ユーザー画像"
+                                    className="w-10 h-10 rounded-full object-cover"
+                                />
+                            ) : (
+                                <div className="w-10 h-10 rounded-full bg-slate-400" />
+                            )}
+                        </Link>
                         <div className="min-w-0 flex-1">
                             <Link
                                 href={`/user/${entry.following.handle}`}
