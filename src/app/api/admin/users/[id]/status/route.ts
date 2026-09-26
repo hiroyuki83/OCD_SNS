@@ -65,6 +65,14 @@ export async function PATCH(
   const result = await (async () => {
     try {
       return await prisma.$transaction(async (tx) => {
+    const currentActor = await tx.user.findUnique({
+      where: { id: actor.id },
+      select: { role: true },
+    });
+    if (!currentActor || currentActor.role !== Role.ADMIN) {
+      return { error: "権限が変更されました。画面を更新してください。", status: 403 } as const;
+    }
+
     const target = await tx.user.findUnique({
       where: { id },
       select: { id: true, role: true, status: true },
