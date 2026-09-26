@@ -1053,7 +1053,10 @@ export async function toggleBookmark(postId: string) {
 
     if (removedBookmark.count > 0) {
     } else {
-        await prisma.bookmark.create({ data: { userId, postId } });
+        await prisma.bookmark.createMany({
+            data: [{ userId, postId }],
+            skipDuplicates: true,
+        });
     }
 
     revalidatePath('/');
