@@ -523,6 +523,7 @@ model ModerationWarning {
   report     Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
 
   @@index([targetUserId, createdAt])
+  @@index([targetUserId, readAt])
   @@index([actorUserId, createdAt])
   @@index([reportId])
 }
