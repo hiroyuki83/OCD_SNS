@@ -109,6 +109,8 @@ export async function PATCH(
     });
 
     return { ok: true } as const;
+  }, {
+    isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
   });
 
   if ("error" in result) {
