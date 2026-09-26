@@ -9,7 +9,7 @@ import { formatPostTime } from '@/lib/formatTime';
 type UserProfile = {
     id: string;
     name: string | null;
-    email: string;
+    handle: string;
     bio: string | null;
     avatarUrl: string | null;
     headerUrl: string | null;
@@ -96,7 +96,7 @@ export default function UserPageClient() {
                     </div>
                     <div className="flex flex-col gap-1">
                         <span className="text-lg font-bold">{profile.name ?? 'ユーザー'}</span>
-                        <span className="text-sm text-zinc-500">@{profile.email.split('@')[0]}</span>
+                        <span className="text-sm text-zinc-500">@{profile.handle}</span>
                         {profile.bio && <p className="text-sm text-zinc-500">{profile.bio}</p>}
                         <div className="flex gap-4 text-sm text-zinc-400 mt-2" />
                     </div>
@@ -117,7 +117,7 @@ export default function UserPageClient() {
                         <div className="flex-1 flex flex-col gap-2">
                             <div className="flex items-center gap-2 text-sm">
                                 <span className="font-bold">{profile.name ?? 'ユーザー'}</span>
-                                <span className="text-zinc-500">@{profile.email.split('@')[0]}</span>
+                                <span className="text-zinc-500">@{profile.handle}</span>
                                 <span className="text-zinc-500">・</span>
                                 <span className="text-zinc-500">{formatPostTime(post.createdAt)}</span>
                             </div>
