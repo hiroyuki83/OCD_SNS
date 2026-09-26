@@ -4,9 +4,10 @@ on:
   push:
     branches:
       - security-integration-final-20260926
-  pull_request:
-    branches:
-      - main
+
+concurrency:
+  group: security-integration-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
