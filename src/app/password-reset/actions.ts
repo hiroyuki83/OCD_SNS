@@ -13,7 +13,7 @@ const requestSchema = z.object({
 
 const resetSchema = z
   .object({
-    token: z.string().min(32),
+    token: z.string().min(32).max(256),
     password: z.string().min(10, 'パスワードは10文字以上です。').max(128, 'パスワードは128文字以内です。'),
     confirmPassword: z.string(),
   })
