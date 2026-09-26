@@ -27,7 +27,7 @@ export default function PostPageClient() {
     useEffect(() => {
         if (!postId) return;
         let active = true;
-        fetch(`/api/post?id=${encodeURIComponent(postId)}`)
+        fetch(`/api/post?id=${encodeURIComponent(postId)}`, { cache: 'no-store' })
             .then((res) => (res.ok ? res.json() : Promise.reject(res)))
             .then((data) => {
                 if (!active) return;
