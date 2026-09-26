@@ -75,7 +75,6 @@ export async function POST(request: Request) {
         }),
         prisma.notification.deleteMany({
             where: {
-                type: 'FOLLOW',
                 OR: [
                     { userId: targetUserId, actorId: userId },
                     { userId, actorId: targetUserId },
