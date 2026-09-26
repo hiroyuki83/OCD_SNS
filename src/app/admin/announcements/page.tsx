@@ -56,6 +56,7 @@ export default async function AdminAnnouncementsPage() {
             <input
               name="href"
               type="url"
+              maxLength={2048}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
               placeholder="https://..."
             />
