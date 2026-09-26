@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { AccountStatus, Role } from '@prisma/client';
+import { decryptTotpSecret, verifyTotpCode } from '@/lib/totp';
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? '').toLowerCase();
 const MODERATOR_EMAILS = (process.env.MODERATOR_EMAILS ?? process.env.MODERATOR_EMAIL ?? '')
@@ -59,11 +60,37 @@ const nextAuthResult = NextAuth({
             if (user?.id) {
                 token.id = user.id;
                 token.sub = user.id;
+
+                const roleValue = (user as { role?: Role }).role;
+                if (roleValue) {
+                    token.role = roleValue;
+                }
+
+                token.staffMfaVerified =
+                    (user as { staffMfaVerified?: boolean }).staffMfaVerified === true;
+                return token;
             }
-            const roleValue = (user as { role?: Role } | undefined)?.role;
-            if (roleValue) {
-                token.role = roleValue;
+
+            const tokenUserId = (token.id ?? token.sub) as string | undefined;
+            if (!tokenUserId) return null;
+
+            const currentUser = await prisma.user.findUnique({
+                where: { id: tokenUserId },
+                select: {
+                    role: true,
+                    staffTotpEnabledAt: true,
+                },
+            });
+            if (!currentUser) return null;
+
+            token.role = currentUser.role;
+            const isStaff =
+                currentUser.role === Role.ADMIN || currentUser.role === Role.MODERATOR;
+
+            if (isStaff && currentUser.staffTotpEnabledAt && token.staffMfaVerified !== true) {
+                return null;
             }
+
             return token;
         },
         async session({ session, token }) {
@@ -73,6 +100,9 @@ const nextAuthResult = NextAuth({
             if (session.user && token?.role) {
                 session.user.role = token.role as Role;
             }
+            if (session.user) {
+                session.user.staffMfaVerified = token?.staffMfaVerified === true;
+            }
             return session;
         },
     },
@@ -80,11 +110,15 @@ const nextAuthResult = NextAuth({
         Credentials({
             async authorize(credentials) {
                 const parsedCredentials = z
-                    .object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(6).max(128) })
+                    .object({
+                        email: z.string().trim().toLowerCase().email(),
+                        password: z.string().min(6).max(128),
+                        totpCode: z.string().trim().optional(),
+                    })
                     .safeParse(credentials);
 
                 if (parsedCredentials.success) {
-                    const { email, password } = parsedCredentials.data;
+                    const { email, password, totpCode } = parsedCredentials.data;
                     if (!(await rateLimit(`login:${email}`, 10, 15 * 60 * 1000))) {
                         return null;
                     }
@@ -113,7 +147,45 @@ const nextAuthResult = NextAuth({
                             email: user.email,
                             role: user.role as Role,
                         });
-                        return updatedUser;
+
+                        const isStaff =
+                            updatedUser.role === Role.ADMIN || updatedUser.role === Role.MODERATOR;
+
+                        if (isStaff && updatedUser.staffTotpEnabledAt) {
+                            if (
+                                !(await rateLimit(
+                                    `login-mfa:${updatedUser.id}`,
+                                    10,
+                                    15 * 60 * 1000,
+                                ))
+                            ) {
+                                return null;
+                            }
+
+                            if (!updatedUser.staffTotpSecretEncrypted || !totpCode) {
+                                return null;
+                            }
+
+                            const secret = decryptTotpSecret(updatedUser.staffTotpSecretEncrypted);
+                            const step = verifyTotpCode(secret, totpCode, { window: 1 });
+                            if (step === null) return null;
+
+                            const replayGuard = await prisma.user.updateMany({
+                                where: {
+                                    id: updatedUser.id,
+                                    OR: [
+                                        { staffTotpLastUsedStep: null },
+                                        { staffTotpLastUsedStep: { lt: step } },
+                                    ],
+                                },
+                                data: { staffTotpLastUsedStep: step },
+                            });
+                            if (replayGuard.count !== 1) return null;
+
+                            return { ...updatedUser, staffMfaVerified: true };
+                        }
+
+                        return { ...updatedUser, staffMfaVerified: false };
                     }
                 }
 
