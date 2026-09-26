@@ -60,7 +60,9 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
 
   const assignedToId = optionalText(formData, 'assignedToId');
   if (assignedToId && assignedToId.length > 128) return;
+  const dueAtRaw = optionalText(formData, 'dueAt');
   const dueAt = optionalDate(formData, 'dueAt');
+  if (dueAtRaw && !dueAt) return;
   const note = noteFromFormData(formData);
 
   const report = await prisma.report.findUnique({
