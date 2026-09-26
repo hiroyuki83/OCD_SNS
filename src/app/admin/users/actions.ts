@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireRole } from '@/lib/rbac';
+import { rateLimit } from '@/lib/rateLimit';
 
 const CreateUserSchema = z
   .object({
@@ -76,6 +77,9 @@ export async function createAdminUser(
   formData: FormData,
 ): Promise<CreateUserState> {
   const actor = await requireRole(Role.ADMIN);
+  if (!(await rateLimit(`admin-user-create:${actor.id}`, 10, 60 * 60 * 1000))) {
+    return { message: '操作が多すぎます。しばらくしてから再度お試しください。' };
+  }
   const parsed = CreateUserSchema.safeParse({
     name: formData.get('name'),
     email: formData.get('email'),
@@ -115,7 +119,6 @@ export async function createAdminUser(
           actorUserId: actor.id,
           targetUserId: user.id,
           meta: {
-            email: user.email,
             role: user.role,
           },
         },
@@ -144,6 +147,9 @@ export async function resetUserPassword(
   formData: FormData,
 ): Promise<ResetPasswordState> {
   const actor = await requireRole(Role.ADMIN);
+  if (!(await rateLimit(`admin-password-reset:${actor.id}`, 20, 60 * 60 * 1000))) {
+    return { message: '操作が多すぎます。しばらくしてから再度お試しください。' };
+  }
   const parsed = ResetPasswordSchema.safeParse({
     userId: formData.get('userId'),
     password: formData.get('password'),
@@ -172,13 +178,16 @@ export async function resetUserPassword(
       where: { id: target.id },
       data: { password: hashedPassword, emailVerifiedAt: new Date() },
     }),
+    prisma.passwordResetToken.updateMany({
+      where: { userId: target.id, usedAt: null },
+      data: { usedAt: new Date() },
+    }),
     prisma.auditLog.create({
       data: {
         action: 'PASSWORD_RESET',
         actorUserId: actor.id,
         targetUserId: target.id,
         meta: {
-          email: target.email,
           role: target.role,
         },
       },
@@ -195,6 +204,9 @@ export async function createAdminNote(
   formData: FormData,
 ): Promise<AdminNoteState> {
   const actor = await requireRole(Role.ADMIN);
+  if (!(await rateLimit(`admin-note:${actor.id}`, 60, 60 * 60 * 1000))) {
+    return { message: '操作が多すぎます。しばらくしてから再度お試しください。' };
+  }
   const parsed = AdminNoteSchema.safeParse({
     userId: formData.get('userId'),
     body: formData.get('body'),
