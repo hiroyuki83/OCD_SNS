@@ -748,6 +748,7 @@ export async function blockUser(targetUserId: string) {
     revalidatePath('/profile/blocks');
     revalidatePath('/profile/following');
     revalidatePath('/profile/followers');
+    revalidatePath('/notifications');
 }
 
 export async function unblockUser(targetUserId: string) {
