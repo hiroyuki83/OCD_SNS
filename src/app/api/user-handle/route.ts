@@ -96,6 +96,30 @@ export async function GET(request: Request) {
     const isFollowPending = Boolean(followRelation && !followRelation.acceptedAt);
     const canViewPosts =
         !user.isPrivate || viewerId === user.id || isFollowing;
+    const now = new Date();
+    const postAuthorVisibility: Prisma.UserWhereInput = viewerId
+        ? {
+              AND: [
+                  visibleAccountFilter(now),
+                  {
+                      OR: [
+                          { isPrivate: false },
+                          { id: viewerId },
+                          {
+                              followers: {
+                                  some: {
+                                      followerId: viewerId,
+                                      acceptedAt: { not: null },
+                                  },
+                              },
+                          },
+                      ],
+                  },
+              ],
+          }
+        : {
+              AND: [visibleAccountFilter(now), { isPrivate: false }],
+          };
 
     const posts =
         !canViewPosts || isBlocked || isMuted || isBlockedBy || isSuspensionActive(user.status, user.suspendedUntil)
