@@ -52,7 +52,7 @@ export default async function AdminUserDetailPage({
 }: {
   params: { id: string };
 }) {
-  await requireRole(Role.ADMIN);
+  const actor = await requireRole(Role.ADMIN);
 
   const userId = params.id;
   const [
@@ -210,6 +210,7 @@ export default async function AdminUserDetailPage({
       </div>
 
       <UserAccessPanel
+        isCurrentUser={actor.id === user.id}
         user={{
           id: user.id,
           name: user.name,
