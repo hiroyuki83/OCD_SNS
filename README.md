@@ -61,3 +61,25 @@ Do not commit production secrets or copy production values into `.env.example`.
 ADMIN and MODERATOR accounts use TOTP MFA for privileged access. Staff recovery codes are stored as hashes. Administrative role and account-status changes require ADMIN password reauthentication, and privileged actions are written to the audit log.
 
 Before promoting the first operational staff accounts, confirm that `STAFF_MFA_ENCRYPTION_KEY` is configured in the production environment and that recovery codes can be stored safely by the operator.
+
+## Preview test users
+
+The integration branch can seed test-only accounts into a dedicated Vercel Preview database. The seed refuses to run unless `VERCEL_ENV=preview`, `PREVIEW_SEED_USERS=1`, and `DATABASE_URL` exactly matches `PREVIEW_DATABASE_URL`.
+
+Configure these variables only for the Vercel Preview environment:
+
+- `DATABASE_URL`: dedicated Preview database URL
+- `PREVIEW_DATABASE_URL`: the same dedicated Preview database URL
+- `PREVIEW_SEED_USERS=1`
+- `PREVIEW_TEST_PASSWORD`: one 10-128 character password shared by the test accounts
+
+A Preview build then creates or refreshes these verified accounts:
+
+- `coco.preview.public1@example.com` — public user
+- `coco.preview.public2@example.com` — public user
+- `coco.preview.private@example.com` — private user
+- `coco.preview.moderator@example.com` — moderator
+- `coco.preview.admin@example.com` — admin
+
+Never point Preview at the production database when preview seeding is enabled.
+
