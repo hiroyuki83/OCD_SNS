@@ -123,7 +123,7 @@ export default async function FollowingPage() {
                                     非公開
                                 </span>
                             )}
-                            {!entry.acceptedAt && (
+                            {!entry.acceptedAt ? (
                                 <>
                                     <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
                                         申請中
@@ -137,6 +137,15 @@ export default async function FollowingPage() {
                                         </button>
                                     </form>
                                 </>
+                            ) : (
+                                <form action={unfollowUser.bind(null, entry.following.id)}>
+                                    <button
+                                        type="submit"
+                                        className="text-xs font-semibold text-zinc-500 hover:text-red-500 hover:underline"
+                                    >
+                                        フォロー解除
+                                    </button>
+                                </form>
                             )}
                         </div>
                     </div>
