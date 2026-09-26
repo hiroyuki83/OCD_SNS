@@ -29,7 +29,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ user: null }, { status: 404 });
     }
 
-    const [followRelation, isBlocked, isMuted, isBlockedBy] = viewerId
+    const [followRelation, isBlocked, isMuted, isBlockedBy, followerCount] = viewerId
         ? await Promise.all([
               prisma.follow.findFirst({
                   where: { followerId: viewerId, followingId: user.id },
@@ -53,8 +53,25 @@ export async function GET(request: Request) {
                       select: { id: true },
                   })
                   .then((result) => !!result),
+              prisma.follow.count({
+                  where: {
+                      followingId: user.id,
+                      acceptedAt: { not: null },
+                  },
+              }),
           ])
-        : [null, false, false, false];
+        : [
+              null,
+              false,
+              false,
+              false,
+              await prisma.follow.count({
+                  where: {
+                      followingId: user.id,
+                      acceptedAt: { not: null },
+                  },
+              }),
+          ];
 
     const isFollowing = Boolean(followRelation?.acceptedAt);
     const isFollowPending = Boolean(followRelation && !followRelation.acceptedAt);
@@ -97,6 +114,7 @@ export async function GET(request: Request) {
             avatarUrl: user.avatarUrl,
             headerUrl: user.headerUrl,
             isPrivate: user.isPrivate,
+            followerCount,
         },
         viewerId,
         isFollowing,
