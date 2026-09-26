@@ -158,6 +158,13 @@ export async function createAdminUser(
     });
   } catch (error) {
     console.error('Failed to send admin-created user invitation:', error);
+    await prisma.passwordResetToken.updateMany({
+      where: {
+        tokenHash: tokenHash(inviteToken),
+        usedAt: null,
+      },
+      data: { usedAt: new Date() },
+    });
     return {
       message:
         'ユーザーは作成されましたが、招待メールの送信に失敗しました。ユーザー詳細から再設定メールを送信してください。',
@@ -240,6 +247,13 @@ export async function resetUserPassword(
     });
   } catch (error) {
     console.error('Failed to send admin password reset email:', error);
+    await prisma.passwordResetToken.updateMany({
+      where: {
+        tokenHash: tokenHash(token),
+        usedAt: null,
+      },
+      data: { usedAt: new Date() },
+    });
     return { message: '再設定メールの送信に失敗しました。' };
   }
 
