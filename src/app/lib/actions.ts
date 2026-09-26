@@ -673,6 +673,12 @@ export async function acceptFollowRequest(followerId: string) {
 
     if (await usersAreBlocked(userId, followerId)) return;
 
+    const follower = await prisma.user.findUnique({
+        where: { id: followerId },
+        select: { status: true, suspendedUntil: true },
+    });
+    if (!follower || isSuspensionActive(follower.status, follower.suspendedUntil)) return;
+
     await prisma.follow.updateMany({
         where: {
             followerId,
