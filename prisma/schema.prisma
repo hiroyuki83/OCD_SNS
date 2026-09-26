@@ -125,6 +125,7 @@ model Follow {
   followerId  String
   followingId String
   createdAt   DateTime @default(now())
+  acceptedAt  DateTime?
   follower    User     @relation("UserFollowing", fields: [followerId], references: [id])
   following   User     @relation("UserFollowers", fields: [followingId], references: [id])
 
