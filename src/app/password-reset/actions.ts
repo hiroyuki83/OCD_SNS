@@ -8,7 +8,7 @@ import { rateLimit } from '@/lib/rateLimit';
 import { isEmailDeliveryConfigured, sendTransactionalEmail } from '@/lib/email';
 
 const requestSchema = z.object({
-  email: z.string().trim().toLowerCase().email('正しいメールアドレスを入力してください。'),
+  email: z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます。').email('正しいメールアドレスを入力してください。'),
 });
 
 const resetSchema = z
