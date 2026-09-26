@@ -155,24 +155,26 @@ export async function markReportReviewing(reportId: string) {
   if (report.status !== ReportStatus.OPEN) return;
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
-  await prisma.$transaction([
-    prisma.report.update({
-      where: { id: report.id },
+  await prisma.$transaction(async (tx) => {
+    const claimed = await tx.report.updateMany({
+      where: { id: report.id, status: ReportStatus.OPEN },
       data: {
         status: ReportStatus.REVIEWING,
         reviewedById: actor.id,
         reviewedAt: new Date(),
       },
-    }),
-    prisma.auditLog.create({
+    });
+    if (claimed.count !== 1) return;
+
+    await tx.auditLog.create({
       data: {
         action: 'REPORT_REVIEWING',
         actorUserId: actor.id,
         targetUserId: report.targetUserId,
         meta: { reportId: report.id, fromStatus: report.status, toStatus: ReportStatus.REVIEWING },
       },
-    }),
-  ]);
+    });
+  });
 
   revalidatePath('/moderation');
   revalidatePath('/admin/audit');
