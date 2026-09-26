@@ -208,7 +208,7 @@ export default function ProfileEditForm({
                         <input
                             type="file"
                             name="header"
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
                             className="hidden"
                             onChange={(event) => {
                                 const file = event.target.files?.[0];
