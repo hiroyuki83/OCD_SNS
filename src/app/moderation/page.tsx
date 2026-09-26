@@ -123,7 +123,8 @@ export default async function ModerationPage({
   const reasonFilter = reportReasons.find((reason) => reason === reasonParam) ?? null;
   const priorityParam = searchParams?.priority?.trim();
   const priorityFilter = reportPriorities.find((priority) => priority === priorityParam) ?? null;
-  const assigneeFilter = searchParams?.assigned?.trim() ?? '';
+  const rawAssigneeFilter = searchParams?.assigned?.trim() ?? '';
+  const assigneeFilter = rawAssigneeFilter.length <= 128 ? rawAssigneeFilter : '';
   const query = (searchParams?.q?.trim() ?? '').slice(0, 100);
   const baseFilters: Prisma.ReportWhereInput[] = [];
 
