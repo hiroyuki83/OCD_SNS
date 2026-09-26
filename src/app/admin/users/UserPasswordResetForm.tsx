@@ -9,17 +9,12 @@ function SubmitButton() {
   return (
     <button
       type="submit"
-      className="rounded-full border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 disabled:text-zinc-400"
+      className="rounded-full border border-amber-300 px-4 py-2 text-sm font-semibold text-amber-800 disabled:text-zinc-400"
       disabled={pending}
     >
-      {pending ? "再設定中" : "パスワードを再設定"}
+      {pending ? "送信中" : "再設定メールを送る"}
     </button>
   );
-}
-
-function FieldError({ messages }: { messages?: string[] }) {
-  if (!messages?.length) return null;
-  return <p className="mt-1 text-xs text-red-600">{messages[0]}</p>;
 }
 
 export default function UserPasswordResetForm({ userId }: { userId: string }) {
@@ -28,43 +23,15 @@ export default function UserPasswordResetForm({ userId }: { userId: string }) {
   return (
     <section className="mb-6 rounded-lg border border-border p-4">
       <div className="mb-4">
-        <h2 className="text-base font-semibold text-zinc-900">パスワード再発行</h2>
+        <h2 className="text-base font-semibold text-zinc-900">パスワード再設定</h2>
         <p className="mt-1 text-xs text-zinc-500">
-          管理者が一時パスワードを設定します。変更内容は監査ログに記録されます。
+          管理者はパスワードを直接設定しません。本人の登録メールアドレスへ、1時間有効の再設定リンクを送信します。
         </p>
       </div>
 
-      <form action={dispatch} className="grid gap-3 lg:grid-cols-12">
+      <form action={dispatch}>
         <input type="hidden" name="userId" value={userId} />
-        <label className="block text-sm font-medium text-zinc-700 lg:col-span-4">
-          新しいパスワード
-          <input
-            name="password"
-            type="password"
-            minLength={8}
-            maxLength={128}
-            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-            placeholder="8文字以上"
-            required
-          />
-          <FieldError messages={state?.errors?.password} />
-        </label>
-        <label className="block text-sm font-medium text-zinc-700 lg:col-span-4">
-          確認
-          <input
-            name="confirmPassword"
-            type="password"
-            minLength={8}
-            maxLength={128}
-            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-            placeholder="もう一度入力"
-            required
-          />
-          <FieldError messages={state?.errors?.confirmPassword} />
-        </label>
-        <div className="flex items-end lg:col-span-4">
-          <SubmitButton />
-        </div>
+        <SubmitButton />
       </form>
 
       {state?.message && (
