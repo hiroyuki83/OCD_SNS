@@ -42,9 +42,15 @@ export default async function Sidebar() {
     }
     const resolvedUserId = userId ?? user?.id ?? null;
     if (resolvedUserId) {
-      unreadNotifications = await prisma.notification.count({
-        where: { userId: resolvedUserId, readAt: null },
-      });
+      const [socialUnread, warningUnread] = await Promise.all([
+        prisma.notification.count({
+          where: { userId: resolvedUserId, readAt: null },
+        }),
+        prisma.moderationWarning.count({
+          where: { targetUserId: resolvedUserId, readAt: null },
+        }),
+      ]);
+      unreadNotifications = socialUnread + warningUnread;
     }
   }
   const navItems = [

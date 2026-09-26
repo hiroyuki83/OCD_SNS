@@ -510,8 +510,9 @@ model Announcement {
 
 
 model ModerationWarning {
-  id           String   @id @default(cuid())
-  createdAt    DateTime @default(now())
+  id           String    @id @default(cuid())
+  createdAt    DateTime  @default(now())
+  readAt       DateTime?
   reason       String
   targetUserId String
   actorUserId  String
@@ -522,6 +523,7 @@ model ModerationWarning {
   report     Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
 
   @@index([targetUserId, createdAt])
+  @@index([targetUserId, readAt])
   @@index([actorUserId, createdAt])
   @@index([reportId])
 }
