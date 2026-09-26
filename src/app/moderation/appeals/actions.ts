@@ -44,6 +44,7 @@ export async function reviewWarningAppeal(
   });
   if (!appeal || appeal.status !== WarningAppealStatus.PENDING) return;
   if (appeal.userId === actor.id) return;
+  if (actor.role !== Role.ADMIN && appeal.user.role !== Role.USER) return;
 
   const reviewedAt = new Date();
 
