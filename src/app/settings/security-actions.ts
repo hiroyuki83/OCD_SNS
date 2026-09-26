@@ -29,6 +29,10 @@ function normalizeCode(value: FormDataEntryValue | null) {
   return typeof value === 'string' ? value.replace(/\s+/g, '') : '';
 }
 
+function isValidCurrentPassword(value: FormDataEntryValue | null): value is string {
+  return typeof value === 'string' && value.length >= 1 && value.length <= 128;
+}
+
 async function currentStaff() {
   const session = await auth();
   const userId = session?.user?.id;
