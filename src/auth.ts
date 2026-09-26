@@ -101,7 +101,7 @@ const nextAuthResult = NextAuth({
             async authorize(credentials) {
                 const parsedCredentials = z
                     .object({
-                        email: z.string().trim().toLowerCase().email(),
+                        email: z.string().trim().toLowerCase().max(254).email(),
                         password: z.string().min(6).max(128),
                         totpCode: z.string().trim().optional(),
                         recoveryCode: z.string().trim().max(64).optional(),
