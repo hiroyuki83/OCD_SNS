@@ -32,6 +32,7 @@ function optionalUrl(formData: FormData) {
 function optionalDate(formData: FormData, key: string) {
   const value = formData.get(key);
   if (typeof value !== 'string' || !value.trim()) return null;
+  if (value.length > 64) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
