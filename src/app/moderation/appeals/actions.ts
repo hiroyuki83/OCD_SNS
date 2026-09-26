@@ -93,7 +93,7 @@ export async function reviewWarningAppeal(
         targetUserId: appeal.userId,
         meta: {
           appealId: appeal.id,
-          warningId: appeal.warningId,
+          warningId: currentAppeal.warningId,
           outcome,
           note: parsed.data.note,
         },
