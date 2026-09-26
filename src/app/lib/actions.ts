@@ -19,7 +19,7 @@ import { validateImageUpload } from '@/lib/uploadSecurity';
 import { isSuspensionActive } from '@/lib/accountStatus';
 
 const RegisterSchema = z.object({
-    name: z.string().min(1, '名前は必須です'),
+    name: z.string().trim().min(1, '名前は必須です').max(50, '名前は50文字以内です'),
     email: z.string().trim().toLowerCase().email('正しいメールアドレスを入力してください'),
     password: z.string().min(10, 'パスワードは10文字以上です').max(128, 'パスワードは128文字以内です'),
 });
