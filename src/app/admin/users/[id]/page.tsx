@@ -55,6 +55,7 @@ export default async function AdminUserDetailPage({
   await requireRole(Role.ADMIN);
 
   const userId = params.id.trim();
+  if (!userId || userId.length > 128) notFound();
   const [
     user,
     visiblePostCount,
