@@ -29,11 +29,17 @@ export default async function ProfilePage() {
         select: { name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true },
     });
 
-    const [posts, pendingFollowRequestCount] = await Promise.all([
+    const [posts, followerCount, pendingFollowRequestCount] = await Promise.all([
         prisma.post.findMany({
             where: { authorId: userId, deletedAt: null },
             orderBy: { createdAt: 'desc' },
             include: { likes: true, bookmarks: true, reactions: true },
+        }),
+        prisma.follow.count({
+            where: {
+                followingId: userId,
+                acceptedAt: { not: null },
+            },
         }),
         prisma.follow.count({
             where: {
@@ -84,7 +90,7 @@ export default async function ProfilePage() {
                             </button>
                         </form>
                         <Link href="/profile/followers" className="text-xs text-[#1d9bf0] hover:underline">
-                            フォロワー
+                            フォロワー {followerCount}
                             {pendingFollowRequestCount > 0 ? `（承認待ち ${pendingFollowRequestCount}）` : ''}
                         </Link>
                         <Link href="/profile/following" className="text-xs text-[#1d9bf0] hover:underline">
