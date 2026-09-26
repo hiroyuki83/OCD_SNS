@@ -267,6 +267,12 @@ export default async function NotificationsPage() {
                                                 拒否
                                             </button>
                                         </form>
+                                        <Link
+                                            href="/profile/followers"
+                                            className="px-2 py-1 text-xs font-semibold text-[#1d9bf0] hover:underline"
+                                        >
+                                            申請一覧
+                                        </Link>
                                     </div>
                                 )}
                             {notification.type === 'LIKE' && notification.post?.content && (
