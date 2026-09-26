@@ -1,5 +1,6 @@
 ﻿import Link from 'next/link';
 import { auth } from '@/auth';
+import { Role } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import ProfileEditForm from '@/components/profile/ProfileEditForm';
 import FontSizeSetting from '@/components/settings/FontSizeSetting';
@@ -32,7 +33,14 @@ export default async function SettingsPage() {
 
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { name: true, bio: true, email: true, autoHashtag: true },
+        select: {
+          name: true,
+          bio: true,
+          email: true,
+          autoHashtag: true,
+          role: true,
+          staffTotpEnabledAt: true,
+        },
     });
 
   return (
@@ -46,6 +54,21 @@ export default async function SettingsPage() {
         <div className="mt-4 text-xs text-zinc-500">
           メール: {user?.email ?? '-'}
         </div>
+
+        {user && (user.role === Role.ADMIN || user.role === Role.MODERATOR) && (
+          <div className="mt-6 rounded-lg border border-border p-4">
+            <h2 className="text-base font-semibold text-zinc-900">スタッフセキュリティ</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              2要素認証: {user.staffTotpEnabledAt ? '有効' : '未設定'}
+            </p>
+            <Link
+              href="/settings/security"
+              className="mt-3 inline-block text-sm font-semibold text-[#1d9bf0] hover:underline"
+            >
+              2要素認証を設定
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );
