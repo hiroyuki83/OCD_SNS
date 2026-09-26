@@ -35,16 +35,22 @@ export async function getAccessiblePostForViewer(viewerId: string | null, postId
     return post.author.isPrivate ? null : post;
   }
 
-  const blocked = await prisma.block.findFirst({
-    where: {
-      OR: [
-        { blockerId: viewerId, blockedId: post.authorId },
-        { blockerId: post.authorId, blockedId: viewerId },
-      ],
-    },
-    select: { id: true },
-  });
-  if (blocked) return null;
+  const [blocked, muted] = await Promise.all([
+    prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: viewerId, blockedId: post.authorId },
+          { blockerId: post.authorId, blockedId: viewerId },
+        ],
+      },
+      select: { id: true },
+    }),
+    prisma.mute.findFirst({
+      where: { muterId: viewerId, mutedId: post.authorId },
+      select: { id: true },
+    }),
+  ]);
+  if (blocked || muted) return null;
 
   if (post.author.isPrivate) {
     const followsAuthor = await prisma.follow.findUnique({
