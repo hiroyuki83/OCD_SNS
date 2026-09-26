@@ -13,7 +13,35 @@ function run(args) {
   }
 }
 
+function requireProductionEnv(name) {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    console.error(`Missing required production environment variable: ${name}`);
+    process.exit(1);
+  }
+  return value;
+}
+
+function validateStaffMfaKey(value) {
+  let decoded;
+  try {
+    decoded = Buffer.from(value, 'base64');
+  } catch {
+    console.error('STAFF_MFA_ENCRYPTION_KEY must be valid base64.');
+    process.exit(1);
+  }
+
+  if (decoded.length !== 32 || decoded.toString('base64').replace(/=+$/, '') !== value.replace(/=+$/, '')) {
+    console.error('STAFF_MFA_ENCRYPTION_KEY must be a base64-encoded 32-byte key.');
+    process.exit(1);
+  }
+}
+
 if (process.env.VERCEL_ENV === 'production') {
+  requireProductionEnv('DATABASE_URL');
+  requireProductionEnv('AUTH_SECRET');
+  validateStaffMfaKey(requireProductionEnv('STAFF_MFA_ENCRYPTION_KEY'));
+
   run(['prisma', 'migrate', 'deploy']);
 }
 
