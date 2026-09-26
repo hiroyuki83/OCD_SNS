@@ -15,6 +15,8 @@ const CreateUserSchema = z.object({
   name: z.string().trim().max(50, '名前は50文字以内です。').optional(),
   email: z.string().trim().toLowerCase().email('正しいメールアドレスを入力してください。'),
   role: z.enum([Role.USER, Role.MODERATOR, Role.ADMIN]),
+  currentPassword: z.string().min(1, '現在のADMINパスワードを入力してください。').max(128),
+  adminConfirmation: z.string().trim().max(64).optional(),
 });
 
 const AdminNoteSchema = z.object({
@@ -28,6 +30,8 @@ export type CreateUserState =
         name?: string[];
         email?: string[];
         role?: string[];
+        currentPassword?: string[];
+        adminConfirmation?: string[];
       };
       message?: string;
     }
@@ -74,12 +78,32 @@ export async function createAdminUser(
     name: formData.get('name'),
     email: formData.get('email'),
     role: formData.get('role'),
+    currentPassword: formData.get('currentPassword'),
+    adminConfirmation: formData.get('adminConfirmation'),
   });
   if (!parsed.success) {
     return {
       errors: parsed.error.flatten().fieldErrors,
       message: '入力内容を確認してください。',
     };
+  }
+
+  const actorAccount = await prisma.user.findUnique({
+    where: { id: actor.id },
+    select: { password: true },
+  });
+  if (
+    !actorAccount ||
+    !(await bcrypt.compare(parsed.data.currentPassword, actorAccount.password))
+  ) {
+    return { message: '現在のADMINパスワードを確認できませんでした。' };
+  }
+
+  if (
+    parsed.data.role === Role.ADMIN &&
+    parsed.data.adminConfirmation !== 'CREATE ADMIN'
+  ) {
+    return { message: 'ADMIN作成には確認文字列「CREATE ADMIN」が必要です。' };
   }
 
   if (!isEmailDeliveryConfigured()) {
