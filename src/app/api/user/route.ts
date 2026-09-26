@@ -6,7 +6,7 @@ import { isSuspensionActive } from '@/lib/accountStatus';
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id')?.trim();
-    if (!id) {
+    if (!id || id.length > 128) {
         return NextResponse.json({ user: null }, { status: 400 });
     }
 
