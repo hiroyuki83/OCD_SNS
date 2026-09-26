@@ -85,6 +85,7 @@ export default async function AdminUserDetailPage({
         role: true,
         status: true,
         restrictionReason: true,
+        restrictionUntil: true,
         suspendedUntil: true,
         createdAt: true,
         updatedAt: true,
@@ -283,6 +284,10 @@ export default async function AdminUserDetailPage({
           <div>
             <dt className="text-xs font-semibold text-zinc-500">自動ハッシュタグ</dt>
             <dd className="mt-1 text-zinc-800">{user.autoHashtag ?? "-"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold text-zinc-500">投稿制限期限</dt>
+            <dd className="mt-1 text-zinc-800">{formatDate(user.restrictionUntil)}</dd>
           </div>
           <div>
             <dt className="text-xs font-semibold text-zinc-500">停止期限</dt>
