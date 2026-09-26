@@ -126,18 +126,22 @@ export default async function BookmarksPage() {
                                     <span className="text-zinc-500">・</span>
                                     <span className="text-zinc-500">{createdAt}</span>
                                 </div>
-                                <Link href={`/post?id=${post.id}`} className="block">
-                                    {post.content && <HashtagText text={post.content} className="text-sm" />}
-                                    {post.imageUrl && (
-                                        <img
-                                            src={post.imageUrl}
-                                            alt="投稿画像"
-                                            className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
-                                        />
-                                    )}
-                                </Link>
+                                {post.content && <HashtagText text={post.content} className="text-sm" />}
+                                {post.imageUrl && (
+                                    <img
+                                        src={post.imageUrl}
+                                        alt="投稿画像"
+                                        className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
+                                    />
+                                )}
                                 <div className="flex items-center gap-3 text-zinc-500">
                                     <div className="text-xs">いいね {post._count.likes}</div>
+                                    <Link
+                                        href={`/post?id=${post.id}`}
+                                        className="text-xs text-[#1d9bf0] hover:underline"
+                                    >
+                                        投稿を開く
+                                    </Link>
                                     <form action={toggleBookmark.bind(null, post.id)}>
                                         <button
                                             type="submit"
