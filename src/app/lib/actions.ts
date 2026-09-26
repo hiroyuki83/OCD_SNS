@@ -317,6 +317,7 @@ export async function toggleLike(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
+    if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) return;
 
     const post = await getAccessiblePostForViewer(userId, postId);
     if (!post) return;
@@ -370,6 +371,7 @@ export async function addWakaru(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
+    if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) return;
     if (!(await getAccessiblePostForViewer(userId, postId))) return;
 
     await prisma.$transaction(async (tx) => {
@@ -438,6 +440,7 @@ export async function addGanbatta(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
+    if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) return;
     if (!(await getAccessiblePostForViewer(userId, postId))) return;
 
     await prisma.$transaction(async (tx) => {
@@ -1002,6 +1005,7 @@ export async function toggleBookmark(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
+    if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) return;
 
     const post = await getAccessiblePostForViewer(userId, postId);
     if (!post) return;
