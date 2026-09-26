@@ -106,12 +106,21 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
         : window.prompt(`${label} を ${statusLabels[selectedStatus]}にする理由を入力してください。`) ?? null;
     if (reason === null) return;
 
+    const currentPassword = window.prompt(
+      "アカウント状態を変更するため、現在のADMINパスワードを入力してください。",
+    );
+    if (currentPassword === null) return;
+    if (!currentPassword) {
+      alert("現在のADMINパスワードを入力してください。");
+      return;
+    }
+
     setPending("status");
     try {
       const res = await fetch(`/api/admin/users/${user.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: selectedStatus, reason }),
+        body: JSON.stringify({ status: selectedStatus, reason, currentPassword }),
       });
 
       if (!res.ok) {
