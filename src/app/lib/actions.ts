@@ -550,7 +550,10 @@ export async function followUser(targetUserId: string) {
     }
     if (!userId || userId === targetUserId) return;
     if (!(await rateLimit(`follow-action:${userId}`, 60, 60 * 1000))) return;
-    const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } });
+    const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, isPrivate: true },
+    });
     if (!targetUser || (await usersAreBlocked(userId, targetUserId))) return;
 
     await prisma.follow.upsert({
@@ -560,10 +563,11 @@ export async function followUser(targetUserId: string) {
                 followingId: targetUserId,
             },
         },
-        update: {},
+        update: targetUser.isPrivate ? {} : { acceptedAt: new Date() },
         create: {
             followerId: userId,
             followingId: targetUserId,
+            acceptedAt: targetUser.isPrivate ? null : new Date(),
         },
     });
 
@@ -816,9 +820,21 @@ export async function togglePrivateAccount() {
     });
     const nextValue = !(user?.isPrivate ?? false);
 
-    await prisma.user.update({
-        where: { id: userId },
-        data: { isPrivate: nextValue },
+    await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+            where: { id: userId },
+            data: { isPrivate: nextValue },
+        });
+
+        if (!nextValue) {
+            await tx.follow.updateMany({
+                where: {
+                    followingId: userId,
+                    acceptedAt: null,
+                },
+                data: { acceptedAt: new Date() },
+            });
+        }
     });
 
     revalidatePath('/');
