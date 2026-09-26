@@ -11,7 +11,7 @@ export default async function UserPage({
     searchParams?: { id?: string };
 }) {
     const userId = searchParams?.id?.trim();
-    if (!userId) {
+    if (!userId || userId.length > 128) {
         return (
             <div className="p-6 text-sm text-zinc-500">
                 ユーザーIDが未指定です。{' '}
