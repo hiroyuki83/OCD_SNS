@@ -66,8 +66,12 @@ export default async function BlocksPage() {
                                 )}
                             </Link>
                             <div className="flex flex-col">
-                                <span className="font-bold text-sm">{entry.blocked.name ?? 'ユーザー'}</span>
-                                <span className="text-xs text-zinc-500">@{entry.blocked.handle}</span>
+                                <Link href={`/user/${entry.blocked.handle}`} className="font-bold text-sm hover:underline">
+                                    {entry.blocked.name ?? 'ユーザー'}
+                                </Link>
+                                <Link href={`/user/${entry.blocked.handle}`} className="text-xs text-zinc-500 hover:underline">
+                                    @{entry.blocked.handle}
+                                </Link>
                                 {entry.blocked.bio && (
                                     <span className="text-xs text-zinc-500">{entry.blocked.bio}</span>
                                 )}
