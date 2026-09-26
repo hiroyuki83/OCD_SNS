@@ -244,7 +244,13 @@ export default async function NotificationsPage() {
                             </div>
                             {notification.type === 'FOLLOW' &&
                                 pendingFollowerIds.has(notification.actorId) && (
-                                    <div className="mt-2 flex gap-2">
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        <Link
+                                            href={`/user/${notification.actor.handle}`}
+                                            className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-zinc-700"
+                                        >
+                                            プロフィールを見る
+                                        </Link>
                                         <form action={acceptFollowRequest.bind(null, notification.actorId)}>
                                             <button
                                                 type="submit"
