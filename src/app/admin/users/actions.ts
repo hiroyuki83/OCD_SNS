@@ -176,7 +176,11 @@ export async function resetUserPassword(
   await prisma.$transaction([
     prisma.user.update({
       where: { id: target.id },
-      data: { password: hashedPassword, emailVerifiedAt: new Date() },
+      data: {
+        password: hashedPassword,
+        emailVerifiedAt: new Date(),
+        sessionVersion: { increment: 1 },
+      },
     }),
     prisma.passwordResetToken.updateMany({
       where: { userId: target.id, usedAt: null },
@@ -189,6 +193,7 @@ export async function resetUserPassword(
         targetUserId: target.id,
         meta: {
           role: target.role,
+          sessionsRevoked: true,
         },
       },
     }),
