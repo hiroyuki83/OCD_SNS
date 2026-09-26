@@ -55,8 +55,12 @@ export async function createAnnouncement(formData: FormData) {
   const href = optionalUrl(formData);
   if (typeof rawHref === 'string' && rawHref.trim() && !href) return;
 
+  const rawStartsAt = formData.get('startsAt');
+  const rawEndsAt = formData.get('endsAt');
   const startsAt = optionalDate(formData, 'startsAt');
   const endsAt = optionalDate(formData, 'endsAt');
+  if (typeof rawStartsAt === 'string' && rawStartsAt.trim() && !startsAt) return;
+  if (typeof rawEndsAt === 'string' && rawEndsAt.trim() && !endsAt) return;
   if (startsAt && endsAt && startsAt >= endsAt) return;
 
   const announcement = await prisma.announcement.create({
