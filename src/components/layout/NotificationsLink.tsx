@@ -25,6 +25,7 @@ export default function NotificationsLink({
     return (
         <Link
             href={href}
+            prefetch={false}
             className={className}
             onClick={() => {
                 setCount(0);
