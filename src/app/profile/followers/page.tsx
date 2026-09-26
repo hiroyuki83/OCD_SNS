@@ -48,7 +48,7 @@ export default async function FollowersPage() {
                         )}
                         <div className="flex flex-col">
                             <span className="font-bold text-sm">{entry.follower.name ?? 'ユーザー'}</span>
-                            <span className="text-xs text-zinc-500">@{entry.follower.email.split('@')[0]}</span>
+                            <span className="text-xs text-zinc-500">@{entry.follower.handle}</span>
                             {entry.follower.bio && (
                                 <span className="text-xs text-zinc-500">{entry.follower.bio}</span>
                             )}
