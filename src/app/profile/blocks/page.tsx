@@ -24,7 +24,8 @@ export default async function BlocksPage() {
         );
     }
 
-    const blocks = await prisma.block.findMany({
+    const [blocks, blockCount] = await Promise.all([
+        prisma.block.findMany({
         where: { blockerId: userId },
         select: {
             id: true,
@@ -40,17 +41,25 @@ export default async function BlocksPage() {
             },
         },
         orderBy: { createdAt: 'desc' },
-    });
+        take: 200,
+        }),
+        prisma.block.count({ where: { blockerId: userId } }),
+    ]);
 
     return (
         <div className="min-h-screen border-r border-border">
             <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center justify-between px-4">
-                <h1 className="font-bold text-base">ブロック {blocks.length}</h1>
+                <h1 className="font-bold text-base">ブロック {blockCount}</h1>
                 <Link href="/profile" className="text-xs text-[#1d9bf0] hover:underline">
                     プロフィールへ戻る
                 </Link>
             </div>
             <div className="flex flex-col">
+                {blockCount > blocks.length && (
+                    <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
+                        最新200件を表示しています
+                    </div>
+                )}
                 {blocks.map((entry) => (
                     <div key={entry.id} className="p-4 border-b border-border flex items-center gap-4 justify-between">
                         <div className="flex items-center gap-4">
@@ -93,7 +102,7 @@ export default async function BlocksPage() {
                         </form>
                     </div>
                 ))}
-                {blocks.length === 0 && (
+                {blockCount === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">ブロック中のユーザーがいません</div>
                 )}
             </div>
