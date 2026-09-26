@@ -111,9 +111,11 @@ export async function GET(request: Request) {
               });
 
     const filtered =
-        tab === 'for-you' && userId
-            ? posts.filter((post) => !post.author.isPrivate || followingIds.includes(post.author.id))
-            : posts.filter((post) => !post.author.isPrivate);
+        tab === 'following'
+            ? posts
+            : userId
+              ? posts.filter((post) => !post.author.isPrivate || followingIds.includes(post.author.id))
+              : posts.filter((post) => !post.author.isPrivate);
 
     const shuffled =
         tab === 'for-you'
