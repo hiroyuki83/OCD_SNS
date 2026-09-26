@@ -86,6 +86,7 @@ export async function setAnnouncementActive(announcementId: string, isActive: bo
   const actor = await requireRole(Role.ADMIN);
   const normalizedId = announcementId.trim();
   if (!normalizedId || normalizedId.length > 128) return;
+  if (!(await rateLimit(`announcement-status:${actor.id}`, 120, 60 * 60 * 1000))) return;
   const announcement = await prisma.announcement.findUnique({
     where: { id: normalizedId },
     select: { id: true, isActive: true },
