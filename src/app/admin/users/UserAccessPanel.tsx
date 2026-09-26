@@ -47,15 +47,28 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
   const updateRole = async () => {
     if (!roleChanged || pending) return;
 
-    const confirmed = window.confirm(`${label} の権限を ${selectedRole} に変更しますか？`);
-    if (!confirmed) return;
+    let adminConfirmation: string | undefined;
+    if (selectedRole === "ADMIN" && savedRole !== "ADMIN") {
+      const phrase = window.prompt(
+        `${label} を ADMIN に昇格します。続行するには PROMOTE ADMIN と入力してください。`,
+      );
+      if (phrase === null) return;
+      if (phrase.trim() !== "PROMOTE ADMIN") {
+        alert("確認文字列が一致しません。");
+        return;
+      }
+      adminConfirmation = phrase.trim();
+    } else {
+      const confirmed = window.confirm(`${label} の権限を ${selectedRole} に変更しますか？`);
+      if (!confirmed) return;
+    }
 
     setPending("role");
     try {
       const res = await fetch(`/api/admin/users/${user.id}/role`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: selectedRole }),
+        body: JSON.stringify({ role: selectedRole, adminConfirmation }),
       });
 
       if (!res.ok) {
@@ -146,6 +159,11 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
               ))}
             </select>
           </label>
+          {selectedRole === "ADMIN" && savedRole !== "ADMIN" && (
+            <p className="mt-2 text-xs font-semibold text-red-700">
+              ADMINは全管理機能へアクセスできます。昇格時は確認文字列の入力が必要です。
+            </p>
+          )}
           <button
             type="button"
             className="mt-3 rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:bg-zinc-400"
