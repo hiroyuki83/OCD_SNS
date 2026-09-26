@@ -180,6 +180,11 @@ export default function ProfileEditForm({
                             onChange={(event) => {
                                 const file = event.target.files?.[0];
                                 if (file) {
+                                    if (file.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
+                                        alert('画像は5MB以下にしてください。');
+                                        event.currentTarget.value = '';
+                                        return;
+                                    }
                                     openCropper(file, 'avatar');
                                 } else {
                                     setAvatarName('');
