@@ -73,7 +73,7 @@ export async function GET(request: Request) {
         orderBy: { createdAt: 'desc' },
         include: {
             author: {
-                select: { id: true, name: true, handle: true, isPrivate: true },
+                select: { id: true, name: true, handle: true },
             },
         },
         take: 20,
