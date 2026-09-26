@@ -66,6 +66,11 @@ export async function GET(request: Request) {
                       },
                   },
                   {
+                      blockedBy: {
+                          none: { blockerId: viewerId },
+                      },
+                  },
+                  {
                       OR: [
                           { isPrivate: false },
                           { id: viewerId },
