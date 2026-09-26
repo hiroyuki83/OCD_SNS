@@ -161,6 +161,12 @@ export async function markReportReviewing(reportId: string) {
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction(async (tx) => {
+    const freshTarget = await tx.user.findUnique({
+      where: { id: report.targetUserId },
+      select: { role: true },
+    });
+    if (!freshTarget || !canReviewTarget(actor.role, freshTarget.role)) return;
+
     const claimed = await tx.report.updateMany({
       where: { id: report.id, status: ReportStatus.OPEN },
       data: {
