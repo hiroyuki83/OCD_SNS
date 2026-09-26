@@ -83,6 +83,12 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
   if (report.status !== ReportStatus.OPEN && report.status !== ReportStatus.REVIEWING) return;
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
+  const routingChanged =
+    report.priority !== priority ||
+    report.assignedToId !== assignedToId ||
+    report.dueAt?.getTime() !== dueAt?.getTime();
+  if (!routingChanged && !note) return;
+
   if (assignedToId) {
     const assignee = await prisma.user.findFirst({
       where: {
