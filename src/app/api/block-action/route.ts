@@ -58,14 +58,25 @@ export async function POST(request: Request) {
         },
     });
 
-    await prisma.follow.deleteMany({
-        where: {
-            OR: [
-                { followerId: userId, followingId: targetUserId },
-                { followerId: targetUserId, followingId: userId },
-            ],
-        },
-    });
+    await prisma.$transaction([
+        prisma.follow.deleteMany({
+            where: {
+                OR: [
+                    { followerId: userId, followingId: targetUserId },
+                    { followerId: targetUserId, followingId: userId },
+                ],
+            },
+        }),
+        prisma.notification.deleteMany({
+            where: {
+                type: 'FOLLOW',
+                OR: [
+                    { userId: targetUserId, actorId: userId },
+                    { userId, actorId: targetUserId },
+                ],
+            },
+        }),
+    ]);
 
     return NextResponse.json({ ok: true });
 }
