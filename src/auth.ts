@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { AccountStatus, Role } from '@prisma/client';
+import { decryptTotpSecret, verifyTotpCode } from '@/lib/totp';
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? '').toLowerCase();
 const MODERATOR_EMAILS = (process.env.MODERATOR_EMAILS ?? process.env.MODERATOR_EMAIL ?? '')
@@ -80,11 +81,15 @@ const nextAuthResult = NextAuth({
         Credentials({
             async authorize(credentials) {
                 const parsedCredentials = z
-                    .object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(6).max(128) })
+                    .object({
+                        email: z.string().trim().toLowerCase().email(),
+                        password: z.string().min(6).max(128),
+                        totpCode: z.string().trim().optional(),
+                    })
                     .safeParse(credentials);
 
                 if (parsedCredentials.success) {
-                    const { email, password } = parsedCredentials.data;
+                    const { email, password, totpCode } = parsedCredentials.data;
                     if (!(await rateLimit(`login:${email}`, 10, 15 * 60 * 1000))) {
                         return null;
                     }
@@ -107,14 +112,38 @@ const nextAuthResult = NextAuth({
                     }
 
                     const passwordsMatch = await bcrypt.compare(password, user.password);
-                    if (passwordsMatch) {
-                        const updatedUser = await bootstrapRole({
-                            id: user.id,
-                            email: user.email,
-                            role: user.role as Role,
+                    if (!passwordsMatch) return null;
+
+                    const isStaff = user.role === Role.ADMIN || user.role === Role.MODERATOR;
+                    if (isStaff && user.staffTotpEnabledAt) {
+                        if (!user.staffTotpSecretEncrypted || !totpCode) return null;
+                        if (!(await rateLimit(`staff-totp-login:${user.id}`, 10, 15 * 60 * 1000))) {
+                            return null;
+                        }
+
+                        const secret = decryptTotpSecret(user.staffTotpSecretEncrypted);
+                        const step = verifyTotpCode(secret, totpCode);
+                        if (step === null) return null;
+
+                        const consumed = await prisma.user.updateMany({
+                            where: {
+                                id: user.id,
+                                OR: [
+                                    { staffTotpLastUsedStep: null },
+                                    { staffTotpLastUsedStep: { lt: step } },
+                                ],
+                            },
+                            data: { staffTotpLastUsedStep: step },
                         });
-                        return updatedUser;
+                        if (consumed.count !== 1) return null;
                     }
+
+                    const updatedUser = await bootstrapRole({
+                        id: user.id,
+                        email: user.email,
+                        role: user.role as Role,
+                    });
+                    return updatedUser;
                 }
 
                 return null;
