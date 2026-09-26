@@ -54,6 +54,7 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
   reportId = reportId.trim();
   if (!reportId || reportId.length > 128) return;
   const actor = await requireModerator();
+  if (!(await rateLimit(`moderation-routing:${actor.id}`, 120, 15 * 60 * 1000))) return;
   const priority = priorityFromFormData(formData);
   if (!priority) return;
 
