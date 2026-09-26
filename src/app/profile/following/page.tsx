@@ -60,7 +60,10 @@ export default async function FollowingPage() {
             </div>
             <div className="flex flex-col">
                 {following.map((entry) => (
-                    <div key={entry.id} className="p-4 border-b border-border flex items-center gap-4">
+                    <div
+                        key={entry.id}
+                        className={`p-4 border-b border-border flex items-center gap-4 ${!entry.acceptedAt ? 'bg-amber-50/40' : ''}`}
+                    >
                         <Link href={`/user/${entry.following.handle}`} aria-label={`@${entry.following.handle} のプロフィール`}>
                             {entry.following.avatarUrl ? (
                                 <img
