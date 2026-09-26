@@ -751,22 +751,24 @@ export async function removeFollower(followerId: string) {
     if (!userId || userId === followerId) return;
     if (!(await rateLimit(`follower-remove:${userId}`, 100, 60 * 60 * 1000))) return;
 
-    await prisma.$transaction([
-        prisma.follow.deleteMany({
+    await prisma.$transaction(async (tx) => {
+        const removed = await tx.follow.deleteMany({
             where: {
                 followerId,
                 followingId: userId,
                 acceptedAt: { not: null },
             },
-        }),
-        prisma.notification.deleteMany({
-            where: {
-                type: 'FOLLOW',
-                userId,
-                actorId: followerId,
-            },
-        }),
-    ]);
+        });
+        if (removed.count === 1) {
+            await tx.notification.deleteMany({
+                where: {
+                    type: 'FOLLOW',
+                    userId,
+                    actorId: followerId,
+                },
+            });
+        }
+    });
 
     revalidatePath('/');
     revalidatePath('/profile');
