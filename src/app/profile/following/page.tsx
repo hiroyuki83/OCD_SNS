@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
+import { unfollowUser } from '@/app/lib/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -94,9 +95,19 @@ export default async function FollowingPage() {
                                 </span>
                             )}
                             {!entry.acceptedAt && (
-                                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
-                                    申請中
-                                </span>
+                                <>
+                                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+                                        申請中
+                                    </span>
+                                    <form action={unfollowUser.bind(null, entry.following.id)}>
+                                        <button
+                                            type="submit"
+                                            className="text-xs font-semibold text-zinc-500 hover:text-red-500 hover:underline"
+                                        >
+                                            申請を取り消す
+                                        </button>
+                                    </form>
+                                </>
                             )}
                         </div>
                     </div>
