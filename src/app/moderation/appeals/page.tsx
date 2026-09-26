@@ -64,6 +64,11 @@ export default async function AppealListPage() {
         ) : (
           appeals.map((appeal) => {
             const userLabel = appeal.user.name ?? `@${appeal.user.handle}`;
+            const canReviewAppeal =
+              appeal.status === WarningAppealStatus.PENDING &&
+              appeal.user.id !== actor.id &&
+              appeal.warning.actorUserId !== actor.id &&
+              (actor.role === Role.ADMIN || appeal.user.role === Role.USER);
 
             return (
               <article key={appeal.id} className="rounded-lg border border-border p-4">
@@ -134,7 +139,7 @@ export default async function AppealListPage() {
                   </div>
                 )}
 
-                {appeal.status === WarningAppealStatus.PENDING && (
+                {canReviewAppeal && (
                   <form className="mt-3 rounded-md border border-border p-3">
                     <label className="block text-xs font-semibold text-zinc-700">
                       審査理由
@@ -171,6 +176,12 @@ export default async function AppealListPage() {
                       </button>
                     </div>
                   </form>
+                )}
+
+                {appeal.status === WarningAppealStatus.PENDING && !canReviewAppeal && (
+                  <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+                    この異議申立ては現在のアカウントでは審査できません。
+                  </div>
                 )}
 
                 {actor.role === Role.ADMIN && (
