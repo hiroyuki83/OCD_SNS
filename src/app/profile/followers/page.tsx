@@ -151,6 +151,11 @@ export default async function FollowersPage() {
             )}
 
             <div className="flex flex-col">
+                {followers.length > 0 && (
+                    <div className="px-4 py-3 text-sm font-semibold text-zinc-900">
+                        承認済み {followers.length}件
+                    </div>
+                )}
                 {followers.map((entry) => (
                     <div key={entry.id} className="p-4 border-b border-border flex items-center gap-4">
                         <Link href={`/user/${entry.follower.handle}`} aria-label={`@${entry.follower.handle} のプロフィール`}>
