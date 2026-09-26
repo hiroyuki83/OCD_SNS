@@ -62,30 +62,15 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false }, { status: 403 });
     }
 
-    const existingFollow = await prisma.follow.findUnique({
-        where: {
-            followerId_followingId: {
-                followerId: userId,
-                followingId: targetUserId,
-            },
-        },
-        select: { id: true },
-    });
-
-    await prisma.follow.upsert({
-        where: {
-            followerId_followingId: {
-                followerId: userId,
-                followingId: targetUserId,
-            },
-        },
-        update: targetUser.isPrivate ? {} : { acceptedAt: new Date() },
-        create: {
+    const createdFollow = await prisma.follow.createMany({
+        data: [{
             followerId: userId,
             followingId: targetUserId,
             acceptedAt: targetUser.isPrivate ? null : new Date(),
-        },
+        }],
+        skipDuplicates: true,
     });
+
     if (!existingFollow) {
         await prisma.notification.create({
             data: {
