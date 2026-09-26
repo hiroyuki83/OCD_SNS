@@ -248,12 +248,12 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
   revalidatePath('/admin/audit');
 }
 
-export async function restorePost(postId: string, targetUserId: string, formData: FormData) {
+export async function restorePost(postId: string, _targetUserId: string, formData: FormData) {
   const actor = await requireModerator();
   const note = noteFromFormData(formData);
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    select: { deletedAt: true },
+    select: { deletedAt: true, authorId: true },
   });
   if (!post || post.deletedAt) return;
 
@@ -271,7 +271,7 @@ export async function restorePost(postId: string, targetUserId: string, formData
       data: {
         action: 'POST_RESTORE',
         actorUserId: actor.id,
-        targetUserId,
+        targetUserId: post.authorId,
         meta: { postId, note },
       },
     }),
@@ -300,7 +300,9 @@ export async function setReportedUserStatus(
     },
   });
   if (!report) return;
-  if (report.targetUser.role === Role.ADMIN && actor.role !== Role.ADMIN) return;
+  if (!Object.values(AccountStatus).includes(status)) return;
+  if (report.targetUser.role === Role.ADMIN) return;
+  if (actor.role === Role.MODERATOR && report.targetUser.role !== Role.USER) return;
 
   const suspendedUntil =
     status === AccountStatus.SUSPENDED
