@@ -30,7 +30,10 @@ export async function POST(request: Request) {
     if (!userId || userId === targetUserId) {
         return NextResponse.json({ ok: false }, { status: 401 });
     }
-    const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } });
+    const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true, isPrivate: true },
+    });
     if (!targetUser) {
         return NextResponse.json({ ok: false }, { status: 404 });
     }
@@ -59,10 +62,11 @@ export async function POST(request: Request) {
                 followingId: targetUserId,
             },
         },
-        update: {},
+        update: targetUser.isPrivate ? {} : { acceptedAt: new Date() },
         create: {
             followerId: userId,
             followingId: targetUserId,
+            acceptedAt: targetUser.isPrivate ? null : new Date(),
         },
     });
     if (userId !== targetUserId) {
@@ -75,5 +79,8 @@ export async function POST(request: Request) {
         });
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+        ok: true,
+        followState: targetUser.isPrivate ? 'PENDING' : 'ACCEPTED',
+    });
 }
