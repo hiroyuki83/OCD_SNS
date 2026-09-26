@@ -419,11 +419,13 @@ export async function addWakaru(postId: string) {
                 data: [{ userId, postId, type: 'WAKARU' }],
                 skipDuplicates: true,
             });
-            await tx.post.update({
-                where: { id: postId },
-                data: { wakaruCount: { increment: 1 } },
-            });
-            if (post?.authorId && post.authorId !== userId) {
+            if (createdReaction.count === 1) {
+                await tx.post.update({
+                    where: { id: postId },
+                    data: { wakaruCount: { increment: 1 } },
+                });
+            }
+            if (createdReaction.count === 1 && post.authorId && post.authorId !== userId) {
                 await tx.notification.create({
                     data: {
                         type: 'WAKARU',
