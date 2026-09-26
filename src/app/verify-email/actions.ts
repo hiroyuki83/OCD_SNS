@@ -7,7 +7,7 @@ import { isEmailDeliveryConfigured } from '@/lib/email';
 import { hashVerificationToken, sendEmailVerification } from '@/lib/emailVerification';
 
 const tokenSchema = z.string().min(32).max(256);
-const emailSchema = z.string().trim().toLowerCase().email('正しいメールアドレスを入力してください。');
+const emailSchema = z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます。').email('正しいメールアドレスを入力してください。');
 
 export type VerifyEmailState =
     | { ok?: boolean; message?: string; errors?: { email?: string[] } }
