@@ -115,16 +115,15 @@ export async function POST(request: Request) {
     if (actionType === 'wakaru' || actionType === 'ganbatta') {
         const type = actionType === 'wakaru' ? 'WAKARU' : 'GANBATTA';
         await prisma.$transaction(async (tx) => {
-            const existing = await tx.reaction.findUnique({
-                where: { userId_postId_type: { userId, postId, type } },
+            const removedReaction = await tx.reaction.deleteMany({
+                where: { userId, postId, type },
             });
             const post = await tx.post.findUnique({
                 where: { id: postId },
                 select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true, suspendedUntil: true } } },
             });
             if (!post || post.deletedAt || post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) return;
-            if (existing) {
-                await tx.reaction.delete({ where: { id: existing.id } });
+            if (removedReaction.count > 0) {
                 await tx.post.update({
                     where: { id: postId },
                     data:
