@@ -5,10 +5,11 @@ import { AccountStatus, type Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get('q')?.trim() ?? '';
-    if (!query) {
+    const rawQuery = searchParams.get('q')?.trim() ?? '';
+    if (!rawQuery) {
         return NextResponse.json({ posts: [] });
     }
+    const query = rawQuery.slice(0, 100);
     const insensitive: Prisma.QueryMode = 'insensitive';
 
     const session = await auth();
