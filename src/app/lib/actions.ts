@@ -16,6 +16,7 @@ import { isEmailDeliveryConfigured } from '@/lib/email';
 import { sendEmailVerification } from '@/lib/emailVerification';
 import { getAccessiblePostForViewer, usersAreBlocked } from '@/lib/postAccess';
 import { validateImageUpload } from '@/lib/uploadSecurity';
+import { isSuspensionActive } from '@/lib/accountStatus';
 
 const RegisterSchema = z.object({
     name: z.string().min(1, '名前は必須です'),
@@ -386,9 +387,9 @@ export async function addWakaru(postId: string) {
         });
         const post = await tx.post.findUnique({
             where: { id: postId },
-            select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
+            select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true, suspendedUntil: true } } },
         });
-        if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) return;
+        if (!post || post.deletedAt || post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) return;
         if (existing) {
             await tx.reaction.delete({ where: { id: existing.id } });
             await tx.post.update({
@@ -455,9 +456,9 @@ export async function addGanbatta(postId: string) {
         });
         const post = await tx.post.findUnique({
             where: { id: postId },
-            select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
+            select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true, suspendedUntil: true } } },
         });
-        if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) return;
+        if (!post || post.deletedAt || post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) return;
         if (existing) {
             await tx.reaction.delete({ where: { id: existing.id } });
             await tx.post.update({
