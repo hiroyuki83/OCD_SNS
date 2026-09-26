@@ -3,7 +3,7 @@ import 'server-only';
 import { AccountStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 
-export async function getAccessiblePostForViewer(viewerId: string, postId: string) {
+export async function getAccessiblePostForViewer(viewerId: string | null, postId: string) {
   const post = await prisma.post.findUnique({
     where: { id: postId },
     select: {
@@ -30,6 +30,10 @@ export async function getAccessiblePostForViewer(viewerId: string, postId: strin
   }
 
   if (post.authorId === viewerId) return post;
+
+  if (!viewerId) {
+    return post.author.isPrivate ? null : post;
+  }
 
   const blocked = await prisma.block.findFirst({
     where: {
