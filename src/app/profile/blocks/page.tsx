@@ -54,15 +54,17 @@ export default async function BlocksPage() {
                 {blocks.map((entry) => (
                     <div key={entry.id} className="p-4 border-b border-border flex items-center gap-4 justify-between">
                         <div className="flex items-center gap-4">
-                            {entry.blocked.avatarUrl ? (
-                                <img
-                                    src={entry.blocked.avatarUrl}
-                                    alt="ユーザー画像"
-                                    className="w-10 h-10 rounded-full object-cover"
-                                />
-                            ) : (
-                                <div className="w-10 h-10 rounded-full bg-slate-400" />
-                            )}
+                            <Link href={`/user/${entry.blocked.handle}`} aria-label={`@${entry.blocked.handle} のプロフィール`}>
+                                {entry.blocked.avatarUrl ? (
+                                    <img
+                                        src={entry.blocked.avatarUrl}
+                                        alt="ユーザー画像"
+                                        className="w-10 h-10 rounded-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full bg-slate-400" />
+                                )}
+                            </Link>
                             <div className="flex flex-col">
                                 <span className="font-bold text-sm">{entry.blocked.name ?? 'ユーザー'}</span>
                                 <span className="text-xs text-zinc-500">@{entry.blocked.handle}</span>
