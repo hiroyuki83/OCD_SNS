@@ -17,7 +17,7 @@ const reportReasons = [
 ] as const;
 
 const BodySchema = z.object({
-  postId: z.string().trim().min(1).optional(),
+  postId: z.string().trim().min(1).max(128).optional(),
   targetUserId: z.string().trim().min(1).optional(),
   reason: z.enum(reportReasons).default(ReportReason.OTHER),
   detail: z.string().trim().max(500).optional(),
