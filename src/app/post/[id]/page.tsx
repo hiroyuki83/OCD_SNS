@@ -21,7 +21,7 @@ export default async function PostPage({ params }: { params?: { id?: string } })
             try {
                 const parsed = new URL(rawUrl);
                 const match = parsed.pathname.match(/^\/post\/([^/?#]+)/);
-                postId = match?.[1];
+                postId = match?.[1] ? decodeURIComponent(match[1]) : undefined;
             } catch {
                 // ignore
             }
