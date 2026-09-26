@@ -103,7 +103,7 @@ const nextAuthResult = NextAuth({
                     .object({
                         email: z.string().trim().toLowerCase().max(254).email(),
                         password: z.string().min(6).max(128),
-                        totpCode: z.string().trim().optional(),
+                        totpCode: z.string().trim().regex(/^\d{6}$/).optional().or(z.literal('')),
                         recoveryCode: z.string().trim().max(64).optional(),
                     })
                     .safeParse(credentials);
