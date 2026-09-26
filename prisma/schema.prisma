@@ -61,6 +61,7 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   warningsReceived         ModerationWarning[] @relation("WarningTarget")
   warningsCreated          ModerationWarning[] @relation("WarningActor")
+  staffRecoveryCodes       StaffRecoveryCode[]
 }
 
 model Post {
@@ -529,4 +530,18 @@ model ModerationWarning {
   @@index([targetUserId, readAt])
   @@index([actorUserId, createdAt])
   @@index([reportId])
+}
+
+
+model StaffRecoveryCode {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  usedAt    DateTime?
+  codeHash  String    @unique
+  userId    String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+  @@index([userId, createdAt])
 }
