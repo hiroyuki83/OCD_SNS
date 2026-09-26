@@ -58,6 +58,9 @@ export async function startStaffTotpSetup(
 ): Promise<TotpSetupState> {
   const user = await currentStaff();
   if (!user || !isStaff(user.role)) return { message: 'この設定はスタッフ専用です。' };
+  if (user.staffTotpEnabledAt) {
+    return { message: '2段階認証は既に有効です。再登録する場合は復旧手続きを使用してください。' };
+  }
 
   if (!(await rateLimit(`staff-totp-setup:${user.id}`, 5, 60 * 60 * 1000))) {
     return { message: '操作が多すぎます。しばらくしてから再度お試しください。' };
