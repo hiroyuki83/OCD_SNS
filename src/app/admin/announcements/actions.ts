@@ -19,6 +19,7 @@ function optionalUrl(formData: FormData) {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
+  if (trimmed.length > 2048) return null;
   try {
     const url = new URL(trimmed);
     return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
