@@ -2,7 +2,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { checkRoleApi } from "@/lib/rbac";
 import { rateLimit } from "@/lib/rateLimit";
