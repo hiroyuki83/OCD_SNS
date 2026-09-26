@@ -142,7 +142,9 @@ const nextAuthResult = NextAuth({
                     }
 
                     if (recoveryCode) {
-                        const codeHash = hashRecoveryCode(recoveryCode);
+                        const normalizedRecoveryCode = normalizeRecoveryCode(recoveryCode);
+                        if (normalizedRecoveryCode.length !== 16) return null;
+                        const codeHash = hashRecoveryCode(normalizedRecoveryCode);
                         const recovery = await prisma.staffRecoveryCode.findFirst({
                             where: {
                                 userId: user.id,
