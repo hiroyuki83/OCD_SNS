@@ -57,6 +57,10 @@ export default function RegisterPage() {
                         <input
                             name="password"
                             type="password"
+                            minLength={10}
+                            maxLength={128}
+                            required
+                            autoComplete="new-password"
                             placeholder="パスワード"
                             className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
                         />
