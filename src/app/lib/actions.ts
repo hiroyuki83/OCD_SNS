@@ -500,6 +500,8 @@ export async function addGanbatta(postId: string) {
 }
 
 export async function deletePost(postId: string) {
+    postId = postId.trim();
+    if (!postId || postId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -510,6 +512,7 @@ export async function deletePost(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
+    if (!(await rateLimit(`post-delete:${userId}`, 30, 60 * 1000))) return;
 
     const post = await prisma.post.findUnique({
         where: { id: postId },
