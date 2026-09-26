@@ -125,6 +125,23 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
       return;
     }
 
+    if (assignedToId) {
+      const currentAssignee = await tx.user.findFirst({
+        where: {
+          id: assignedToId,
+          role: { in: [Role.ADMIN, Role.MODERATOR] },
+        },
+        select: { role: true },
+      });
+      if (!currentAssignee) return;
+      if (
+        currentReport.targetUser.role !== Role.USER &&
+        currentAssignee.role !== Role.ADMIN
+      ) {
+        return;
+      }
+    }
+
     const updated = await tx.report.updateMany({
       where: {
         id: report.id,
