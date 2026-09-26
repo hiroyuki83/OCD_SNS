@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
+import { isSuspensionActive } from '@/lib/accountStatus';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -20,6 +21,7 @@ export async function GET(request: Request) {
             headerUrl: true,
             isPrivate: true,
             status: true,
+            suspendedUntil: true,
         },
     });
     if (!user) {
@@ -36,7 +38,7 @@ export async function GET(request: Request) {
         viewerId = viewer?.id ?? null;
     }
 
-    let canViewPosts = user.status !== 'SUSPENDED';
+    let canViewPosts = !isSuspensionActive(user.status, user.suspendedUntil);
     if (viewerId) {
         const [blocked, muted] = await Promise.all([
             prisma.block.findFirst({
