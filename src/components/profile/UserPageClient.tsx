@@ -13,6 +13,8 @@ type UserProfile = {
     bio: string | null;
     avatarUrl: string | null;
     headerUrl: string | null;
+    isPrivate: boolean;
+    canViewPosts: boolean;
     followerCount: number;
     followingCount: number;
     posts: Array<{
@@ -97,7 +99,14 @@ export default function UserPageClient() {
                         )}
                     </div>
                     <div className="flex flex-col gap-1">
-                        <span className="text-lg font-bold">{profile.name ?? 'ユーザー'}</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-lg font-bold">{profile.name ?? 'ユーザー'}</span>
+                            {profile.isPrivate && (
+                                <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600">
+                                    非公開
+                                </span>
+                            )}
+                        </div>
                         <span className="text-sm text-zinc-500">@{profile.handle}</span>
                         {profile.bio && <p className="text-sm text-zinc-500">{profile.bio}</p>}
                         <div className="mt-1 flex gap-4 text-xs text-zinc-500">
@@ -108,7 +117,14 @@ export default function UserPageClient() {
                 </div>
             </div>
             <div className="flex flex-col">
-                {profile.posts.map((post) => (
+                {!profile.canViewPosts && (
+                    <div className="p-6 text-sm text-zinc-500 text-center">
+                        {profile.isPrivate
+                            ? 'このアカウントは非公開です。承認されたフォロワーのみ投稿を表示できます。'
+                            : 'このユーザーの投稿は現在表示できません。'}
+                    </div>
+                )}
+                {profile.canViewPosts && profile.posts.map((post) => (
                     <div key={post.id} className="p-4 border-b border-border flex gap-4">
                         {profile.avatarUrl ? (
                             <img
@@ -137,7 +153,7 @@ export default function UserPageClient() {
                         </div>
                     </div>
                 ))}
-                {profile.posts.length === 0 && (
+                {profile.canViewPosts && profile.posts.length === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">まだ投稿がありません</div>
                 )}
             </div>
