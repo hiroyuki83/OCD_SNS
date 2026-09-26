@@ -65,6 +65,7 @@ export async function PATCH(
       data: {
         status: nextStatus,
         suspendedUntil,
+        restrictionUntil: null,
         restrictionReason: nextStatus === AccountStatus.ACTIVE ? null : reason,
       },
     });
@@ -74,7 +75,7 @@ export async function PATCH(
         action: "USER_STATUS_CHANGE",
         actorUserId: actor.id,
         targetUserId: target.id,
-        meta: { fromStatus: target.status, toStatus: nextStatus, suspendedUntil, reason },
+        meta: { fromStatus: target.status, toStatus: nextStatus, suspendedUntil, restrictionUntil: null, reason },
       },
     });
 
