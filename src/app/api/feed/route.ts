@@ -24,7 +24,10 @@ export async function GET(request: Request) {
               }),
               prisma.follow
                   .findMany({
-                      where: { followerId: userId },
+                      where: {
+                          followerId: userId,
+                          acceptedAt: { not: null },
+                      },
                       select: { followingId: true },
                   })
                   .then((rows) => rows.map((follow) => follow.followingId)),
