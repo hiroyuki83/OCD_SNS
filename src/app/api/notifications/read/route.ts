@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { validateJsonMutationRequest } from '@/lib/requestSecurity';
+import { rateLimit } from '@/lib/rateLimit';
 
 export async function POST(request: Request) {
     const requestCheck = validateJsonMutationRequest(request);
@@ -20,6 +21,9 @@ export async function POST(request: Request) {
     }
     if (!userId) {
         return NextResponse.json({ ok: false }, { status: 401 });
+    }
+    if (!(await rateLimit(`notifications-read:${userId}`, 60, 60 * 60 * 1000))) {
+        return NextResponse.json({ ok: false }, { status: 429 });
     }
 
     const readAt = new Date();
