@@ -9,6 +9,7 @@ export type CurrentUser = {
   email: string | null;
   name: string | null;
   role: Role;
+  staffTotpEnabledAt: Date | null;
 };
 
 export async function getCurrentUserWithRole(): Promise<CurrentUser | null> {
@@ -19,17 +20,22 @@ export async function getCurrentUserWithRole(): Promise<CurrentUser | null> {
 
   const user = await prisma.user.findUnique({
     where: userId ? { id: userId } : { email: email ?? "" },
-    select: { id: true, email: true, name: true, role: true },
+    select: { id: true, email: true, name: true, role: true, staffTotpEnabledAt: true },
   });
 
   if (!user) return null;
   return user;
 }
 
+function staffMfaRequired(user: CurrentUser) {
+  return (user.role === Role.ADMIN || user.role === Role.MODERATOR) && !user.staffTotpEnabledAt;
+}
+
 export async function requireRole(role: Role) {
   const user = await getCurrentUserWithRole();
   if (!user) redirect("/login");
   if (user.role !== role) notFound();
+  if (staffMfaRequired(user)) redirect("/settings?mfa=required");
   return user;
 }
 
@@ -37,6 +43,7 @@ export async function requireAnyRole(roles: Role[]) {
   const user = await getCurrentUserWithRole();
   if (!user) redirect("/login");
   if (!roles.includes(user.role)) notFound();
+  if (staffMfaRequired(user)) redirect("/settings?mfa=required");
   return user;
 }
 
@@ -44,6 +51,7 @@ export async function checkRoleApi(role: Role) {
   const user = await getCurrentUserWithRole();
   if (!user) return { error: "ログインが必要です。", status: 401 } as const;
   if (user.role !== role) return { error: "権限がありません。", status: 403 } as const;
+  if (staffMfaRequired(user)) return { error: "スタッフ2段階認証の設定が必要です。", status: 403 } as const;
   return { user } as const;
 }
 
@@ -51,6 +59,7 @@ export async function checkAnyRoleApi(roles: Role[]) {
   const user = await getCurrentUserWithRole();
   if (!user) return { error: "ログインが必要です。", status: 401 } as const;
   if (!roles.includes(user.role)) return { error: "権限がありません。", status: 403 } as const;
+  if (staffMfaRequired(user)) return { error: "スタッフ2段階認証の設定が必要です。", status: 403 } as const;
   return { user } as const;
 }
 
@@ -58,6 +67,7 @@ export async function requireRoleApi(role: Role) {
   const user = await getCurrentUserWithRole();
   if (!user) throw new Response("Unauthorized", { status: 401 });
   if (user.role !== role) throw new Response("Forbidden", { status: 403 });
+  if (staffMfaRequired(user)) throw new Response("Staff MFA required", { status: 403 });
   return user;
 }
 
@@ -65,5 +75,6 @@ export async function requireAnyRoleApi(roles: Role[]) {
   const user = await getCurrentUserWithRole();
   if (!user) throw new Response("Unauthorized", { status: 401 });
   if (!roles.includes(user.role)) throw new Response("Forbidden", { status: 403 });
+  if (staffMfaRequired(user)) throw new Response("Staff MFA required", { status: 403 });
   return user;
 }
