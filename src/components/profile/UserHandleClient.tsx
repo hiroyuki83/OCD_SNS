@@ -31,6 +31,8 @@ type ProfileResponse = {
         avatarUrl: string | null;
         headerUrl: string | null;
         isPrivate?: boolean;
+        followerCount: number;
+        followingCount: number;
     };
     posts: ProfilePost[];
     isFollowing: boolean;
