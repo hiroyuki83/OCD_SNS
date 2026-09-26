@@ -146,11 +146,6 @@ export default async function AdminUserDetailPage({
         reportId: true,
         actorUser: { select: { id: true, email: true, name: true } },
       },
-      /*
-      include: {
-        actorUser: { select: { id: true, email: true, name: true } },
-      },
-      */
     }),
     prisma.adminNote.findMany({
       where: { targetUserId: userId },
