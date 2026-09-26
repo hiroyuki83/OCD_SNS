@@ -56,6 +56,8 @@ model User {
   adminNotesTargetingUser AdminNote[]          @relation("AdminNotesTargetUser")
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
+  warningsReceived         ModerationWarning[] @relation("WarningTarget")
+  warningsCreated          ModerationWarning[] @relation("WarningActor")
 }
 
 model Post {
@@ -426,6 +428,7 @@ model Report {
   post       Post? @relation("PostReports", fields: [postId], references: [id])
   reviewedBy User? @relation("ReportsReviewed", fields: [reviewedById], references: [id])
   assignedTo User? @relation("ReportsAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
+  warnings   ModerationWarning[]
 
   @@index([status, createdAt])
   @@index([priority, status, createdAt])
@@ -503,4 +506,22 @@ model Announcement {
 
   @@index([isActive, startsAt, endsAt])
   @@index([createdAt])
+}
+
+
+model ModerationWarning {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+  reason       String
+  targetUserId String
+  actorUserId  String
+  reportId     String?
+
+  targetUser User    @relation("WarningTarget", fields: [targetUserId], references: [id])
+  actorUser  User    @relation("WarningActor", fields: [actorUserId], references: [id])
+  report     Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  @@index([targetUserId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([reportId])
 }
