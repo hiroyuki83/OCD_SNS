@@ -44,8 +44,11 @@ export default async function BlocksPage() {
 
     return (
         <div className="min-h-screen border-r border-border">
-            <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center px-4">
+            <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center justify-between px-4">
                 <h1 className="font-bold text-base">ブロック {blocks.length}</h1>
+                <Link href="/profile" className="text-xs text-[#1d9bf0] hover:underline">
+                    プロフィールへ戻る
+                </Link>
             </div>
             <div className="flex flex-col">
                 {blocks.map((entry) => (
