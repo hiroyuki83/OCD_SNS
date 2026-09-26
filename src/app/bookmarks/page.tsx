@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
 import { toggleBookmark } from '@/app/lib/actions';
 import HashtagText from '@/components/shared/HashtagText';
-import { AccountStatus } from '@prisma/client';
+import { visibleAccountFilter } from '@/lib/accountStatus';
 
 export default async function BookmarksPage() {
     const session = await auth();
@@ -42,6 +42,8 @@ export default async function BookmarksPage() {
 
     const excludedAuthorIds = Array.from(new Set([...blockedIds, ...blockedByIds, ...mutedIds]));
 
+    const now = new Date();
+
     const bookmarkRows = await prisma.bookmark.findMany({
         where: {
             userId,
@@ -50,17 +52,21 @@ export default async function BookmarksPage() {
                 deletedAt: null,
                 ...(excludedAuthorIds.length > 0 ? { authorId: { notIn: excludedAuthorIds } } : {}),
                 author: {
-                    status: { not: AccountStatus.SUSPENDED },
-                    OR: [
-                        { isPrivate: false },
-                        { id: userId },
+                    AND: [
+                        visibleAccountFilter(now),
                         {
-                            followers: {
-                                some: {
-                                    followerId: userId,
-                                    acceptedAt: { not: null },
+                            OR: [
+                                { isPrivate: false },
+                                { id: userId },
+                                {
+                                    followers: {
+                                        some: {
+                                            followerId: userId,
+                                            acceptedAt: { not: null },
+                                        },
+                                    },
                                 },
-                            },
+                            ],
                         },
                     ],
                 },
