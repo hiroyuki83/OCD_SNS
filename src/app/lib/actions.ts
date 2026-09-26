@@ -107,7 +107,7 @@ export async function authenticate(
         if (error instanceof AuthError) {
             switch (error.type) {
                 case 'CredentialsSignin':
-                    return 'メールアドレスまたはパスワードが正しくありません。';
+                    return 'メールアドレス、パスワード、または2要素認証コードを確認してください。';
                 default:
                     return 'エラーが発生しました。';
             }
