@@ -85,7 +85,7 @@ export default async function FollowersPage() {
                         承認待ち {pendingRequests.length}件
                     </div>
                     {pendingRequests.map((entry) => (
-                        <div key={entry.id} className="p-4 border-t border-border flex items-center gap-4">
+                        <div key={entry.id} className="p-4 border-t border-border bg-amber-50/40 flex items-center gap-4">
                             <Link href={`/user/${entry.follower.handle}`} aria-label={`@${entry.follower.handle} のプロフィール`}>
                                 {entry.follower.avatarUrl ? (
                                     <img
