@@ -22,6 +22,7 @@ function optionalUrl(formData: FormData) {
   if (trimmed.length > 2048) return null;
   try {
     const url = new URL(trimmed);
+    if (url.username || url.password) return null;
     return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : null;
   } catch {
     return null;
