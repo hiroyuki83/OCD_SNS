@@ -58,6 +58,7 @@ export default async function NotificationsPage() {
                         id: true,
                         name: true,
                         handle: true,
+                        avatarUrl: true,
                     },
                 },
                 post: {
