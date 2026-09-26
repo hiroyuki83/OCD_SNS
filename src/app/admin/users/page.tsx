@@ -98,6 +98,7 @@ export default async function AdminUsersPage({
             <input
               name="q"
               defaultValue={query}
+              maxLength={100}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
               placeholder="名前、メール、ユーザーID"
             />
