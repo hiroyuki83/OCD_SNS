@@ -25,7 +25,7 @@ export default async function BookmarksPage() {
         );
     }
 
-    const [blockedIds, blockedByIds, mutedIds, acceptedFollowingIds] = await Promise.all([
+    const [blockedIds, blockedByIds, mutedIds] = await Promise.all([
         prisma.block.findMany({
             where: { blockerId: userId },
             select: { blockedId: true },
@@ -38,17 +38,9 @@ export default async function BookmarksPage() {
             where: { muterId: userId },
             select: { mutedId: true },
         }).then((rows) => rows.map((row) => row.mutedId)),
-        prisma.follow.findMany({
-            where: {
-                followerId: userId,
-                acceptedAt: { not: null },
-            },
-            select: { followingId: true },
-        }).then((rows) => rows.map((row) => row.followingId)),
     ]);
 
     const excludedAuthorIds = Array.from(new Set([...blockedIds, ...blockedByIds, ...mutedIds]));
-    const acceptedFollowing = new Set(acceptedFollowingIds);
 
     const bookmarkRows = await prisma.bookmark.findMany({
         where: {
@@ -57,7 +49,21 @@ export default async function BookmarksPage() {
                 isHidden: false,
                 deletedAt: null,
                 ...(excludedAuthorIds.length > 0 ? { authorId: { notIn: excludedAuthorIds } } : {}),
-                author: { status: { not: AccountStatus.SUSPENDED } },
+                author: {
+                    status: { not: AccountStatus.SUSPENDED },
+                    OR: [
+                        { isPrivate: false },
+                        { id: userId },
+                        {
+                            followers: {
+                                some: {
+                                    followerId: userId,
+                                    acceptedAt: { not: null },
+                                },
+                            },
+                        },
+                    ],
+                },
             },
         },
         orderBy: { createdAt: 'desc' },
@@ -86,9 +92,7 @@ export default async function BookmarksPage() {
         },
     });
 
-    const bookmarks = bookmarkRows.filter(({ post }) =>
-        !post.author.isPrivate || post.authorId === userId || acceptedFollowing.has(post.authorId),
-    );
+    const bookmarks = bookmarkRows;
 
     return (
         <div className="min-h-screen border-r border-border">
