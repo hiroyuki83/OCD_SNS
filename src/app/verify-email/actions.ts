@@ -6,7 +6,7 @@ import { rateLimit } from '@/lib/rateLimit';
 import { isEmailDeliveryConfigured } from '@/lib/email';
 import { hashVerificationToken, sendEmailVerification } from '@/lib/emailVerification';
 
-const tokenSchema = z.string().min(32);
+const tokenSchema = z.string().min(32).max(256);
 const emailSchema = z.string().trim().toLowerCase().email('正しいメールアドレスを入力してください。');
 
 export type VerifyEmailState =
