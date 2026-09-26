@@ -24,7 +24,8 @@ export default async function MutesPage() {
         );
     }
 
-    const mutes = await prisma.mute.findMany({
+    const [mutes, muteCount] = await Promise.all([
+        prisma.mute.findMany({
         where: { muterId: userId },
         select: {
             id: true,
@@ -40,17 +41,25 @@ export default async function MutesPage() {
             },
         },
         orderBy: { createdAt: 'desc' },
-    });
+        take: 200,
+        }),
+        prisma.mute.count({ where: { muterId: userId } }),
+    ]);
 
     return (
         <div className="min-h-screen border-r border-border">
             <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center justify-between px-4">
-                <h1 className="font-bold text-base">ミュート {mutes.length}</h1>
+                <h1 className="font-bold text-base">ミュート {muteCount}</h1>
                 <Link href="/profile" className="text-xs text-[#1d9bf0] hover:underline">
                     プロフィールへ戻る
                 </Link>
             </div>
             <div className="flex flex-col">
+                {muteCount > mutes.length && (
+                    <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
+                        最新200件を表示しています
+                    </div>
+                )}
                 {mutes.map((entry) => (
                     <div key={entry.id} className="p-4 border-b border-border flex items-center gap-4 justify-between">
                         <div className="flex items-center gap-4">
@@ -93,7 +102,7 @@ export default async function MutesPage() {
                         </form>
                     </div>
                 ))}
-                {mutes.length === 0 && (
+                {muteCount === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">ミュート中のユーザーがいません</div>
                 )}
             </div>
