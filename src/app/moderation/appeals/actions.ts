@@ -63,6 +63,7 @@ export async function reviewWarningAppeal(
     if (!currentAppeal || currentAppeal.status !== WarningAppealStatus.PENDING) return false;
     if (currentAppeal.userId === actor.id) return false;
     if (actor.role !== Role.ADMIN && currentAppeal.user.role !== Role.USER) return false;
+    if (currentAppeal.warning.actorUserId === actor.id) return false;
 
     const claimed = await tx.warningAppeal.updateMany({
       where: { id: appeal.id, status: WarningAppealStatus.PENDING },
