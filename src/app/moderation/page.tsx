@@ -363,10 +363,19 @@ export default async function ModerationPage({
         ) : (
           reports.map((report) => {
             const canAct = report.status === ReportStatus.OPEN || report.status === ReportStatus.REVIEWING;
-            const reporterLabel = report.reporter.email ?? report.reporter.name ?? report.reporter.id;
-            const targetLabel = report.targetUser.email ?? report.targetUser.name ?? report.targetUser.id;
+            const canReviewTarget = actor.role === Role.ADMIN || report.targetUser.role === Role.USER;
+            const canSanctionTarget =
+              report.targetUser.role !== Role.ADMIN && canReviewTarget;
+            const reporterLabel =
+              actor.role === Role.ADMIN
+                ? report.reporter.email ?? report.reporter.name ?? `@${report.reporter.handle}`
+                : report.reporter.name ?? `@${report.reporter.handle}`;
+            const targetLabel =
+              actor.role === Role.ADMIN
+                ? report.targetUser.email ?? report.targetUser.name ?? `@${report.targetUser.handle}`
+                : report.targetUser.name ?? `@${report.targetUser.handle}`;
             const assigneeLabel = report.assignedTo
-              ? report.assignedTo.email ?? report.assignedTo.name ?? report.assignedTo.id
+              ? report.assignedTo.name ?? `@${report.assignedTo.handle}`
               : '未担当';
             const excerpt = report.post?.content?.trim()
               ? report.post.content.trim().slice(0, 160)
@@ -396,22 +405,35 @@ export default async function ModerationPage({
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
                       {formatDate(report.createdAt)} ・ reporter:{' '}
-                      <Link href={`/admin/users/${report.reporter.id}`} className="hover:underline">
-                        {reporterLabel}
-                      </Link>{' '}
+                      {actor.role === Role.ADMIN ? (
+                        <Link href={`/admin/users/${report.reporter.id}`} className="hover:underline">
+                          {reporterLabel}
+                        </Link>
+                      ) : (
+                        <span>{reporterLabel}</span>
+                      )}{' '}
                       ・ target:{' '}
-                      <Link href={`/admin/users/${report.targetUser.id}`} className="hover:underline">
-                        {targetLabel}
-                      </Link>
+                      {actor.role === Role.ADMIN ? (
+                        <Link href={`/admin/users/${report.targetUser.id}`} className="hover:underline">
+                          {targetLabel}
+                        </Link>
+                      ) : (
+                        <span>{targetLabel}</span>
+                      )}
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
                       target status: {report.targetUser.status}
-                      {report.targetUser.suspendedUntil ? ` until ${formatDate(report.targetUser.suspendedUntil)}` : ''}
+                      {report.targetUser.restrictionUntil
+                        ? ` restriction until ${formatDate(report.targetUser.restrictionUntil)}`
+                        : ''}
+                      {report.targetUser.suspendedUntil
+                        ? ` suspended until ${formatDate(report.targetUser.suspendedUntil)}`
+                        : ''}
                     </div>
                   </div>
                   {report.reviewedBy && (
                     <div className="text-xs text-zinc-500">
-                      reviewed by {report.reviewedBy.email ?? report.reviewedBy.name}
+                      reviewed by {report.reviewedBy.name ?? `@${report.reviewedBy.handle}`}
                     </div>
                   )}
                 </div>
