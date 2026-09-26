@@ -54,17 +54,33 @@ export async function GET(request: Request) {
         if (!isFollowing) canViewPosts = false;
     }
 
-    const posts = canViewPosts
-        ? await prisma.post.findMany({
-              where: { authorId: user.id, isHidden: false, deletedAt: null },
-              orderBy: { createdAt: 'desc' },
-              select: { id: true, content: true, imageUrl: true, createdAt: true },
-          })
-        : [];
+    const [posts, followerCount, followingCount] = await Promise.all([
+        canViewPosts
+            ? prisma.post.findMany({
+                  where: { authorId: user.id, isHidden: false, deletedAt: null },
+                  orderBy: { createdAt: 'desc' },
+                  select: { id: true, content: true, imageUrl: true, createdAt: true },
+              })
+            : Promise.resolve([]),
+        prisma.follow.count({
+            where: {
+                followingId: user.id,
+                acceptedAt: { not: null },
+            },
+        }),
+        prisma.follow.count({
+            where: {
+                followerId: user.id,
+                acceptedAt: { not: null },
+            },
+        }),
+    ]);
 
     return NextResponse.json({
         user: {
             ...user,
+            followerCount,
+            followingCount,
             posts,
         },
     });
