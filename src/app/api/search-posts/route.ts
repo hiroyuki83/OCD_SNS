@@ -46,7 +46,10 @@ export async function GET(request: Request) {
     const followingIds = viewerId
         ? (
               await prisma.follow.findMany({
-                  where: { followerId: viewerId },
+                  where: {
+                      followerId: viewerId,
+                      acceptedAt: { not: null },
+                  },
                   select: { followingId: true },
               })
           ).map((row) => row.followingId)
