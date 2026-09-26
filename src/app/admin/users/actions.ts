@@ -20,7 +20,7 @@ const CreateUserSchema = z.object({
 });
 
 const AdminNoteSchema = z.object({
-  userId: z.string().min(1),
+  userId: z.string().trim().min(1).max(128),
   body: z.string().trim().min(1, 'メモ本文を入力してください。').max(1000, 'メモは1000文字以内です。'),
 });
 
