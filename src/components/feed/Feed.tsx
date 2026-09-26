@@ -161,7 +161,7 @@ export default function Feed({
     };
 
     const runPostAction = async (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
-        if (!data.viewerId) return;
+        if (!data.viewerId || !postId || postId.length > 128) return;
         if (tab === 'for-you') {
             applyLocalPostAction(postId, action);
         }
