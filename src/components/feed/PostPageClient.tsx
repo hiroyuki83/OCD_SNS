@@ -27,9 +27,11 @@ export default function PostPageClient() {
     useEffect(() => {
         if (!postId) return;
         let active = true;
+        const controller = new AbortController();
         fetch(`/api/post?id=${encodeURIComponent(postId)}`, {
             cache: 'no-store',
             credentials: 'include',
+            signal: controller.signal,
         })
             .then((res) => (res.ok ? res.json() : Promise.reject(res)))
             .then((data) => {
@@ -42,6 +44,7 @@ export default function PostPageClient() {
             });
         return () => {
             active = false;
+            controller.abort();
         };
     }, [postId]);
 
