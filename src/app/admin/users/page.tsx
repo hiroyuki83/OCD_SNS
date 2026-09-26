@@ -22,7 +22,7 @@ export default async function AdminUsersPage({
 }) {
   await requireRole(Role.ADMIN);
 
-  const query = searchParams?.q?.trim() ?? "";
+  const query = (searchParams?.q?.trim() ?? "").slice(0, 100);
   const roleFilter = selectedRole(searchParams?.role);
   const statusFilter = selectedStatus(searchParams?.status);
   const filters: Prisma.UserWhereInput[] = [];
