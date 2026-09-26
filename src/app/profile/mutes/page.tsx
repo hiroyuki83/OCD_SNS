@@ -50,7 +50,7 @@ export default async function MutesPage() {
                             )}
                             <div className="flex flex-col">
                                 <span className="font-bold text-sm">{entry.muted.name ?? 'ユーザー'}</span>
-                                <span className="text-xs text-zinc-500">@{entry.muted.email.split('@')[0]}</span>
+                                <span className="text-xs text-zinc-500">@{entry.muted.handle}</span>
                                 {entry.muted.bio && (
                                     <span className="text-xs text-zinc-500">{entry.muted.bio}</span>
                                 )}
