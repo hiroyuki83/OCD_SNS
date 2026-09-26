@@ -64,7 +64,9 @@ export async function PATCH(
     );
   }
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await (async () => {
+    try {
+      return await prisma.$transaction(async (tx) => {
     const target = await tx.user.findUnique({
       where: { id },
       select: { id: true, role: true },
@@ -109,9 +111,16 @@ export async function PATCH(
     });
 
     return { ok: true } as const;
-  }, {
-    isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-  });
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+        return { error: "同時に権限変更が行われました。画面を更新して再度お試しください。", status: 409 } as const;
+      }
+      throw error;
+    }
+  })();
 
   if ("error" in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
