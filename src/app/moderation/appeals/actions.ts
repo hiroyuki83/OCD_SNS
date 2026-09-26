@@ -52,12 +52,15 @@ export async function reviewWarningAppeal(
       },
     });
 
-    if (outcome === WarningAppealStatus.OVERTURNED) {
-      await tx.moderationWarning.update({
-        where: { id: appeal.warningId },
-        data: { revokedAt: reviewedAt },
-      });
-    }
+    await tx.moderationWarning.update({
+      where: { id: appeal.warningId },
+      data: {
+        readAt: null,
+        ...(outcome === WarningAppealStatus.OVERTURNED
+          ? { revokedAt: reviewedAt }
+          : {}),
+      },
+    });
 
     await tx.auditLog.create({
       data: {
