@@ -1,6 +1,9 @@
 {
   "buildCommand": "npm run vercel-build",
   "git": {
-    "deploymentEnabled": false
+    "deploymentEnabled": {
+      "security-integration-final-20260926": false,
+      "main": true
+    }
   }
 }
