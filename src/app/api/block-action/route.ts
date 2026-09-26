@@ -14,9 +14,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const targetUserId = typeof body?.targetUserId === 'string' ? body.targetUserId : '';
+    const targetUserId = typeof body?.targetUserId === 'string' ? body.targetUserId.trim() : '';
     const action = typeof body?.action === 'string' ? body.action : '';
-    if (!targetUserId || !BLOCK_ACTIONS.includes(action as BlockAction)) {
+    if (!targetUserId || targetUserId.length > 128 || !BLOCK_ACTIONS.includes(action as BlockAction)) {
         return NextResponse.json({ ok: false, error: '不正な操作です。' }, { status: 400 });
     }
 
