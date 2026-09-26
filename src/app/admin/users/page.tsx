@@ -76,10 +76,12 @@ export default async function AdminUsersPage({
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">ユーザー管理</h1>
-          <p className="text-sm text-zinc-500 mt-1">権限とアカウント状態の変更は監査ログに記録されます。</p>
+          <p className="mt-1 text-sm text-zinc-500">
+            一覧は閲覧専用です。権限・状態の変更は各ユーザーの詳細画面で再認証して実行します。
+          </p>
         </div>
         <Link
           href="/admin/users/new"
