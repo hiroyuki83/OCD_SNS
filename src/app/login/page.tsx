@@ -45,6 +45,21 @@ export default function LoginPage() {
                             className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
                         />
                     </div>
+                    <div>
+                        <input
+                            name="totpCode"
+                            type="text"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            pattern="[0-9]{6}"
+                            maxLength={6}
+                            placeholder="スタッフ用2要素認証コード（任意）"
+                            className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
+                        />
+                        <p className="mt-1 text-xs text-zinc-500">
+                            一般ユーザーは空欄のままでログインできます。
+                        </p>
+                    </div>
                     {errorMessage && (
                         <p className="text-red-500 text-sm text-center">{errorMessage}</p>
                     )}
