@@ -215,7 +215,7 @@ export async function resetUserPassword(
 
   const userIdValue = formData.get('userId');
   const userId = typeof userIdValue === 'string' ? userIdValue.trim() : '';
-  if (!userId) {
+  if (!userId || userId.length > 128) {
     return { message: 'ユーザーIDが不正です。' };
   }
   if (!isEmailDeliveryConfigured()) {
