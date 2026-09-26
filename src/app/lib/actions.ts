@@ -400,8 +400,8 @@ export async function addWakaru(postId: string) {
         });
         if (!post || post.deletedAt || post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) return;
         if (removedReaction.count > 0) {
-            await tx.post.update({
-                where: { id: postId },
+            await tx.post.updateMany({
+                where: { id: postId, wakaruCount: { gt: 0 } },
                 data: { wakaruCount: { decrement: 1 } },
             });
             if (post?.authorId) {
