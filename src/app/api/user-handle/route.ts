@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { AccountStatus } from '@prisma/client';
+import { isSuspensionActive } from '@/lib/accountStatus';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 
     const user = await prisma.user.findUnique({
         where: { handle },
-        select: { id: true, name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true, status: true },
+        select: { id: true, name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true, status: true, suspendedUntil: true },
     });
     if (!user) {
         return NextResponse.json({ user: null }, { status: 404 });
@@ -91,7 +91,7 @@ export async function GET(request: Request) {
         !user.isPrivate || viewerId === user.id || isFollowing;
 
     const posts =
-        !canViewPosts || isBlocked || isMuted || isBlockedBy || user.status === AccountStatus.SUSPENDED
+        !canViewPosts || isBlocked || isMuted || isBlockedBy || isSuspensionActive(user.status, user.suspendedUntil)
         ? []
         : await prisma.post.findMany({
               where: { authorId: user.id, isHidden: false, deletedAt: null },
