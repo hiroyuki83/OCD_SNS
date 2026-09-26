@@ -209,13 +209,14 @@ export default function Feed({
         const reason: ReportReasonValue = selectedReason.value;
         const detail = window.prompt('通報理由を入力してください。空欄でも送信できます。');
         if (detail === null) return;
+        const boundedDetail = detail.trim().slice(0, 500);
 
         setReportingPostId(postId);
         try {
             const res = await fetch('/api/report', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ postId, reason, detail }),
+                body: JSON.stringify({ postId, reason, detail: boundedDetail }),
             });
             if (!res.ok) {
                 let message = '通報に失敗しました。';
