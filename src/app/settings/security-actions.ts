@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
-import { generateStaffRecoveryCodes, hashRecoveryCode } from '@/lib/recoveryCodes';
+import { generateStaffRecoveryCodes, hashRecoveryCode, normalizeRecoveryCode } from '@/lib/recoveryCodes';
 import {
   buildTotpUri,
   decryptTotpSecret,
@@ -268,14 +268,18 @@ export async function recoverStaffTotpWithRecoveryCode(
   }
 
   const recoveryCodeValue = formData.get('recoveryCode');
-  if (typeof recoveryCodeValue !== 'string' || !recoveryCodeValue.trim()) {
+  if (typeof recoveryCodeValue !== 'string' || recoveryCodeValue.length > 64) {
     return { message: 'リカバリーコードを入力してください。' };
+  }
+  const normalizedRecoveryCode = normalizeRecoveryCode(recoveryCodeValue);
+  if (normalizedRecoveryCode.length !== 16) {
+    return { message: 'リカバリーコードを確認できませんでした。' };
   }
 
   const recovery = await prisma.staffRecoveryCode.findFirst({
     where: {
       userId: user.id,
-      codeHash: hashRecoveryCode(recoveryCodeValue),
+      codeHash: hashRecoveryCode(normalizedRecoveryCode),
       usedAt: null,
     },
     select: { id: true },
