@@ -87,7 +87,13 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
         user: {
-            ...user,
+            id: user.id,
+            name: user.name,
+            handle: user.handle,
+            bio: user.bio,
+            avatarUrl: user.avatarUrl,
+            headerUrl: user.headerUrl,
+            isPrivate: user.isPrivate,
             followerCount,
             followingCount,
             canViewPosts,
