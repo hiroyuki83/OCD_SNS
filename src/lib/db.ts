@@ -3,14 +3,20 @@ import { PrismaPg } from '@prisma/adapter-pg';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
+const previewConnectionString =
+  process.env.VERCEL_ENV === 'preview'
+    ? process.env.PREVIEW_DATABASE_URL?.trim()
+    : undefined;
+
 const connectionString =
+  previewConnectionString ??
   process.env.POSTGRES_URL_NON_POOLING ??
   process.env.DATABASE_URL ??
   process.env.POSTGRES_PRISMA_URL;
 
 if (!connectionString) {
   throw new Error(
-    'Missing POSTGRES_URL_NON_POOLING, DATABASE_URL, or POSTGRES_PRISMA_URL.',
+    'Missing PREVIEW_DATABASE_URL, POSTGRES_URL_NON_POOLING, DATABASE_URL, or POSTGRES_PRISMA_URL.',
   );
 }
 
