@@ -11,27 +11,35 @@ const formatDate = (date: Date | null) =>
 export default async function StaffSecurityPage() {
   await requireRole(Role.ADMIN);
 
-  const staff = await prisma.user.findMany({
-    where: { role: { in: [Role.ADMIN, Role.MODERATOR] } },
-    orderBy: [{ role: 'desc' }, { createdAt: 'asc' }],
-    select: {
-      id: true,
-      handle: true,
-      name: true,
-      email: true,
-      role: true,
-      staffTotpEnabledAt: true,
-      _count: {
-        select: {
-          staffRecoveryCodes: {
-            where: { usedAt: null },
+  const [staff, staffCount, enabledCount] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: { in: [Role.ADMIN, Role.MODERATOR] } },
+      orderBy: [{ role: 'desc' }, { createdAt: 'asc' }],
+      take: 200,
+      select: {
+        id: true,
+        handle: true,
+        name: true,
+        email: true,
+        role: true,
+        staffTotpEnabledAt: true,
+        _count: {
+          select: {
+            staffRecoveryCodes: {
+              where: { usedAt: null },
+            },
           },
         },
       },
-    },
-  });
-
-  const enabledCount = staff.filter((user) => Boolean(user.staffTotpEnabledAt)).length;
+    }),
+    prisma.user.count({ where: { role: { in: [Role.ADMIN, Role.MODERATOR] } } }),
+    prisma.user.count({
+      where: {
+        role: { in: [Role.ADMIN, Role.MODERATOR] },
+        staffTotpEnabledAt: { not: null },
+      },
+    }),
+  ]);
 
   return (
     <div className="p-6">
@@ -48,7 +56,7 @@ export default async function StaffSecurityPage() {
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-border p-4">
           <div className="text-sm text-zinc-500">スタッフ</div>
-          <div className="mt-1 text-2xl font-semibold">{staff.length}</div>
+          <div className="mt-1 text-2xl font-semibold">{staffCount}</div>
         </div>
         <div className="rounded-lg border border-border p-4">
           <div className="text-sm text-zinc-500">MFA設定済み</div>
@@ -56,9 +64,15 @@ export default async function StaffSecurityPage() {
         </div>
         <div className="rounded-lg border border-border p-4">
           <div className="text-sm text-zinc-500">MFA未設定</div>
-          <div className="mt-1 text-2xl font-semibold">{staff.length - enabledCount}</div>
+          <div className="mt-1 text-2xl font-semibold">{staffCount - enabledCount}</div>
         </div>
       </div>
+
+      {staffCount > staff.length && (
+        <div className="mb-3 text-xs text-zinc-500">
+          一覧は先頭200件を表示しています。
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full min-w-[760px] text-left text-sm">
