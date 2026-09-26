@@ -38,7 +38,7 @@ Preview builds generate the Prisma client and build Next.js, but do not mutate t
 Required production environment variables:
 
 - `DATABASE_URL`: production PostgreSQL connection string with migration access.
-- `AUTH_SECRET`: long random NextAuth/Auth.js secret.
+- `AUTH_SECRET`: long random Auth.js secret. Legacy `NEXTAUTH_SECRET` is also accepted, but `AUTH_SECRET` is preferred.
 - `STAFF_MFA_ENCRYPTION_KEY`: stable base64-encoded 32-byte key used to encrypt staff TOTP secrets.
 
 Generate the MFA encryption key once and keep it stable:
