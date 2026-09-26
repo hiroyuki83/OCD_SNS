@@ -616,6 +616,70 @@ export async function unfollowUser(targetUserId: string) {
     revalidatePath('/profile/followers');
 }
 
+export async function acceptFollowRequest(followerId: string) {
+    const session = await auth();
+    let userId = session?.user?.id;
+    if (!userId && session?.user?.email) {
+        const user = await prisma.user.findUnique({
+            where: { email: session.user.email },
+            select: { id: true },
+        });
+        userId = user?.id;
+    }
+    if (!userId || userId === followerId) return;
+    if (!(await rateLimit(`follow-review:${userId}`, 100, 60 * 60 * 1000))) return;
+
+    await prisma.follow.updateMany({
+        where: {
+            followerId,
+            followingId: userId,
+            acceptedAt: null,
+        },
+        data: { acceptedAt: new Date() },
+    });
+
+    revalidatePath('/');
+    revalidatePath('/profile/followers');
+    revalidatePath('/profile/following');
+    revalidatePath('/notifications');
+}
+
+export async function rejectFollowRequest(followerId: string) {
+    const session = await auth();
+    let userId = session?.user?.id;
+    if (!userId && session?.user?.email) {
+        const user = await prisma.user.findUnique({
+            where: { email: session.user.email },
+            select: { id: true },
+        });
+        userId = user?.id;
+    }
+    if (!userId || userId === followerId) return;
+    if (!(await rateLimit(`follow-review:${userId}`, 100, 60 * 60 * 1000))) return;
+
+    await prisma.$transaction([
+        prisma.follow.deleteMany({
+            where: {
+                followerId,
+                followingId: userId,
+                acceptedAt: null,
+            },
+        }),
+        prisma.notification.deleteMany({
+            where: {
+                type: 'FOLLOW',
+                userId,
+                actorId: followerId,
+            },
+        }),
+    ]);
+
+    revalidatePath('/');
+    revalidatePath('/profile/followers');
+    revalidatePath('/profile/following');
+    revalidatePath('/notifications');
+}
+
 export async function blockUser(targetUserId: string) {
     const session = await auth();
     let userId = session?.user?.id;
