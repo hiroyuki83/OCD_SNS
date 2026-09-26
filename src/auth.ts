@@ -8,12 +8,6 @@ import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { AccountStatus, Role } from '@prisma/client';
 
-const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? '').toLowerCase();
-const MODERATOR_EMAILS = (process.env.MODERATOR_EMAILS ?? process.env.MODERATOR_EMAIL ?? '')
-    .split(/[,;\s]+/)
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
-
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
 async function getUser(email: string) {
@@ -24,24 +18,6 @@ async function getUser(email: string) {
         console.error('Failed to fetch user:', error);
         throw new Error('Failed to fetch user.');
     }
-}
-
-async function bootstrapRole(user: { id: string; email: string; role: Role }) {
-    const normalizedEmail = user.email.toLowerCase();
-    if (user.role !== Role.USER) return user;
-    if (ADMIN_EMAIL && normalizedEmail === ADMIN_EMAIL) {
-        return prisma.user.update({
-            where: { id: user.id },
-            data: { role: Role.ADMIN },
-        });
-    }
-    if (MODERATOR_EMAILS.includes(normalizedEmail)) {
-        return prisma.user.update({
-            where: { id: user.id },
-            data: { role: Role.MODERATOR },
-        });
-    }
-    return user;
 }
 
 const nextAuthResult = NextAuth({
@@ -108,12 +84,7 @@ const nextAuthResult = NextAuth({
 
                     const passwordsMatch = await bcrypt.compare(password, user.password);
                     if (passwordsMatch) {
-                        const updatedUser = await bootstrapRole({
-                            id: user.id,
-                            email: user.email,
-                            role: user.role as Role,
-                        });
-                        return updatedUser;
+                        return user;
                     }
                 }
 
