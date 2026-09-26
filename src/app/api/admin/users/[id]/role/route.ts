@@ -4,6 +4,8 @@ import { z } from "zod";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { checkRoleApi } from "@/lib/rbac";
+import { rateLimit } from "@/lib/rateLimit";
+import { validateJsonMutationRequest } from "@/lib/requestSecurity";
 
 const BodySchema = z.object({
   role: z.enum([Role.USER, Role.MODERATOR, Role.ADMIN]),
@@ -13,6 +15,11 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const requestCheck = validateJsonMutationRequest(request);
+  if (!requestCheck.ok) {
+    return NextResponse.json({ error: requestCheck.error }, { status: requestCheck.status });
+  }
+
   const { id } = await params;
   const authz = await checkRoleApi(Role.ADMIN);
   if ("error" in authz) {
@@ -20,6 +27,10 @@ export async function PATCH(
   }
 
   const actor = authz.user;
+  if (!(await rateLimit(`admin-mutation:${actor.id}`, 30, 60 * 1000))) {
+    return NextResponse.json({ error: "操作が多すぎます。" }, { status: 429 });
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = BodySchema.safeParse(body);
   if (!parsed.success) {
