@@ -274,6 +274,7 @@ export default async function ModerationPage({
             <input
               name="q"
               defaultValue={query}
+              maxLength={100}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
               placeholder={actor.role === Role.ADMIN ? "通報者、対象者、メール、投稿本文、通報詳細" : "通報者、対象者、@handle、投稿本文、通報詳細"}
             />
