@@ -47,6 +47,10 @@ export async function PATCH(
 
     if (!target) return { error: "ユーザーが見つかりません。", status: 404 } as const;
 
+    if (target.id === actor.id && nextRole !== Role.ADMIN) {
+      return { error: "自分自身のADMIN権限は変更できません。別のADMINから変更してください。", status: 400 } as const;
+    }
+
     if (target.role === nextRole) {
       return { ok: true } as const;
     }
