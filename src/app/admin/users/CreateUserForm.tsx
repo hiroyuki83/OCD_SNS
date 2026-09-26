@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { createAdminUser, type CreateUserState } from './actions';
 
@@ -31,6 +31,7 @@ function FieldError({ messages }: { messages?: string[] }) {
 
 export default function CreateUserForm() {
   const [state, dispatch] = useActionState<CreateUserState, FormData>(createAdminUser, undefined);
+  const [selectedRole, setSelectedRole] = useState<'USER' | 'MODERATOR' | 'ADMIN'>('USER');
   const errors = state?.errors;
 
   return (
@@ -72,7 +73,8 @@ export default function CreateUserForm() {
                 name="role"
                 type="radio"
                 value={role.value}
-                defaultChecked={role.value === 'USER'}
+                checked={selectedRole === role.value}
+                onChange={() => setSelectedRole(role.value)}
                 className="mr-2"
               />
               <span className="font-semibold text-zinc-900">{role.label}</span>
@@ -82,6 +84,40 @@ export default function CreateUserForm() {
         </div>
         <FieldError messages={errors?.role} />
       </fieldset>
+
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        <label className="block text-sm font-medium text-zinc-700">
+          操作確認用のADMINパスワード
+          <input
+            name="currentPassword"
+            type="password"
+            required
+            maxLength={128}
+            autoComplete="current-password"
+            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+            placeholder="あなた自身のADMINパスワード"
+          />
+          <FieldError messages={errors?.currentPassword} />
+        </label>
+
+        {selectedRole === 'ADMIN' && (
+          <label className="block text-sm font-medium text-zinc-700">
+            ADMIN作成確認
+            <input
+              name="adminConfirmation"
+              required
+              maxLength={64}
+              autoComplete="off"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+              placeholder="CREATE ADMIN"
+            />
+            <span className="mt-1 block text-xs text-zinc-500">
+              ADMINを作成する場合は「CREATE ADMIN」と入力してください。
+            </span>
+            <FieldError messages={errors?.adminConfirmation} />
+          </label>
+        )}
+      </div>
 
       {state?.message && (
         <div className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
