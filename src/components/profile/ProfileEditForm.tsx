@@ -230,6 +230,11 @@ export default function ProfileEditForm({
                             onChange={(event) => {
                                 const file = event.target.files?.[0];
                                 if (file) {
+                                    if (!SUPPORTED_PROFILE_IMAGE_TYPES.has(file.type)) {
+                                        alert('JPEG、PNG、WebP、GIF画像を選択してください。');
+                                        event.currentTarget.value = '';
+                                        return;
+                                    }
                                     if (file.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
                                         alert('画像は5MB以下にしてください。');
                                         event.currentTarget.value = '';
