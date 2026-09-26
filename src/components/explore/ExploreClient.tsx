@@ -17,7 +17,7 @@ type SearchPost = {
 
 export default function ExploreClient() {
     const searchParams = useSearchParams();
-    const query = searchParams.get('q')?.trim() ?? '';
+    const query = (searchParams.get('q')?.trim() ?? '').slice(0, 100);
     const [result, setResult] = useState<{
         query: string;
         posts: SearchPost[];
@@ -25,7 +25,7 @@ export default function ExploreClient() {
     }>({ query: '', posts: [], error: false });
 
     useEffect(() => {
-        const current = searchParams.get('q')?.trim() ?? '';
+        const current = (searchParams.get('q')?.trim() ?? '').slice(0, 100);
         if (!current) return;
         let active = true;
         fetch(`/api/search-posts?q=${encodeURIComponent(current)}`, { cache: 'no-store' })
