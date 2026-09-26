@@ -47,7 +47,24 @@ export default async function NotificationsPage() {
         prisma.notification.findMany({
             where: { userId: resolvedUserId },
             orderBy: { createdAt: 'desc' },
-            include: { actor: true, post: true },
+            select: {
+                id: true,
+                type: true,
+                actorId: true,
+                createdAt: true,
+                actor: {
+                    select: {
+                        id: true,
+                        name: true,
+                        handle: true,
+                    },
+                },
+                post: {
+                    select: {
+                        content: true,
+                    },
+                },
+            },
             take: 50,
         }),
         prisma.moderationWarning.findMany({
