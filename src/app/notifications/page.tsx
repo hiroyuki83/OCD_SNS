@@ -49,7 +49,7 @@ export default async function NotificationsPage() {
     ]);
     const excludedActorIds = Array.from(new Set([...blockedActorIds, ...mutedActorIds, ...blockedByActorIds]));
 
-    const [notifications, warnings, pendingFollowRows] = await Promise.all([
+    const [notifications, warnings] = await Promise.all([
         prisma.notification.findMany({
             where: {
                 userId: resolvedUserId,
@@ -98,14 +98,6 @@ export default async function NotificationsPage() {
                 },
             },
             take: 50,
-        }),
-        prisma.follow.findMany({
-            where: {
-                followingId: resolvedUserId,
-                acceptedAt: null,
-            },
-            select: { followerId: true },
-            take: 200,
         }),
     ]);
 
