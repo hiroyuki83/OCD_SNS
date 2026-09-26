@@ -349,3 +349,63 @@ export async function setReportedUserStatus(
   revalidatePath('/admin/users');
   revalidatePath('/admin/audit');
 }
+
+
+export async function warnReportedUser(reportId: string, formData: FormData) {
+  const actor = await requireModerator();
+  const note = noteFromFormData(formData);
+  if (!note) return;
+
+  const report = await prisma.report.findUnique({
+    where: { id: reportId },
+    select: {
+      id: true,
+      targetUserId: true,
+      status: true,
+      targetUser: { select: { role: true } },
+    },
+  });
+  if (!report) return;
+  if (report.status !== ReportStatus.OPEN && report.status !== ReportStatus.REVIEWING) return;
+  if (report.targetUser.role === Role.ADMIN) return;
+  if (actor.role === Role.MODERATOR && report.targetUser.role !== Role.USER) return;
+
+  await prisma.$transaction(async (tx) => {
+    const warning = await tx.moderationWarning.create({
+      data: {
+        reason: note,
+        targetUserId: report.targetUserId,
+        actorUserId: actor.id,
+        reportId: report.id,
+      },
+      select: { id: true },
+    });
+
+    await tx.report.update({
+      where: { id: report.id },
+      data: {
+        status: ReportStatus.RESOLVED,
+        reviewedById: actor.id,
+        reviewedAt: new Date(),
+        resolutionNote: `警告: ${note}`,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        action: 'USER_WARNING',
+        actorUserId: actor.id,
+        targetUserId: report.targetUserId,
+        meta: {
+          warningId: warning.id,
+          reportId: report.id,
+          reason: note,
+        },
+      },
+    });
+  });
+
+  revalidatePath('/moderation');
+  revalidatePath(`/admin/users/${report.targetUserId}`);
+  revalidatePath('/admin/audit');
+}
