@@ -1,40 +1,63 @@
 # CoCo
 
-CoCo is a Next.js and Prisma social application with moderation, audit logging, psychological self-checks, and account safety controls.
+CoCo is a Next.js and Prisma social application with moderation, audit logging, psychological self-checks, private-account follow approval, and account safety controls.
 
-Copy `.env.example` to a local environment file and set the database, authentication, Blob, and email values. Production registration and password reset email require `RESEND_API_KEY` and `EMAIL_FROM`.
+## Local development
 
-## Getting Started
-
-First, run the development server:
+Copy `.env.example` to your local environment file and configure at least the database and authentication secret.
 
 ```bash
+npm ci
+npx prisma generate
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Verification
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The integration CI runs the same core checks used before release:
 
-## Learn More
+```bash
+npx prisma validate
+npx prisma generate
+npm run lint
+npm test
+npx tsc --noEmit
+npm run build
+```
 
-To learn more about Next.js, take a look at the following resources:
+Use `npm ci` rather than `npm install` in verification and deployment environments so the committed lockfile is authoritative.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Production deployment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Vercel uses `npm run vercel-build`.
 
-## Deploy on Vercel
+Preview builds generate the Prisma client and build Next.js, but do not mutate the database. Production builds validate required security configuration and then run `prisma migrate deploy` before the application build.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Required production environment variables:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `DATABASE_URL`: production PostgreSQL connection string with migration access.
+- `AUTH_SECRET`: long random NextAuth/Auth.js secret.
+- `STAFF_MFA_ENCRYPTION_KEY`: stable base64-encoded 32-byte key used to encrypt staff TOTP secrets.
+
+Generate the MFA encryption key once and keep it stable:
+
+```bash
+openssl rand -base64 32
+```
+
+A production build intentionally fails if any required variable above is missing or if `STAFF_MFA_ENCRYPTION_KEY` is not a valid 32-byte base64 key.
+
+Additional production configuration:
+
+- `BLOB_READ_WRITE_TOKEN`: required for image uploads.
+- `RESEND_API_KEY` and `EMAIL_FROM`: required for registration, verification, invitation, and password-reset email delivery. Registration is paused when email delivery is not configured.
+
+Do not commit production secrets or copy production values into `.env.example`.
+
+## Staff security
+
+ADMIN and MODERATOR accounts use TOTP MFA for privileged access. Staff recovery codes are stored as hashes. Administrative role and account-status changes require ADMIN password reauthentication, and privileged actions are written to the audit log.
+
+Before promoting the first operational staff accounts, confirm that `STAFF_MFA_ENCRYPTION_KEY` is configured in the production environment and that recovery codes can be stored safely by the operator.
