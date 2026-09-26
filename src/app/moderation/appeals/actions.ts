@@ -5,6 +5,7 @@ import { Role, WarningAppealStatus } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
+import { rateLimit } from '@/lib/rateLimit';
 
 const ReviewSchema = z.object({
   note: z
@@ -22,6 +23,7 @@ export async function reviewWarningAppeal(
   appealId = appealId.trim();
   if (!appealId || appealId.length > 128) return;
   const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  if (!(await rateLimit(`appeal-review:${actor.id}`, 60, 60 * 60 * 1000))) return;
   if (outcome !== WarningAppealStatus.UPHELD && outcome !== WarningAppealStatus.OVERTURNED) {
     return;
   }
