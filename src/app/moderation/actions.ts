@@ -302,6 +302,8 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
 }
 
 export async function restorePost(postId: string, _targetUserId: string, formData: FormData) {
+  postId = postId.trim();
+  if (!postId || postId.length > 128) return;
   const actor = await requireModerator();
   if (!(await allowSensitiveModeration(actor.id))) return;
   const note = noteFromFormData(formData);
