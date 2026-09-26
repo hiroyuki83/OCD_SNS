@@ -820,6 +820,7 @@ export async function unmuteUser(targetUserId: string) {
     });
 
     revalidatePath('/');
+    revalidatePath('/profile');
     revalidatePath('/profile/mutes');
 }
 
