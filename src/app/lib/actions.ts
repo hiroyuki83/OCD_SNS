@@ -965,6 +965,35 @@ export async function toggleBookmark(postId: string) {
     revalidatePath('/bookmarks');
 }
 
+export async function deleteSelfTestResult(
+    testType: 'ybocs' | 'iesr' | 'itq' | 'lsas',
+    resultId: string,
+) {
+    const session = await auth();
+    let userId = session?.user?.id;
+    if (!userId && session?.user?.email) {
+        const user = await prisma.user.findUnique({
+            where: { email: session.user.email },
+            select: { id: true },
+        });
+        userId = user?.id;
+    }
+    if (!userId || !resultId) return;
+    if (!(await rateLimit(`test-result-delete:${userId}`, 60, 60 * 60 * 1000))) return;
+
+    if (testType === 'ybocs') {
+        await prisma.ybocsResult.deleteMany({ where: { id: resultId, userId } });
+    } else if (testType === 'iesr') {
+        await prisma.iesrResult.deleteMany({ where: { id: resultId, userId } });
+    } else if (testType === 'itq') {
+        await prisma.itqResult.deleteMany({ where: { id: resultId, userId } });
+    } else if (testType === 'lsas') {
+        await prisma.lsasResult.deleteMany({ where: { id: resultId, userId } });
+    }
+
+    revalidatePath('/test');
+}
+
 export type YbocsState =
     | {
           message: string;
