@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { publicHandleFromEmail } from '@/lib/publicUser';
 import { AccountStatus } from '@prisma/client';
 
 export async function GET(request: Request) {
@@ -22,9 +21,9 @@ export async function GET(request: Request) {
         viewerId = viewer?.id ?? null;
     }
 
-    const user = await prisma.user.findFirst({
-        where: { email: { startsWith: `${handle}@` } },
-        select: { id: true, name: true, email: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true, status: true },
+    const user = await prisma.user.findUnique({
+        where: { handle },
+        select: { id: true, name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true, status: true },
     });
     if (!user) {
         return NextResponse.json({ user: null }, { status: 404 });
@@ -88,10 +87,7 @@ export async function GET(request: Request) {
     const canViewPosts = !user.isPrivate || viewerId === user.id || isFollowing;
 
     return NextResponse.json({
-        user: {
-            ...user,
-            email: publicHandleFromEmail(user.email),
-        },
+        user,
         viewerId,
         isFollowing,
         isBlocked,
