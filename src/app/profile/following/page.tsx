@@ -1,4 +1,4 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 
@@ -25,7 +25,20 @@ export default async function FollowingPage() {
 
     const following = await prisma.follow.findMany({
         where: { followerId: userId },
-        include: { following: true },
+        select: {
+            id: true,
+            acceptedAt: true,
+            following: {
+                select: {
+                    id: true,
+                    handle: true,
+                    name: true,
+                    bio: true,
+                    avatarUrl: true,
+                    isPrivate: true,
+                },
+            },
+        },
         orderBy: { createdAt: 'desc' },
     });
 
@@ -46,13 +59,18 @@ export default async function FollowingPage() {
                         ) : (
                             <div className="w-10 h-10 rounded-full bg-slate-400" />
                         )}
-                        <div className="flex flex-col">
-                            <span className="font-bold text-sm">{entry.following.name ?? 'ユーザー'}</span>
-                            <span className="text-xs text-zinc-500">@{entry.following.handle}</span>
+                        <div className="min-w-0 flex-1">
+                            <div className="font-bold text-sm">{entry.following.name ?? 'ユーザー'}</div>
+                            <div className="text-xs text-zinc-500">@{entry.following.handle}</div>
                             {entry.following.bio && (
-                                <span className="text-xs text-zinc-500">{entry.following.bio}</span>
+                                <div className="text-xs text-zinc-500">{entry.following.bio}</div>
                             )}
                         </div>
+                        {!entry.acceptedAt && (
+                            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+                                申請中
+                            </span>
+                        )}
                     </div>
                 ))}
                 {following.length === 0 && (
