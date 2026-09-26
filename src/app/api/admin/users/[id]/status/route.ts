@@ -41,7 +41,14 @@ export async function PATCH(
   }
 
   const nextStatus = parsed.data.status;
-  const reason = parsed.data.reason || null;
+  const reason = parsed.data.reason?.trim() || null;
+
+  if (nextStatus !== AccountStatus.ACTIVE && (!reason || reason.length < 5)) {
+    return NextResponse.json(
+      { error: "投稿制限・停止には5文字以上の理由が必要です。" },
+      { status: 400 },
+    );
+  }
 
   const actorAccount = await prisma.user.findUnique({
     where: { id: actor.id },
