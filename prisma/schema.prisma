@@ -24,6 +24,7 @@ model User {
   role                    Role                 @default(USER)
   status                  AccountStatus        @default(ACTIVE)
   restrictionReason       String?
+  restrictionUntil        DateTime?
   suspendedUntil          DateTime?
   staffTotpSecretEncrypted String?
   staffTotpEnabledAt       DateTime?
@@ -62,6 +63,8 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   warningsReceived         ModerationWarning[] @relation("WarningTarget")
   warningsCreated          ModerationWarning[] @relation("WarningActor")
+  warningAppeals            WarningAppeal[] @relation("AppealUser")
+  warningAppealsReviewed    WarningAppeal[] @relation("AppealReviewer")
   staffRecoveryCodes       StaffRecoveryCode[]
 }
 
@@ -518,6 +521,7 @@ model ModerationWarning {
   id           String    @id @default(cuid())
   createdAt    DateTime  @default(now())
   readAt       DateTime?
+  revokedAt    DateTime?
   reason       String
   targetUserId String
   actorUserId  String
@@ -526,6 +530,7 @@ model ModerationWarning {
   targetUser User    @relation("WarningTarget", fields: [targetUserId], references: [id])
   actorUser  User    @relation("WarningActor", fields: [actorUserId], references: [id])
   report     Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  appeal     WarningAppeal?
 
   @@index([targetUserId, createdAt])
   @@index([targetUserId, readAt])
@@ -533,6 +538,32 @@ model ModerationWarning {
   @@index([reportId])
 }
 
+
+enum WarningAppealStatus {
+  PENDING
+  UPHELD
+  OVERTURNED
+}
+
+model WarningAppeal {
+  id             String              @id @default(cuid())
+  createdAt      DateTime            @default(now())
+  message        String
+  status         WarningAppealStatus @default(PENDING)
+  resolutionNote String?
+  reviewedAt     DateTime?
+  reviewerId     String?
+  warningId      String              @unique
+  userId         String
+
+  warning  ModerationWarning @relation(fields: [warningId], references: [id], onDelete: Cascade)
+  user     User              @relation("AppealUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User?             @relation("AppealReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([reviewerId, createdAt])
+}
 
 model StaffRecoveryCode {
   id        String    @id @default(cuid())
