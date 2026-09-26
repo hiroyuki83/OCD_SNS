@@ -86,7 +86,7 @@ export async function POST(request: Request) {
                 data: [{ userId, postId }],
                 skipDuplicates: true,
             });
-            if (createdLike.count > 0 && visiblePost.authorId && visiblePost.authorId !== userId) {
+            if (createdLike.count === 1 && visiblePost.authorId && visiblePost.authorId !== userId) {
                 await prisma.notification.create({
                     data: {
                         type: 'LIKE',
