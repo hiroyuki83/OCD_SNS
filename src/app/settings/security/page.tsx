@@ -13,7 +13,7 @@ function groupSecret(secret: string) {
 }
 
 export default async function StaffSecuritySettingsPage() {
-  const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR], { allowUnenrolledStaff: true });
 
   const user = await prisma.user.findUnique({
     where: { id: actor.id },
