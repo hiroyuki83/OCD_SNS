@@ -26,7 +26,7 @@ export default async function ProfilePage() {
 
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { name: true, email: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true },
+        select: { name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true },
     });
 
     const [posts] = await Promise.all([
@@ -62,7 +62,7 @@ export default async function ProfilePage() {
                     </div>
                     <div className="flex flex-col gap-1">
                         <span className="text-lg font-bold">{user?.name ?? 'ユーザー'}</span>
-                        <span className="text-sm text-zinc-500">@{user?.email?.split('@')[0]}</span>
+                        <span className="text-sm text-zinc-500">@{user?.handle}</span>
                         {user?.bio && <p className="text-sm text-zinc-300">{user.bio}</p>}
                         <div className="flex gap-4 text-sm text-zinc-400 mt-2" />
                     </div>
@@ -119,7 +119,7 @@ export default async function ProfilePage() {
                             <div className="flex-1 flex flex-col gap-2 relative z-10">
                             <div className="flex items-center gap-2 text-sm">
                                 <span className="font-bold">{user?.name ?? 'ユーザー'}</span>
-                                <span className="text-zinc-500">@{user?.email?.split('@')[0]}</span>
+                                <span className="text-zinc-500">@{user?.handle}</span>
                                 <span className="text-zinc-500">・</span>
                                 <span className="text-zinc-500">{formatPostTime(post.createdAt)}</span>
                             </div>
