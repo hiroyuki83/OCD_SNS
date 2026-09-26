@@ -78,8 +78,13 @@ export async function GET(request: Request) {
                   })
                   .then((result) => !!result),
               prisma.block
-                  .findFirst({
-                      where: { blockerId: user.id, blockedId: viewerId },
+                  .findUnique({
+                      where: {
+                          blockerId_blockedId: {
+                              blockerId: user.id,
+                              blockedId: viewerId,
+                          },
+                      },
                       select: { id: true },
                   })
                   .then((result) => !!result),
