@@ -50,6 +50,10 @@ async function allowSensitiveModeration(actorId: string) {
   return rateLimit(`moderation-sensitive:${actorId}`, 30, 15 * 60 * 1000);
 }
 
+async function allowModerationDecision(actorId: string) {
+  return rateLimit(`moderation-decision:${actorId}`, 120, 15 * 60 * 1000);
+}
+
 class ModerationConflictError extends Error {}
 
 export async function updateReportRouting(reportId: string, formData: FormData) {
