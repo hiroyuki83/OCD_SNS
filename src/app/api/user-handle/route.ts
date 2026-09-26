@@ -7,7 +7,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const rawHandle = searchParams.get('handle')?.trim() ?? '';
     const handle = rawHandle.startsWith('@') ? rawHandle.slice(1) : rawHandle;
-    if (!handle) {
+    if (!handle || handle.length > 64) {
         return NextResponse.json({ user: null }, { status: 400 });
     }
 
