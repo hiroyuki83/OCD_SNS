@@ -516,9 +516,9 @@ export async function setReportedUserStatus(
   await prisma.$transaction(async (tx) => {
     const currentTarget = await tx.user.findUnique({
       where: { id: report.targetUserId },
-      select: { status: true },
+      select: { status: true, role: true },
     });
-    if (!currentTarget) return;
+    if (!currentTarget || !canSanctionTarget(actor.role, currentTarget.role)) return;
 
     const claimed = await tx.report.updateMany({
       where: {
