@@ -594,6 +594,7 @@ export async function followUser(targetUserId: string) {
     revalidatePath('/');
     revalidatePath('/profile/following');
     revalidatePath('/profile/followers');
+    revalidatePath('/notifications');
 }
 
 export async function unfollowUser(targetUserId: string) {
@@ -718,14 +719,25 @@ export async function blockUser(targetUserId: string) {
         },
     });
 
-    await prisma.follow.deleteMany({
-        where: {
-            OR: [
-                { followerId: userId, followingId: targetUserId },
-                { followerId: targetUserId, followingId: userId },
-            ],
-        },
-    });
+    await prisma.$transaction([
+        prisma.follow.deleteMany({
+            where: {
+                OR: [
+                    { followerId: userId, followingId: targetUserId },
+                    { followerId: targetUserId, followingId: userId },
+                ],
+            },
+        }),
+        prisma.notification.deleteMany({
+            where: {
+                type: 'FOLLOW',
+                OR: [
+                    { userId: targetUserId, actorId: userId },
+                    { userId, actorId: targetUserId },
+                ],
+            },
+        }),
+    ]);
 
     revalidatePath('/');
     revalidatePath('/profile/blocks');
