@@ -61,6 +61,19 @@ export default function LoginPage() {
                             2段階認証を有効にしているADMIN / MODERATORのみ入力してください。
                         </p>
                     </div>
+                    <div>
+                        <input
+                            name="recoveryCode"
+                            type="text"
+                            maxLength={64}
+                            autoComplete="off"
+                            placeholder="リカバリーコード（認証アプリを使えない場合）"
+                            className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
+                        />
+                        <p className="mt-1 text-xs text-zinc-500">
+                            スタッフは6桁コードの代わりに、未使用のリカバリーコードを1つ入力できます。
+                        </p>
+                    </div>
                     {errorMessage && (
                         <p className="text-red-500 text-sm text-center">{errorMessage}</p>
                     )}
