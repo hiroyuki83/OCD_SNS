@@ -364,6 +364,7 @@ export async function setReportedUserStatus(
     },
   });
   if (!report) return;
+  if (report.status !== ReportStatus.OPEN && report.status !== ReportStatus.REVIEWING) return;
   if (!Object.values(AccountStatus).includes(status)) return;
   if (status !== AccountStatus.ACTIVE && (!note || note.length < 5)) return;
   if (!canSanctionTarget(actor.role, report.targetUser.role)) return;
