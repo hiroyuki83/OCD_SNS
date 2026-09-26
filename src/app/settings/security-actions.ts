@@ -201,6 +201,7 @@ export async function regenerateStaffRecoveryCodes(
   }
 
   const code = normalizeCode(formData.get('code'));
+  if (!isValidTotpCode(code)) return { message: '認証コードが正しくありません。' };
   const secret = decryptTotpSecret(user.staffTotpSecretEncrypted);
   const step = verifyTotpCode(secret, code);
   if (step === null) return { message: '認証コードが正しくありません。' };
