@@ -9,6 +9,7 @@ import { validateJsonMutationRequest } from "@/lib/requestSecurity";
 
 const BodySchema = z.object({
   role: z.enum([Role.USER, Role.MODERATOR, Role.ADMIN]),
+  adminConfirmation: z.string().optional(),
 });
 
 export async function PATCH(
@@ -39,6 +40,13 @@ export async function PATCH(
 
   const nextRole = parsed.data.role;
 
+  if (nextRole === Role.ADMIN && parsed.data.adminConfirmation !== "PROMOTE ADMIN") {
+    return NextResponse.json(
+      { error: "ADMINへの昇格には確認文字列が必要です。" },
+      { status: 400 },
+    );
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     const target = await tx.user.findUnique({
       where: { id },
@@ -68,7 +76,11 @@ export async function PATCH(
         action: "ROLE_CHANGE",
         actorUserId: actor.id,
         targetUserId: target.id,
-        meta: { fromRole: target.role, toRole: nextRole },
+        meta: {
+          fromRole: target.role,
+          toRole: nextRole,
+          elevatedToAdmin: nextRole === Role.ADMIN && target.role !== Role.ADMIN,
+        },
       },
     });
 
