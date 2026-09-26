@@ -14,6 +14,8 @@ import { rateLimit } from '@/lib/rateLimit';
 import { evaluatePostSafety, validatePublicPostContent } from '@/lib/contentSafety';
 import { isEmailDeliveryConfigured } from '@/lib/email';
 import { sendEmailVerification } from '@/lib/emailVerification';
+import { getAccessiblePostForViewer, usersAreBlocked } from '@/lib/postAccess';
+import { validateImageUpload } from '@/lib/uploadSecurity';
 
 const RegisterSchema = z.object({
     name: z.string().min(1, '名前は必須です'),
@@ -125,19 +127,14 @@ export type CreatePostState =
       }
     | undefined;
 
-const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-
 async function uploadImage(file: File, pathPrefix: string) {
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
-        return { error: '画像は5MB以下にしてください。' } as const;
+    const validation = await validateImageUpload(file);
+    if (!validation.ok) {
+        return { error: validation.error } as const;
     }
-    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-        return { error: 'JPEG、PNG、WebP、GIF形式の画像を選んでください。' } as const;
-    }
-    const safeName = file.name.replace(/[^\w.\-]/g, '_');
+
     try {
-        const blob = await put(`${pathPrefix}/${Date.now()}-${safeName}`, file, {
+        const blob = await put(`${pathPrefix}/${validation.objectName}`, file, {
             access: 'public',
         });
         return { url: blob.url } as const;
@@ -293,11 +290,8 @@ export async function toggleLike(postId: string) {
     }
     if (!userId) return;
 
-    const post = await prisma.post.findUnique({
-        where: { id: postId },
-        select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
-    });
-    if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) return;
+    const post = await getAccessiblePostForViewer(userId, postId);
+    if (!post) return;
 
     const existing = await prisma.like.findUnique({
         where: {
@@ -348,6 +342,7 @@ export async function addWakaru(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
+    if (!(await getAccessiblePostForViewer(userId, postId))) return;
 
     await prisma.$transaction(async (tx) => {
         const existing = await tx.reaction.findUnique({
@@ -415,6 +410,7 @@ export async function addGanbatta(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
+    if (!(await getAccessiblePostForViewer(userId, postId))) return;
 
     await prisma.$transaction(async (tx) => {
         const existing = await tx.reaction.findUnique({
@@ -525,6 +521,9 @@ export async function followUser(targetUserId: string) {
         userId = user?.id;
     }
     if (!userId || userId === targetUserId) return;
+    if (!(await rateLimit(`follow-action:${userId}`, 60, 60 * 1000))) return;
+    const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } });
+    if (!targetUser || (await usersAreBlocked(userId, targetUserId))) return;
 
     await prisma.follow.upsert({
         where: {
@@ -702,6 +701,12 @@ export type ProfileState =
       }
     | undefined;
 
+const ProfileSchema = z.object({
+    name: z.string().trim().max(50, '名前は50文字以内です。').optional(),
+    bio: z.string().trim().max(500, '自己紹介は500文字以内です。').optional(),
+    autoHashtag: z.string().trim().max(100, '自動ハッシュタグは100文字以内です。').optional(),
+});
+
 export async function updateProfile(
     _prevState: ProfileState,
     formData: FormData,
@@ -716,11 +721,21 @@ export async function updateProfile(
         userId = user?.id;
     }
     if (!userId) return { message: 'ログインしてください。' };
+    if (!(await rateLimit(`profile-update:${userId}`, 10, 10 * 60 * 1000))) {
+        return { message: 'プロフィール更新が多すぎます。少し待ってから再度お試しください。' };
+    }
 
-    const name = typeof formData.get('name') === 'string' ? String(formData.get('name')).trim() : undefined;
-    const bio = typeof formData.get('bio') === 'string' ? String(formData.get('bio')).trim() : undefined;
-    const autoHashtag =
-        typeof formData.get('autoHashtag') === 'string' ? String(formData.get('autoHashtag')).trim() : undefined;
+    const profile = ProfileSchema.safeParse({
+        name: typeof formData.get('name') === 'string' ? String(formData.get('name')) : undefined,
+        bio: typeof formData.get('bio') === 'string' ? String(formData.get('bio')) : undefined,
+        autoHashtag:
+            typeof formData.get('autoHashtag') === 'string' ? String(formData.get('autoHashtag')) : undefined,
+    });
+    if (!profile.success) {
+        return { message: profile.error.issues[0]?.message ?? 'プロフィールの入力内容が不正です。' };
+    }
+
+    const { name, bio, autoHashtag } = profile.data;
     const avatar = formData.get('avatar');
     const header = formData.get('header');
 
@@ -765,6 +780,7 @@ export async function togglePrivateAccount() {
         userId = user?.id;
     }
     if (!userId) return;
+    if (!(await rateLimit(`privacy-toggle:${userId}`, 10, 60 * 60 * 1000))) return;
 
     const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -795,11 +811,8 @@ export async function toggleBookmark(postId: string) {
     }
     if (!userId) return;
 
-    const post = await prisma.post.findUnique({
-        where: { id: postId },
-        select: { id: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
-    });
-    if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) return;
+    const post = await getAccessiblePostForViewer(userId, postId);
+    if (!post) return;
 
     const existing = await prisma.bookmark.findUnique({
         where: {
