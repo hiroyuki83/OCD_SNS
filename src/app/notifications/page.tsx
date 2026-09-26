@@ -208,10 +208,26 @@ export default async function NotificationsPage() {
                     return (
                         <div
                             key={item.id}
-                            className="p-4 border-b border-border flex flex-col gap-1 text-sm"
+                            className="p-4 border-b border-border flex gap-3 text-sm"
                         >
-                            <div className="text-zinc-400 text-xs">{timestamp}</div>
-                            <div>
+                            <Link
+                                href={`/user/${notification.actor.handle}`}
+                                className="shrink-0"
+                                aria-label={`@${notification.actor.handle} のプロフィール`}
+                            >
+                                {notification.actor.avatarUrl ? (
+                                    <img
+                                        src={notification.actor.avatarUrl}
+                                        alt="ユーザー画像"
+                                        className="h-10 w-10 rounded-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="h-10 w-10 rounded-full bg-slate-400" />
+                                )}
+                            </Link>
+                            <div className="min-w-0 flex-1">
+                                <div className="text-zinc-400 text-xs">{timestamp}</div>
+                                <div>
                                 <Link
                                     href={`/user/${notification.actor.handle}`}
                                     className="font-bold hover:underline"
@@ -252,6 +268,7 @@ export default async function NotificationsPage() {
                                     {notification.post.content}
                                 </div>
                             )}
+                            </div>
                         </div>
                     );
                 })}
