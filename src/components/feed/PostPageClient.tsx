@@ -91,7 +91,9 @@ export default function PostPageClient() {
                         <Link href={`/user/${handle}`} className="font-bold hover:underline">
                             {post.author.name ?? 'ユーザー'}
                         </Link>
-                        <span className="text-zinc-500">@{handle}</span>
+                        <Link href={`/user/${handle}`} className="text-zinc-500 hover:underline">
+                            @{handle}
+                        </Link>
                         <span className="text-zinc-500">・</span>
                         <span className="text-zinc-500">{createdAt}</span>
                     </div>
