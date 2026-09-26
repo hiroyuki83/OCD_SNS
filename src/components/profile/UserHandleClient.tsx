@@ -109,11 +109,12 @@ export default function UserHandleClient() {
     }, [profile]);
 
     const runPostAction = async (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
-        await fetch('/api/post-action', {
+        const res = await fetch('/api/post-action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ postId, action }),
         });
+        if (!res.ok) return;
         await fetchProfile();
     };
 
