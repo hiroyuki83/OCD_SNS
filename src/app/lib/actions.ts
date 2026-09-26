@@ -480,14 +480,17 @@ export async function addGanbatta(postId: string) {
                 });
             }
         } else {
-            await tx.reaction.create({
-                data: { userId, postId, type: 'GANBATTA' },
+            const createdReaction = await tx.reaction.createMany({
+                data: [{ userId, postId, type: 'GANBATTA' }],
+                skipDuplicates: true,
             });
-            await tx.post.update({
-                where: { id: postId },
-                data: { ganbattaCount: { increment: 1 } },
-            });
-            if (post?.authorId && post.authorId !== userId) {
+            if (createdReaction.count === 1) {
+                await tx.post.update({
+                    where: { id: postId },
+                    data: { ganbattaCount: { increment: 1 } },
+                });
+            }
+            if (createdReaction.count === 1 && post.authorId && post.authorId !== userId) {
                 await tx.notification.create({
                     data: {
                         type: 'GANBATTA',
