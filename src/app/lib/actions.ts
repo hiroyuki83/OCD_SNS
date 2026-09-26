@@ -162,19 +162,47 @@ export async function createPost(
     }
     const moderationState = await prisma.user.findUnique({
         where: { id: userId },
-        select: { status: true, suspendedUntil: true, restrictionReason: true },
+        select: {
+            status: true,
+            suspendedUntil: true,
+            restrictionUntil: true,
+            restrictionReason: true,
+        },
     });
+    const now = new Date();
     if (moderationState?.status === AccountStatus.SUSPENDED) {
-        if (!moderationState.suspendedUntil || moderationState.suspendedUntil > new Date()) {
+        if (!moderationState.suspendedUntil || moderationState.suspendedUntil > now) {
             return { message: moderationState.restrictionReason ?? 'アカウントが停止中のため投稿できません。' };
         }
         await prisma.user.update({
             where: { id: userId },
-            data: { status: AccountStatus.ACTIVE, suspendedUntil: null, restrictionReason: null },
+            data: {
+                status: AccountStatus.ACTIVE,
+                suspendedUntil: null,
+                restrictionUntil: null,
+                restrictionReason: null,
+            },
         });
     }
     if (moderationState?.status === AccountStatus.POST_RESTRICTED) {
-        return { message: moderationState.restrictionReason ?? '投稿が制限されています。' };
+        if (moderationState.restrictionUntil && moderationState.restrictionUntil <= now) {
+            await prisma.user.update({
+                where: { id: userId },
+                data: {
+                    status: AccountStatus.ACTIVE,
+                    restrictionUntil: null,
+                    restrictionReason: null,
+                },
+            });
+        } else {
+            const untilLabel = moderationState.restrictionUntil
+                ? moderationState.restrictionUntil.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
+                : null;
+            const baseMessage = moderationState.restrictionReason ?? '投稿が制限されています。';
+            return {
+                message: untilLabel ? `${baseMessage}（${untilLabel}まで）` : baseMessage,
+            };
+        }
     }
     if (!(await rateLimit(`create-post:${userId}`, 20, 60 * 1000))) {
         return { message: '投稿が多すぎます。少し待ってから再度お試しください。' };
