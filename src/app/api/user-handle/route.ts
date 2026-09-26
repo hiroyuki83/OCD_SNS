@@ -140,7 +140,12 @@ export async function GET(request: Request) {
         !canViewPosts || isBlocked || isMuted || isBlockedBy || isSuspensionActive(user.status, user.suspendedUntil)
         ? []
         : await prisma.post.findMany({
-              where: { authorId: user.id, isHidden: false, deletedAt: null },
+              where: {
+                  authorId: user.id,
+                  isHidden: false,
+                  deletedAt: null,
+                  author: postAuthorVisibility,
+              },
               orderBy: { createdAt: 'desc' },
               take: 100,
               select: {
