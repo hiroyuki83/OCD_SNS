@@ -90,6 +90,19 @@ export default async function FollowingPage() {
                             {entry.following.bio && (
                                 <div className="text-xs text-zinc-500">{entry.following.bio}</div>
                             )}
+                            {!entry.acceptedAt && (
+                                <div className="mt-1 text-[11px] text-zinc-400">
+                                    申請日時{' '}
+                                    {entry.createdAt.toLocaleString('ja-JP', {
+                                        timeZone: 'Asia/Tokyo',
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                    })}
+                                </div>
+                            )}
                         </div>
                         <div className="flex items-center gap-2">
                             {entry.following.isPrivate && (
