@@ -51,6 +51,10 @@ export async function createAnnouncement(formData: FormData) {
   const body = formText(formData, 'body', 600);
   if (!title || !body) return;
 
+  const rawHref = formData.get('href');
+  const href = optionalUrl(formData);
+  if (typeof rawHref === 'string' && rawHref.trim() && !href) return;
+
   const startsAt = optionalDate(formData, 'startsAt');
   const endsAt = optionalDate(formData, 'endsAt');
   if (startsAt && endsAt && startsAt >= endsAt) return;
@@ -59,7 +63,7 @@ export async function createAnnouncement(formData: FormData) {
     data: {
       title,
       body,
-      href: optionalUrl(formData),
+      href,
       isActive: formData.get('isActive') === 'on',
       startsAt,
       endsAt,
