@@ -1,4 +1,4 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
@@ -25,22 +25,70 @@ export default async function BookmarksPage() {
         );
     }
 
-    const bookmarks = await prisma.bookmark.findMany({
+    const [blockedIds, blockedByIds, mutedIds, acceptedFollowingIds] = await Promise.all([
+        prisma.block.findMany({
+            where: { blockerId: userId },
+            select: { blockedId: true },
+        }).then((rows) => rows.map((row) => row.blockedId)),
+        prisma.block.findMany({
+            where: { blockedId: userId },
+            select: { blockerId: true },
+        }).then((rows) => rows.map((row) => row.blockerId)),
+        prisma.mute.findMany({
+            where: { muterId: userId },
+            select: { mutedId: true },
+        }).then((rows) => rows.map((row) => row.mutedId)),
+        prisma.follow.findMany({
+            where: {
+                followerId: userId,
+                acceptedAt: { not: null },
+            },
+            select: { followingId: true },
+        }).then((rows) => rows.map((row) => row.followingId)),
+    ]);
+
+    const excludedAuthorIds = Array.from(new Set([...blockedIds, ...blockedByIds, ...mutedIds]));
+    const acceptedFollowing = new Set(acceptedFollowingIds);
+
+    const bookmarkRows = await prisma.bookmark.findMany({
         where: {
             userId,
             post: {
                 isHidden: false,
                 deletedAt: null,
+                ...(excludedAuthorIds.length > 0 ? { authorId: { notIn: excludedAuthorIds } } : {}),
                 author: { status: { not: AccountStatus.SUSPENDED } },
             },
         },
         orderBy: { createdAt: 'desc' },
-        include: {
+        take: 200,
+        select: {
+            id: true,
             post: {
-                include: { author: true, likes: true, bookmarks: true },
+                select: {
+                    id: true,
+                    content: true,
+                    imageUrl: true,
+                    createdAt: true,
+                    authorId: true,
+                    author: {
+                        select: {
+                            id: true,
+                            name: true,
+                            handle: true,
+                            avatarUrl: true,
+                            isPrivate: true,
+                        },
+                    },
+                    _count: { select: { likes: true } },
+                },
             },
         },
     });
+
+    const bookmarks = bookmarkRows.filter(({ post }) =>
+        !post.author.isPrivate || post.authorId === userId || acceptedFollowing.has(post.authorId),
+    );
 
     return (
         <div className="min-h-screen border-r border-border">
@@ -50,8 +98,6 @@ export default async function BookmarksPage() {
             <div className="flex flex-col">
                 {bookmarks.map((entry) => {
                     const post = entry.post;
-                    const bookmarked = post.bookmarks.some((bookmark) => bookmark.userId === userId);
-                    const likeCount = post.likes.length;
                     const createdAt = formatPostTime(post.createdAt);
 
                     return (
@@ -67,29 +113,33 @@ export default async function BookmarksPage() {
                             )}
                             <div className="flex-1 flex flex-col gap-2">
                                 <div className="flex items-center gap-2 text-sm flex-wrap">
-                                    <span className="font-bold">{post.author.name ?? 'ユーザー'}</span>
-                                    <span className="text-zinc-500">@{post.author.handle}</span>
+                                    <Link href={`/user/${post.author.handle}`} className="font-bold hover:underline">
+                                        {post.author.name ?? 'ユーザー'}
+                                    </Link>
+                                    <Link href={`/user/${post.author.handle}`} className="text-zinc-500 hover:underline">
+                                        @{post.author.handle}
+                                    </Link>
                                     <span className="text-zinc-500">・</span>
                                     <span className="text-zinc-500">{createdAt}</span>
                                 </div>
-                                {post.content && <HashtagText text={post.content} className="text-sm" />}
-                                {post.imageUrl && (
-                                    <img
-                                        src={post.imageUrl}
-                                        alt="投稿画像"
-                                        className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
-                                    />
-                                )}
+                                <Link href={`/post?id=${post.id}`} className="block">
+                                    {post.content && <HashtagText text={post.content} className="text-sm" />}
+                                    {post.imageUrl && (
+                                        <img
+                                            src={post.imageUrl}
+                                            alt="投稿画像"
+                                            className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
+                                        />
+                                    )}
+                                </Link>
                                 <div className="flex items-center gap-3 text-zinc-500">
-                                    <div className="text-xs">いいね {likeCount}</div>
+                                    <div className="text-xs">いいね {post._count.likes}</div>
                                     <form action={toggleBookmark.bind(null, post.id)}>
                                         <button
                                             type="submit"
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors ${
-                                                bookmarked ? 'text-[#1d9bf0]' : 'hover:text-[#1d9bf0]'
-                                            }`}
+                                            className="text-xs rounded-full px-3 py-1 transition-colors text-[#1d9bf0]"
                                         >
-                                            {bookmarked ? 'ブックマーク済み' : 'ブックマーク'}
+                                            ブックマーク解除
                                         </button>
                                     </form>
                                 </div>
