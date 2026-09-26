@@ -38,16 +38,22 @@ export async function GET(request: Request) {
 
     let canViewPosts = user.status !== 'SUSPENDED';
     if (viewerId) {
-        const blocked = await prisma.block.findFirst({
-            where: {
-                OR: [
-                    { blockerId: viewerId, blockedId: user.id },
-                    { blockerId: user.id, blockedId: viewerId },
-                ],
-            },
-            select: { id: true },
-        });
-        if (blocked) canViewPosts = false;
+        const [blocked, muted] = await Promise.all([
+            prisma.block.findFirst({
+                where: {
+                    OR: [
+                        { blockerId: viewerId, blockedId: user.id },
+                        { blockerId: user.id, blockedId: viewerId },
+                    ],
+                },
+                select: { id: true },
+            }),
+            prisma.mute.findFirst({
+                where: { muterId: viewerId, mutedId: user.id },
+                select: { id: true },
+            }),
+        ]);
+        if (blocked || muted) canViewPosts = false;
     }
     if (user.isPrivate && viewerId !== user.id) {
         const isFollowing = viewerId
