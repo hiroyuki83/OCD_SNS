@@ -534,15 +534,14 @@ export async function deletePost(postId: string) {
 
         await tx.notification.deleteMany({ where: { postId } });
         await tx.auditLog.create({
-        prisma.auditLog.create({
             data: {
                 action: 'POST_DELETE_SELF',
                 actorUserId: userId,
                 targetUserId: userId,
                 meta: { postId },
             },
-        }),
-    ]);
+        });
+    });
     revalidatePath('/');
     revalidatePath('/profile');
     revalidatePath('/bookmarks');
