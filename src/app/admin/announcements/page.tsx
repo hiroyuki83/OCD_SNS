@@ -22,13 +22,16 @@ function isVisibleNow(announcement: {
 export default async function AdminAnnouncementsPage() {
   await requireRole(Role.ADMIN);
 
-  const announcements = await prisma.announcement.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-    include: {
-      createdBy: { select: { email: true, name: true } },
-    },
-  });
+  const [announcements, announcementCount] = await Promise.all([
+    prisma.announcement.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: {
+        createdBy: { select: { email: true, name: true } },
+      },
+    }),
+    prisma.announcement.count(),
+  ]);
 
   return (
     <div className="p-6">
@@ -104,6 +107,12 @@ export default async function AdminAnnouncementsPage() {
           </button>
         </div>
       </form>
+
+      {announcementCount > announcements.length && (
+        <div className="mb-3 text-xs text-zinc-500">
+          全{announcementCount}件のうち最新50件を表示しています。
+        </div>
+      )}
 
       <div className="flex flex-col gap-3">
         {announcements.length === 0 ? (
