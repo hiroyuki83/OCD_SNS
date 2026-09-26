@@ -101,7 +101,15 @@ export default async function NotificationsPage() {
         }),
     ]);
 
-    const pendingFollowerIds = new Set(pendingFollowRows.map((row) => row.followerId));
+    const followActorIds = Array.from(
+        new Set(
+            notifications
+                .filter((notification) => notification.type === 'FOLLOW')
+                .map((notification) => notification.actorId),
+        ),
+    );
+
+    const pendingFollowerIds = new Set<string>();
 
     const items = [
         ...notifications.map((notification) => ({
