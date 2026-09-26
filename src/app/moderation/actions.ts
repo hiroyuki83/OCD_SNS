@@ -360,6 +360,12 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
 
   try {
     await prisma.$transaction(async (tx) => {
+      const freshTarget = await tx.user.findUnique({
+        where: { id: report.targetUserId },
+        select: { role: true },
+      });
+      if (!freshTarget || !canReviewTarget(actor.role, freshTarget.role)) return;
+
       const claimed = await tx.report.updateMany({
         where: {
           id: report.id,
