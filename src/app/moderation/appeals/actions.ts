@@ -77,7 +77,7 @@ export async function reviewWarningAppeal(
     if (claimed.count !== 1) return false;
 
     await tx.moderationWarning.update({
-      where: { id: appeal.warningId },
+      where: { id: currentAppeal.warningId },
       data: {
         readAt: null,
         ...(outcome === WarningAppealStatus.OVERTURNED
