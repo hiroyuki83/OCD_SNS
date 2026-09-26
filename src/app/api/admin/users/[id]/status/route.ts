@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { AccountStatus, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { checkRoleApi } from "@/lib/rbac";
@@ -10,6 +11,7 @@ import { validateJsonMutationRequest } from "@/lib/requestSecurity";
 const BodySchema = z.object({
   status: z.enum([AccountStatus.ACTIVE, AccountStatus.POST_RESTRICTED, AccountStatus.SUSPENDED]),
   reason: z.string().trim().max(500).optional(),
+  currentPassword: z.string().min(1).max(128),
 });
 
 export async function PATCH(
@@ -39,7 +41,22 @@ export async function PATCH(
   }
 
   const nextStatus = parsed.data.status;
-  const reason = parsed.data.reason || null;
+  const reason = parsed.data.reason?.trim() || null;
+
+  if (nextStatus !== AccountStatus.ACTIVE && (!reason || reason.length < 5)) {
+    return NextResponse.json({ error: "制限・停止理由は5文字以上で入力してください。" }, { status: 400 });
+  }
+
+  const actorAccount = await prisma.user.findUnique({
+    where: { id: actor.id },
+    select: { password: true },
+  });
+  if (!actorAccount || !(await bcrypt.compare(parsed.data.currentPassword, actorAccount.password))) {
+    return NextResponse.json(
+      { error: "現在のADMINパスワードを確認できませんでした。" },
+      { status: 403 },
+    );
+  }
 
   const result = await prisma.$transaction(async (tx) => {
     const target = await tx.user.findUnique({
@@ -59,13 +76,17 @@ export async function PATCH(
       nextStatus === AccountStatus.SUSPENDED
         ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
         : null;
+    const restrictionUntil =
+      nextStatus === AccountStatus.POST_RESTRICTED
+        ? new Date(Date.now() + 24 * 60 * 60 * 1000)
+        : null;
 
     await tx.user.update({
       where: { id: target.id },
       data: {
         status: nextStatus,
         suspendedUntil,
-        restrictionUntil: null,
+        restrictionUntil,
         restrictionReason: nextStatus === AccountStatus.ACTIVE ? null : reason,
       },
     });
@@ -79,7 +100,7 @@ export async function PATCH(
           fromStatus: target.status,
           toStatus: nextStatus,
           suspendedUntil,
-          restrictionUntil: null,
+          restrictionUntil,
           reason,
         },
       },
