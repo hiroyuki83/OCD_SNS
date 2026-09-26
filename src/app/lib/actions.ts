@@ -768,6 +768,7 @@ export async function unblockUser(targetUserId: string) {
     });
 
     revalidatePath('/');
+    revalidatePath('/profile');
     revalidatePath('/profile/blocks');
 }
 
