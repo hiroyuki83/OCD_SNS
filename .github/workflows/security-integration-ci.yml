@@ -4,13 +4,16 @@ on:
   push:
     branches:
       - security-integration-final-20260926
+  pull_request:
+    branches:
+      - main
 
 concurrency:
-  group: security-integration-${{ github.ref }}
+  group: security-integration-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify:
@@ -29,16 +32,10 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 20
+          cache: npm
 
       - name: Install dependencies
-        run: npm install
-
-      - name: Save generated package lock
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-package-lock-${{ github.sha }}
-          path: package-lock.json
-          retention-days: 1
+        run: npm ci
 
       - name: Validate Prisma schema
         run: npx prisma validate
@@ -57,16 +54,3 @@ jobs:
 
       - name: Next.js build
         run: npm run build
-
-      - name: Commit regenerated package lock
-        if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
-        run: |
-          if git diff --quiet -- package-lock.json; then
-            echo "package-lock.json is already current."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "chore: sync package lock"
-          git push origin HEAD:${GITHUB_REF_NAME}
