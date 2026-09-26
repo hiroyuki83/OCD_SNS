@@ -556,6 +556,16 @@ export async function followUser(targetUserId: string) {
     });
     if (!targetUser || (await usersAreBlocked(userId, targetUserId))) return;
 
+    const existingFollow = await prisma.follow.findUnique({
+        where: {
+            followerId_followingId: {
+                followerId: userId,
+                followingId: targetUserId,
+            },
+        },
+        select: { id: true },
+    });
+
     await prisma.follow.upsert({
         where: {
             followerId_followingId: {
@@ -571,13 +581,15 @@ export async function followUser(targetUserId: string) {
         },
     });
 
-    await prisma.notification.create({
-        data: {
-            type: 'FOLLOW',
-            userId: targetUserId,
-            actorId: userId,
-        },
-    });
+    if (!existingFollow) {
+        await prisma.notification.create({
+            data: {
+                type: 'FOLLOW',
+                userId: targetUserId,
+                actorId: userId,
+            },
+        });
+    }
 
     revalidatePath('/');
     revalidatePath('/profile/following');
