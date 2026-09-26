@@ -23,47 +23,36 @@ export async function GET(request: Request) {
         viewerId = viewer?.id ?? null;
     }
 
-    const blockedIds = viewerId
-        ? (
-              await prisma.block.findMany({
+    const [blockedRows, blockedByRows, mutedRows, followingRows] = viewerId
+        ? await Promise.all([
+              prisma.block.findMany({
                   where: { blockerId: viewerId },
                   select: { blockedId: true },
-              })
-          ).map((row) => row.blockedId)
-        : [];
-
-    const blockedByIds = viewerId
-        ? (
-              await prisma.block.findMany({
+              }),
+              prisma.block.findMany({
                   where: { blockedId: viewerId },
                   select: { blockerId: true },
-              })
-          ).map((row) => row.blockerId)
-        : [];
-
-    const mutedIds = viewerId
-        ? (
-              await prisma.mute.findMany({
+              }),
+              prisma.mute.findMany({
                   where: { muterId: viewerId },
                   select: { mutedId: true },
-              })
-          ).map((row) => row.mutedId)
-        : [];
-
-    const excludedAuthorIds = viewerId
-        ? Array.from(new Set([...blockedIds, ...blockedByIds, ...mutedIds]))
-        : [];
-
-    const followingIds = viewerId
-        ? (
-              await prisma.follow.findMany({
+              }),
+              prisma.follow.findMany({
                   where: {
                       followerId: viewerId,
                       acceptedAt: { not: null },
                   },
                   select: { followingId: true },
-              })
-          ).map((row) => row.followingId)
+              }),
+          ])
+        : [[], [], [], []];
+
+    const blockedIds = blockedRows.map((row) => row.blockedId);
+    const blockedByIds = blockedByRows.map((row) => row.blockerId);
+    const mutedIds = mutedRows.map((row) => row.mutedId);
+    const followingIds = followingRows.map((row) => row.followingId);
+    const excludedAuthorIds = viewerId
+        ? Array.from(new Set([...blockedIds, ...blockedByIds, ...mutedIds]))
         : [];
 
     const now = new Date();
