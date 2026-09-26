@@ -83,6 +83,13 @@ export async function POST(request: Request) {
         });
     }
 
+    if (await usersAreBlocked(userId, targetUserId)) {
+        await prisma.follow.deleteMany({
+            where: { followerId: userId, followingId: targetUserId },
+        });
+        return NextResponse.json({ ok: false }, { status: 403 });
+    }
+
     if (createdFollow.count === 1) {
         await prisma.notification.create({
             data: {
