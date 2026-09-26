@@ -143,6 +143,7 @@ export default function ProfileEditForm({
                 自己紹介
                 <textarea
                     name="bio"
+                    maxLength={500}
                     defaultValue={bio ?? ''}
                     rows={3}
                     className="mt-1 w-full rounded-lg bg-zinc-100 border border-zinc-300 p-2 text-sm resize-none"
