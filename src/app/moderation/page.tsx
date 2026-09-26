@@ -104,7 +104,7 @@ export default async function ModerationPage({
 }: {
   searchParams?: { status?: string; reason?: string; q?: string; priority?: string; assigned?: string };
 }) {
-  await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
 
   const statusParam = searchParams?.status?.trim();
   const statusFilter = reportStatuses.find((status) => status === statusParam) ?? ReportStatus.OPEN;
@@ -137,15 +137,21 @@ export default async function ModerationPage({
         { reporter: {
           OR: [
             { id: { contains: query } },
-            { email: { contains: query, mode: 'insensitive' } },
+            { handle: { contains: query, mode: 'insensitive' } },
             { name: { contains: query, mode: 'insensitive' } },
+            ...(actor.role === Role.ADMIN
+              ? [{ email: { contains: query, mode: 'insensitive' as const } }]
+              : []),
           ],
         } },
         { targetUser: {
           OR: [
             { id: { contains: query } },
-            { email: { contains: query, mode: 'insensitive' } },
+            { handle: { contains: query, mode: 'insensitive' } },
             { name: { contains: query, mode: 'insensitive' } },
+            ...(actor.role === Role.ADMIN
+              ? [{ email: { contains: query, mode: 'insensitive' as const } }]
+              : []),
           ],
         } },
         { post: { content: { contains: query, mode: 'insensitive' } } },
@@ -164,10 +170,10 @@ export default async function ModerationPage({
       orderBy: { createdAt: 'desc' },
       take: 100,
       include: {
-        reporter: { select: { id: true, email: true, name: true } },
-        targetUser: { select: { id: true, email: true, name: true, role: true, status: true, suspendedUntil: true } },
-        reviewedBy: { select: { id: true, email: true, name: true } },
-        assignedTo: { select: { id: true, email: true, name: true } },
+        reporter: { select: { id: true, email: true, handle: true, name: true } },
+        targetUser: { select: { id: true, email: true, handle: true, name: true, role: true, status: true, suspendedUntil: true } },
+        reviewedBy: { select: { id: true, email: true, handle: true, name: true } },
+        assignedTo: { select: { id: true, email: true, handle: true, name: true } },
         post: {
           select: {
             id: true,
@@ -190,7 +196,7 @@ export default async function ModerationPage({
     prisma.user.findMany({
       where: { role: { in: [Role.ADMIN, Role.MODERATOR] } },
       orderBy: [{ role: 'desc' }, { createdAt: 'asc' }],
-      select: { id: true, email: true, name: true, role: true },
+      select: { id: true, email: true, handle: true, name: true, role: true },
       take: 100,
     }),
   ]);
@@ -234,7 +240,7 @@ export default async function ModerationPage({
               name="q"
               defaultValue={query}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-              placeholder="通報者、対象者、投稿本文、通報詳細"
+              placeholder={actor.role === Role.ADMIN ? "通報者、対象者、メール、投稿本文、通報詳細" : "通報者、対象者、@handle、投稿本文、通報詳細"}
             />
           </label>
           <label className="block text-sm font-medium text-zinc-700 xl:col-span-2">
@@ -292,7 +298,7 @@ export default async function ModerationPage({
               <option value="unassigned">未担当</option>
               {moderatorUsers.map((user) => (
                 <option key={user.id} value={user.id}>
-                  {user.email ?? user.name ?? user.id}
+                  {user.name ?? `@${user.handle}`}
                 </option>
               ))}
             </select>
@@ -322,10 +328,16 @@ export default async function ModerationPage({
         ) : (
           reports.map((report) => {
             const canAct = report.status === ReportStatus.OPEN || report.status === ReportStatus.REVIEWING;
-            const reporterLabel = report.reporter.email ?? report.reporter.name ?? report.reporter.id;
-            const targetLabel = report.targetUser.email ?? report.targetUser.name ?? report.targetUser.id;
+            const reporterLabel =
+              actor.role === Role.ADMIN
+                ? report.reporter.email ?? report.reporter.name ?? `@${report.reporter.handle}`
+                : report.reporter.name ?? `@${report.reporter.handle}`;
+            const targetLabel =
+              actor.role === Role.ADMIN
+                ? report.targetUser.email ?? report.targetUser.name ?? `@${report.targetUser.handle}`
+                : report.targetUser.name ?? `@${report.targetUser.handle}`;
             const assigneeLabel = report.assignedTo
-              ? report.assignedTo.email ?? report.assignedTo.name ?? report.assignedTo.id
+              ? report.assignedTo.name ?? `@${report.assignedTo.handle}`
               : '未担当';
             const excerpt = report.post?.content?.trim()
               ? report.post.content.trim().slice(0, 160)
@@ -355,13 +367,21 @@ export default async function ModerationPage({
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
                       {formatDate(report.createdAt)} ・ reporter:{' '}
-                      <Link href={`/admin/users/${report.reporter.id}`} className="hover:underline">
-                        {reporterLabel}
-                      </Link>{' '}
+                      {actor.role === Role.ADMIN ? (
+                        <Link href={`/admin/users/${report.reporter.id}`} className="hover:underline">
+                          {reporterLabel}
+                        </Link>
+                      ) : (
+                        <span>{reporterLabel}</span>
+                      )}{' '}
                       ・ target:{' '}
-                      <Link href={`/admin/users/${report.targetUser.id}`} className="hover:underline">
-                        {targetLabel}
-                      </Link>
+                      {actor.role === Role.ADMIN ? (
+                        <Link href={`/admin/users/${report.targetUser.id}`} className="hover:underline">
+                          {targetLabel}
+                        </Link>
+                      ) : (
+                        <span>{targetLabel}</span>
+                      )}
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
                       target status: {report.targetUser.status}
@@ -370,7 +390,7 @@ export default async function ModerationPage({
                   </div>
                   {report.reviewedBy && (
                     <div className="text-xs text-zinc-500">
-                      reviewed by {report.reviewedBy.email ?? report.reviewedBy.name}
+                      reviewed by {report.reviewedBy.name ?? `@${report.reviewedBy.handle}`}
                     </div>
                   )}
                 </div>
@@ -426,7 +446,7 @@ export default async function ModerationPage({
                         <option value="">未担当</option>
                         {moderatorUsers.map((user) => (
                           <option key={user.id} value={user.id}>
-                            {user.email ?? user.name ?? user.id}
+                            {user.name ?? `@${user.handle}`}
                           </option>
                         ))}
                       </select>
