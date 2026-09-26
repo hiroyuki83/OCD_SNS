@@ -362,25 +362,27 @@ export async function restorePost(postId: string, _targetUserId: string, formDat
   if (!post || post.deletedAt || !post.isHidden) return;
   if (!canReviewTarget(actor.role, post.author.role)) return;
 
-  await prisma.$transaction([
-    prisma.post.update({
-      where: { id: postId },
+  await prisma.$transaction(async (tx) => {
+    const restored = await tx.post.updateMany({
+      where: { id: postId, deletedAt: null, isHidden: true },
       data: {
         isHidden: false,
         hiddenAt: null,
         hiddenReason: null,
         hiddenById: null,
       },
-    }),
-    prisma.auditLog.create({
+    });
+    if (restored.count !== 1) return;
+
+    await tx.auditLog.create({
       data: {
         action: 'POST_RESTORE',
         actorUserId: actor.id,
         targetUserId: post.authorId,
         meta: { postId, note },
       },
-    }),
-  ]);
+    });
+  });
 
   revalidatePath('/');
   revalidatePath('/moderation');
