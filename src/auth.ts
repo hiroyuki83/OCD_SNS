@@ -8,7 +8,7 @@ import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { AccountStatus, Role } from '@prisma/client';
 import { decryptTotpSecret, verifyTotpCode } from '@/lib/totp';
-import { hashRecoveryCode } from '@/lib/recoveryCodes';
+import { hashRecoveryCode, normalizeRecoveryCode } from '@/lib/recoveryCodes';
 
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
