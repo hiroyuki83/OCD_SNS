@@ -354,6 +354,7 @@ export async function restorePost(postId: string, _targetUserId: string, formDat
     where: { id: postId },
     select: {
       deletedAt: true,
+      isHidden: true,
       authorId: true,
       author: { select: { role: true } },
     },
