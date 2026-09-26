@@ -69,7 +69,7 @@ export default async function AdminAuditPage({
 }) {
   await requireRole(Role.ADMIN);
 
-  const query = searchParams?.q?.trim() ?? "";
+  const query = (searchParams?.q?.trim() ?? "").slice(0, 100);
   const actionFilter = selectedAction(searchParams?.action);
   const filters: Prisma.AuditLogWhereInput[] = [];
 
