@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { checkRoleApi } from "@/lib/rbac";
@@ -10,6 +11,7 @@ import { validateJsonMutationRequest } from "@/lib/requestSecurity";
 const BodySchema = z.object({
   role: z.enum([Role.USER, Role.MODERATOR, Role.ADMIN]),
   adminConfirmation: z.string().optional(),
+  currentPassword: z.string().min(1).max(128),
 });
 
 export async function PATCH(
@@ -39,6 +41,17 @@ export async function PATCH(
   }
 
   const nextRole = parsed.data.role;
+
+  const actorAccount = await prisma.user.findUnique({
+    where: { id: actor.id },
+    select: { password: true },
+  });
+  if (!actorAccount || !(await bcrypt.compare(parsed.data.currentPassword, actorAccount.password))) {
+    return NextResponse.json(
+      { error: "現在のADMINパスワードを確認できませんでした。" },
+      { status: 403 },
+    );
+  }
 
   if (nextRole === Role.ADMIN && parsed.data.adminConfirmation !== "PROMOTE ADMIN") {
     return NextResponse.json(
