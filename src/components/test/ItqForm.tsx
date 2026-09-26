@@ -111,7 +111,7 @@ export default function ItqForm() {
                     その経験について、以下の質問に回答してください。
                 </p>
                 <label className="block text-xs text-zinc-500">
-                    簡単にその経験について説明してください。（任意）
+                    簡単にその経験について説明してください。（任意・この文章は保存されません）
                     <textarea
                         name="eventDescription"
                         rows={3}
