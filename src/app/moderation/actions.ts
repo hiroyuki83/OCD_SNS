@@ -429,6 +429,12 @@ export async function restorePost(postId: string, _targetUserId: string, formDat
   if (!canReviewTarget(actor.role, post.author.role)) return;
 
   await prisma.$transaction(async (tx) => {
+    const freshAuthor = await tx.user.findUnique({
+      where: { id: post.authorId },
+      select: { role: true },
+    });
+    if (!freshAuthor || !canReviewTarget(actor.role, freshAuthor.role)) return;
+
     const restored = await tx.post.updateMany({
       where: { id: postId, deletedAt: null, isHidden: true },
       data: {
