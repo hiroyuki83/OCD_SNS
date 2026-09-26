@@ -8,6 +8,12 @@ import Cropper, { type Area } from 'react-easy-crop';
 const AVATAR_ASPECT = 1;
 const HEADER_ASPECT = 3;
 const MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+const SUPPORTED_PROFILE_IMAGE_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+]);
 
 async function getCroppedBlob(imageSrc: string, crop: Area) {
     const image = new Image();
