@@ -1,5 +1,6 @@
 'use server';
 
+import crypto from 'crypto';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { Prisma, Role } from '@prisma/client';
@@ -8,6 +9,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { requireRole } from '@/lib/rbac';
 import { rateLimit } from '@/lib/rateLimit';
+import { isEmailDeliveryConfigured, sendTransactionalEmail } from '@/lib/email';
 
 const CreateUserSchema = z
   .object({
@@ -16,17 +18,6 @@ const CreateUserSchema = z
     password: z.string().min(10, 'パスワードは10文字以上です。').max(128, 'パスワードは128文字以内です。'),
     confirmPassword: z.string(),
     role: z.enum([Role.USER, Role.MODERATOR, Role.ADMIN]),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    path: ['confirmPassword'],
-    message: '確認用パスワードが一致しません。',
-  });
-
-const ResetPasswordSchema = z
-  .object({
-    userId: z.string().min(1),
-    password: z.string().min(10, 'パスワードは10文字以上です。').max(128, 'パスワードは128文字以内です。'),
-    confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     path: ['confirmPassword'],
@@ -53,10 +44,6 @@ export type CreateUserState =
 
 export type ResetPasswordState =
   | {
-      errors?: {
-        password?: string[];
-        confirmPassword?: string[];
-      };
       message?: string;
       ok?: boolean;
     }
@@ -142,6 +129,16 @@ export async function createAdminUser(
   redirect(`/admin/users/${createdUserId}`);
 }
 
+function passwordResetTokenHash(token: string) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function adminAppOrigin() {
+  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL.replace(/\/$/, '');
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return 'http://localhost:3000';
+}
+
 export async function resetUserPassword(
   _prevState: ResetPasswordState,
   formData: FormData,
@@ -150,20 +147,16 @@ export async function resetUserPassword(
   if (!(await rateLimit(`admin-password-reset:${actor.id}`, 20, 60 * 60 * 1000))) {
     return { message: '操作が多すぎます。しばらくしてから再度お試しください。' };
   }
-  const parsed = ResetPasswordSchema.safeParse({
-    userId: formData.get('userId'),
-    password: formData.get('password'),
-    confirmPassword: formData.get('confirmPassword'),
-  });
 
-  if (!parsed.success) {
-    return {
-      errors: parsed.error.flatten().fieldErrors,
-      message: '入力内容を確認してください。',
-    };
+  const userIdValue = formData.get('userId');
+  const userId = typeof userIdValue === 'string' ? userIdValue.trim() : '';
+  if (!userId) {
+    return { message: 'ユーザーIDが不正です。' };
+  }
+  if (!isEmailDeliveryConfigured()) {
+    return { message: '現在メール送信を利用できません。' };
   }
 
-  const { userId, password } = parsed.data;
   const target = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, email: true, role: true },
@@ -172,31 +165,57 @@ export async function resetUserPassword(
     return { message: 'ユーザーが見つかりません。' };
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const token = crypto.randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
   await prisma.$transaction([
-    prisma.user.update({
-      where: { id: target.id },
-      data: { password: hashedPassword, emailVerifiedAt: new Date() },
-    }),
     prisma.passwordResetToken.updateMany({
       where: { userId: target.id, usedAt: null },
       data: { usedAt: new Date() },
     }),
+    prisma.passwordResetToken.create({
+      data: {
+        userId: target.id,
+        tokenHash: passwordResetTokenHash(token),
+        expiresAt,
+      },
+    }),
     prisma.auditLog.create({
       data: {
-        action: 'PASSWORD_RESET',
+        action: 'PASSWORD_RESET_EMAIL_REQUESTED',
         actorUserId: actor.id,
         targetUserId: target.id,
         meta: {
           role: target.role,
+          expiresAt,
         },
       },
     }),
   ]);
 
+  const resetUrl = `${adminAppOrigin()}/reset-password?token=${encodeURIComponent(token)}`;
+
+  try {
+    await sendTransactionalEmail({
+      to: target.email,
+      subject: 'CoCo パスワード再設定',
+      text: [
+        'CoCo の管理者からパスワード再設定リンクが発行されました。',
+        '',
+        '以下のリンクから1時間以内に新しいパスワードを設定してください。',
+        resetUrl,
+        '',
+        'このメールに心当たりがない場合は、運営へお問い合わせください。',
+      ].join('\n'),
+    });
+  } catch (error) {
+    console.error('Failed to send admin password reset email:', error);
+    return { message: '再設定メールの送信に失敗しました。' };
+  }
+
   revalidatePath(`/admin/users/${target.id}`);
   revalidatePath('/admin/audit');
-  return { ok: true, message: 'パスワードを再設定しました。' };
+  return { ok: true, message: '本人の登録メールアドレスへ再設定リンクを送信しました。' };
 }
 
 export async function createAdminNote(
