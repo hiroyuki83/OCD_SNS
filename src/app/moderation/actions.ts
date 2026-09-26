@@ -204,6 +204,8 @@ export async function rejectReport(reportId: string, formData: FormData) {
 }
 
 export async function resolveReport(reportId: string, formData: FormData) {
+  reportId = reportId.trim();
+  if (!reportId || reportId.length > 128) return;
   const actor = await requireModerator();
   const note = noteFromFormData(formData);
   const report = await prisma.report.findUnique({
