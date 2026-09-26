@@ -29,7 +29,22 @@ export async function GET(request: Request) {
         return NextResponse.json({ user: null }, { status: 404 });
     }
 
-    const [followRelation, isBlocked, isMuted, isBlockedBy, followerCount, followingCount] = viewerId
+    const [followerCount, followingCount] = await Promise.all([
+        prisma.follow.count({
+            where: {
+                followingId: user.id,
+                acceptedAt: { not: null },
+            },
+        }),
+        prisma.follow.count({
+            where: {
+                followerId: user.id,
+                acceptedAt: { not: null },
+            },
+        }),
+    ]);
+
+    const [followRelation, isBlocked, isMuted, isBlockedBy] = viewerId
         ? await Promise.all([
               prisma.follow.findFirst({
                   where: { followerId: viewerId, followingId: user.id },
@@ -53,37 +68,8 @@ export async function GET(request: Request) {
                       select: { id: true },
                   })
                   .then((result) => !!result),
-              prisma.follow.count({
-                  where: {
-                      followingId: user.id,
-                      acceptedAt: { not: null },
-                  },
-              }),
-              prisma.follow.count({
-                  where: {
-                      followerId: user.id,
-                      acceptedAt: { not: null },
-                  },
-              }),
           ])
-        : [
-              null,
-              false,
-              false,
-              false,
-              await prisma.follow.count({
-                  where: {
-                      followingId: user.id,
-                      acceptedAt: { not: null },
-                  },
-              }),
-              await prisma.follow.count({
-                  where: {
-                      followerId: user.id,
-                      acceptedAt: { not: null },
-                  },
-              }),
-          ];
+        : [null, false, false, false];
 
     const isFollowing = Boolean(followRelation?.acceptedAt);
     const isFollowPending = Boolean(followRelation && !followRelation.acceptedAt);
