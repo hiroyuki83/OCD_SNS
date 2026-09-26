@@ -6,6 +6,7 @@ import { formatPostTime } from '@/lib/formatTime';
 import { addGanbatta, addWakaru, deletePost, toggleBookmark, toggleLike } from '@/app/lib/actions';
 import { AccountStatus, type Prisma } from '@prisma/client';
 import HashtagText from '@/components/shared/HashtagText';
+import { getAccessiblePostForViewer } from '@/lib/postAccess';
 
 export default async function PostPage({ params }: { params?: { id?: string } }) {
     let postId = params?.id;
@@ -50,6 +51,17 @@ export default async function PostPage({ params }: { params?: { id?: string } })
     try {
         session = await auth();
         userId = session?.user?.id;
+        if (!userId && session?.user?.email) {
+            const viewer = await prisma.user.findUnique({
+                where: { email: session.user.email },
+                select: { id: true },
+            });
+            userId = viewer?.id;
+        }
+        const accessiblePost = await getAccessiblePostForViewer(userId ?? null, postId);
+        if (!accessiblePost) {
+            post = null;
+        } else {
         post = await prisma.post.findUnique({
             where: { id: postId },
             include: {
@@ -58,7 +70,8 @@ export default async function PostPage({ params }: { params?: { id?: string } })
                 bookmarks: true,
                 reactions: true,
             },
-    });
+        });
+        }
     } catch (error) {
         loadError = error instanceof Error ? error.message : String(error);
     }
@@ -86,7 +99,7 @@ export default async function PostPage({ params }: { params?: { id?: string } })
     const wakaruReacted = !!userId && post.reactions.some((reaction) => reaction.userId === userId && reaction.type === 'WAKARU');
     const ganbattaReacted = !!userId && post.reactions.some((reaction) => reaction.userId === userId && reaction.type === 'GANBATTA');
     const createdAt = formatPostTime(post.createdAt);
-    const handle = post.author.email.split('@')[0];
+    const handle = post.author.handle;
 
     return (
         <div className="min-h-screen border-r border-border">
