@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { isSuspensionActive } from '@/lib/accountStatus';
+import { isSuspensionActive, visibleAccountFilter } from '@/lib/accountStatus';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
