@@ -29,14 +29,12 @@ export async function GET(request: Request) {
         return NextResponse.json({ user: null }, { status: 404 });
     }
 
-    const [isFollowing, isBlocked, isMuted, isBlockedBy] = viewerId
+    const [followRelation, isBlocked, isMuted, isBlockedBy] = viewerId
         ? await Promise.all([
-              prisma.follow
-                  .findFirst({
-                      where: { followerId: viewerId, followingId: user.id },
-                      select: { id: true },
-                  })
-                  .then((result) => !!result),
+              prisma.follow.findFirst({
+                  where: { followerId: viewerId, followingId: user.id },
+                  select: { id: true, acceptedAt: true },
+              }),
               prisma.block
                   .findFirst({
                       where: { blockerId: viewerId, blockedId: user.id },
@@ -56,9 +54,15 @@ export async function GET(request: Request) {
                   })
                   .then((result) => !!result),
           ])
-        : [false, false, false, false];
+        : [null, false, false, false];
 
-    const posts = isBlocked || isMuted || isBlockedBy || user.status === AccountStatus.SUSPENDED
+    const isFollowing = Boolean(followRelation?.acceptedAt);
+    const isFollowPending = Boolean(followRelation && !followRelation.acceptedAt);
+    const canViewPosts =
+        !user.isPrivate || viewerId === user.id || isFollowing;
+
+    const posts =
+        !canViewPosts || isBlocked || isMuted || isBlockedBy || user.status === AccountStatus.SUSPENDED
         ? []
         : await prisma.post.findMany({
               where: { authorId: user.id, isHidden: false, deletedAt: null },
@@ -84,8 +88,6 @@ export async function GET(request: Request) {
               },
           });
 
-    const canViewPosts = !user.isPrivate || viewerId === user.id || isFollowing;
-
     return NextResponse.json({
         user: {
             id: user.id,
@@ -98,6 +100,7 @@ export async function GET(request: Request) {
         },
         viewerId,
         isFollowing,
+        isFollowPending,
         isBlocked,
         isMuted,
         isBlockedBy,
