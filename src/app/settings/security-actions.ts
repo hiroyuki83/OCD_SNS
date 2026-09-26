@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
+import { generateStaffRecoveryCodes, hashRecoveryCode } from '@/lib/recoveryCodes';
 import {
   buildTotpUri,
   decryptTotpSecret,
@@ -15,7 +16,13 @@ import {
 } from '@/lib/totp';
 
 export type TotpSetupState =
-  | { ok?: boolean; message?: string; secret?: string; uri?: string }
+  | {
+      ok?: boolean;
+      message?: string;
+      secret?: string;
+      uri?: string;
+      recoveryCodes?: string[];
+    }
   | undefined;
 
 function normalizeCode(value: FormDataEntryValue | null) {
@@ -119,26 +126,47 @@ export async function enableStaffTotp(
   }
 
   const enabledAt = new Date();
-  await prisma.$transaction([
-    prisma.user.update({
+  const recoveryCodes = generateStaffRecoveryCodes();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
       where: { id: user.id },
       data: {
         staffTotpEnabledAt: enabledAt,
         staffTotpLastUsedStep: step,
       },
-    }),
-    prisma.auditLog.create({
+    });
+
+    await tx.staffRecoveryCode.deleteMany({
+      where: { userId: user.id },
+    });
+
+    await tx.staffRecoveryCode.createMany({
+      data: recoveryCodes.map((recoveryCode) => ({
+        userId: user.id,
+        codeHash: hashRecoveryCode(recoveryCode),
+      })),
+    });
+
+    await tx.auditLog.create({
       data: {
         action: 'STAFF_TOTP_ENABLED',
         actorUserId: user.id,
         targetUserId: user.id,
-        meta: { enabledAt },
+        meta: {
+          enabledAt,
+          recoveryCodeCount: recoveryCodes.length,
+        },
       },
-    }),
-  ]);
+    });
+  });
 
   revalidatePath('/settings');
-  return { ok: true, message: '2段階認証を有効にしました。' };
+  return {
+    ok: true,
+    message: '2段階認証を有効にしました。リカバリーコードを安全な場所に保存してください。',
+    recoveryCodes,
+  };
 }
 
 export async function disableStaffTotp(
@@ -177,12 +205,15 @@ export async function disableStaffTotp(
         staffTotpLastUsedStep: null,
       },
     }),
+    prisma.staffRecoveryCode.deleteMany({
+      where: { userId: user.id },
+    }),
     prisma.auditLog.create({
       data: {
         action: 'STAFF_TOTP_DISABLED',
         actorUserId: user.id,
         targetUserId: user.id,
-        meta: {},
+        meta: { recoveryCodesRevoked: true },
       },
     }),
   ]);
