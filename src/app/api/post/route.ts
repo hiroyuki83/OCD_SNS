@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { AccountStatus, Role } from '@prisma/client';
+import { Role } from '@prisma/client';
+import { isSuspensionActive } from '@/lib/accountStatus';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
             hiddenReason: true,
             deletedAt: true,
             author: {
-                select: { id: true, name: true, handle: true, avatarUrl: true, isPrivate: true, status: true },
+                select: { id: true, name: true, handle: true, avatarUrl: true, isPrivate: true, status: true, suspendedUntil: true },
             },
         },
     });
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ post: null }, { status: 404 });
     }
 
-    if ((post.isHidden || post.author.status === AccountStatus.SUSPENDED) && !isModerator) {
+    if ((post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) && !isModerator) {
         return NextResponse.json({ post: null }, { status: 404 });
     }
 
