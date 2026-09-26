@@ -153,6 +153,7 @@ export default function ProfileEditForm({
                 ハッシュタグ、自動追記
                 <input
                     name="autoHashtag"
+                    maxLength={100}
                     defaultValue={autoHashtag ?? ''}
                     className="mt-1 w-full rounded-lg bg-zinc-100 border border-zinc-300 p-2 text-sm"
                     placeholder="#タグ を入れてください"
