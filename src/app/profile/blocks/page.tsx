@@ -45,7 +45,7 @@ export default async function BlocksPage() {
     return (
         <div className="min-h-screen border-r border-border">
             <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center px-4">
-                <h1 className="font-bold text-base">ブロック一覧</h1>
+                <h1 className="font-bold text-base">ブロック {blocks.length}</h1>
             </div>
             <div className="flex flex-col">
                 {blocks.map((entry) => (
