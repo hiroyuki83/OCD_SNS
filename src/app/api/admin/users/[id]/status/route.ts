@@ -95,8 +95,12 @@ export async function PATCH(
         ? new Date(Date.now() + 24 * 60 * 60 * 1000)
         : null;
 
-    await tx.user.update({
-      where: { id: target.id },
+    const updated = await tx.user.updateMany({
+      where: {
+        id: target.id,
+        status: target.status,
+        ...(nextStatus !== AccountStatus.ACTIVE ? { role: { not: Role.ADMIN } } : {}),
+      },
       data: {
         status: nextStatus,
         suspendedUntil,
@@ -104,6 +108,9 @@ export async function PATCH(
         restrictionReason: nextStatus === AccountStatus.ACTIVE ? null : reason,
       },
     });
+    if (updated.count !== 1) {
+      return { error: "対象ユーザーの状態または権限が変更されました。画面を更新してください。", status: 409 } as const;
+    }
 
     await tx.auditLog.create({
       data: {
