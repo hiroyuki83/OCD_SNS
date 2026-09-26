@@ -68,11 +68,14 @@ export default async function FollowersPage() {
 
     return (
         <div className="min-h-screen border-r border-border">
-            <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center px-4">
+            <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center justify-between px-4">
                 <h1 className="font-bold text-base">
                     フォロワー {followers.length}
                     {pendingRequests.length > 0 ? `（承認待ち ${pendingRequests.length}）` : ''}
                 </h1>
+                <Link href="/profile" className="text-xs text-[#1d9bf0] hover:underline">
+                    プロフィールへ戻る
+                </Link>
             </div>
 
             {pendingRequests.length > 0 && (
