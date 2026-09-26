@@ -819,7 +819,6 @@ export async function blockUser(targetUserId: string) {
         }),
         prisma.notification.deleteMany({
             where: {
-                type: 'FOLLOW',
                 OR: [
                     { userId: targetUserId, actorId: userId },
                     { userId, actorId: targetUserId },
