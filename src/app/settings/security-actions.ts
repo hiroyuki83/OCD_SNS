@@ -33,6 +33,10 @@ function isValidCurrentPassword(value: FormDataEntryValue | null): value is stri
   return typeof value === 'string' && value.length >= 1 && value.length <= 128;
 }
 
+function isValidTotpCode(code: string) {
+  return /^\d{6}$/.test(code);
+}
+
 async function currentStaff() {
   const session = await auth();
   const userId = session?.user?.id;
