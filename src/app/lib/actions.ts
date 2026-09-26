@@ -608,6 +608,7 @@ export async function unfollowUser(targetUserId: string) {
         userId = user?.id;
     }
     if (!userId || userId === targetUserId) return;
+    if (!(await rateLimit(`follow-action:${userId}`, 60, 60 * 1000))) return;
 
     await prisma.follow.deleteMany({
         where: {
@@ -744,6 +745,12 @@ export async function blockUser(targetUserId: string) {
         userId = user?.id;
     }
     if (!userId || userId === targetUserId) return;
+    if (!(await rateLimit(`block-action:${userId}`, 60, 60 * 1000))) return;
+    const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true },
+    });
+    if (!targetUser) return;
 
     await prisma.block.upsert({
         where: {
@@ -798,6 +805,7 @@ export async function unblockUser(targetUserId: string) {
         userId = user?.id;
     }
     if (!userId || userId === targetUserId) return;
+    if (!(await rateLimit(`block-action:${userId}`, 60, 60 * 1000))) return;
 
     await prisma.block.deleteMany({
         where: { blockerId: userId, blockedId: targetUserId },
@@ -819,6 +827,12 @@ export async function muteUser(targetUserId: string) {
         userId = user?.id;
     }
     if (!userId || userId === targetUserId) return;
+    if (!(await rateLimit(`mute-action:${userId}`, 60, 60 * 1000))) return;
+    const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { id: true },
+    });
+    if (!targetUser) return;
 
     await prisma.mute.upsert({
         where: {
@@ -850,6 +864,7 @@ export async function unmuteUser(targetUserId: string) {
         userId = user?.id;
     }
     if (!userId || userId === targetUserId) return;
+    if (!(await rateLimit(`mute-action:${userId}`, 60, 60 * 1000))) return;
 
     await prisma.mute.deleteMany({
         where: { muterId: userId, mutedId: targetUserId },
