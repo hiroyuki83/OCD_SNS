@@ -54,9 +54,9 @@ export async function getAccessiblePostForViewer(viewerId: string | null, postId
           followingId: post.authorId,
         },
       },
-      select: { id: true },
+      select: { id: true, acceptedAt: true },
     });
-    if (!followsAuthor) return null;
+    if (!followsAuthor?.acceptedAt) return null;
   }
 
   return post;
