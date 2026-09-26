@@ -87,7 +87,15 @@ export async function GET(request: Request) {
     const canViewPosts = !user.isPrivate || viewerId === user.id || isFollowing;
 
     return NextResponse.json({
-        user,
+        user: {
+            id: user.id,
+            name: user.name,
+            handle: user.handle,
+            bio: user.bio,
+            avatarUrl: user.avatarUrl,
+            headerUrl: user.headerUrl,
+            isPrivate: user.isPrivate,
+        },
         viewerId,
         isFollowing,
         isBlocked,
