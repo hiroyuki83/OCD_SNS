@@ -581,6 +581,17 @@ export async function followUser(targetUserId: string) {
         skipDuplicates: true,
     });
 
+    if (!targetUser.isPrivate) {
+        await prisma.follow.updateMany({
+            where: {
+                followerId: userId,
+                followingId: targetUserId,
+                acceptedAt: null,
+            },
+            data: { acceptedAt: new Date() },
+        });
+    }
+
     if (!existingFollow) {
         await prisma.notification.create({
             data: {
