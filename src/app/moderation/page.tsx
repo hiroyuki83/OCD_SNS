@@ -469,7 +469,7 @@ export default async function ModerationPage({
                     </div>
                   )}
 
-                  {canReviewTarget && (
+                  {canAct && canReviewTarget && (
                   <form
                     action={updateReportRouting.bind(null, report.id)}
                     className="grid gap-2 rounded-md bg-zinc-50 p-3 md:grid-cols-12"
