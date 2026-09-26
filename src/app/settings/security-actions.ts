@@ -169,6 +169,70 @@ export async function enableStaffTotp(
   };
 }
 
+export async function regenerateStaffRecoveryCodes(
+  _prevState: TotpSetupState,
+  formData: FormData,
+): Promise<TotpSetupState> {
+  const user = await currentStaff();
+  if (!user || !isStaff(user.role)) return { message: 'この設定はスタッフ専用です。' };
+  if (!user.staffTotpSecretEncrypted || !user.staffTotpEnabledAt) {
+    return { message: '2段階認証が有効になっていません。' };
+  }
+
+  if (!(await rateLimit(`staff-recovery-regenerate:${user.id}`, 5, 60 * 60 * 1000))) {
+    return { message: '操作が多すぎます。しばらくしてから再度お試しください。' };
+  }
+
+  const password = formData.get('currentPassword');
+  if (typeof password !== 'string' || !(await bcrypt.compare(password, user.password))) {
+    return { message: '現在のパスワードを確認できませんでした。' };
+  }
+
+  const code = normalizeCode(formData.get('code'));
+  const secret = decryptTotpSecret(user.staffTotpSecretEncrypted);
+  const step = verifyTotpCode(secret, code);
+  if (step === null) return { message: '認証コードが正しくありません。' };
+  if (user.staffTotpLastUsedStep !== null && step <= user.staffTotpLastUsedStep) {
+    return { message: 'この認証コードは既に使用されています。次のコードを待ってください。' };
+  }
+
+  const recoveryCodes = generateStaffRecoveryCodes();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: user.id },
+      data: { staffTotpLastUsedStep: step },
+    });
+
+    await tx.staffRecoveryCode.deleteMany({
+      where: { userId: user.id },
+    });
+
+    await tx.staffRecoveryCode.createMany({
+      data: recoveryCodes.map((recoveryCode) => ({
+        userId: user.id,
+        codeHash: hashRecoveryCode(recoveryCode),
+      })),
+    });
+
+    await tx.auditLog.create({
+      data: {
+        action: 'STAFF_RECOVERY_CODES_REGENERATED',
+        actorUserId: user.id,
+        targetUserId: user.id,
+        meta: { recoveryCodeCount: recoveryCodes.length },
+      },
+    });
+  });
+
+  revalidatePath('/settings');
+  return {
+    ok: true,
+    message: 'リカバリーコードを再発行しました。古いコードはすべて無効です。',
+    recoveryCodes,
+  };
+}
+
 export async function disableStaffTotp(
   _prevState: TotpSetupState,
   formData: FormData,
