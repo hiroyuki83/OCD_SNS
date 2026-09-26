@@ -157,32 +157,52 @@ export async function resetPassword(
   }
 
   const hashedPassword = await bcrypt.hash(parsed.data.password, 10);
-  await prisma.$transaction([
-    prisma.user.update({
+  const usedAt = new Date();
+
+  const completed = await prisma.$transaction(async (tx) => {
+    const consumed = await tx.passwordResetToken.updateMany({
+      where: {
+        id: resetToken.id,
+        userId: resetToken.userId,
+        usedAt: null,
+        expiresAt: { gt: usedAt },
+      },
+      data: { usedAt },
+    });
+    if (consumed.count !== 1) return false;
+
+    await tx.user.update({
       where: { id: resetToken.userId },
       data: {
         password: hashedPassword,
-        emailVerifiedAt: new Date(),
+        emailVerifiedAt: usedAt,
         sessionVersion: { increment: 1 },
       },
-    }),
-    prisma.passwordResetToken.updateMany({
-      where: { userId: resetToken.userId, usedAt: null },
-      data: { usedAt: new Date() },
-    }),
-    prisma.passwordResetToken.update({
-      where: { id: resetToken.id },
-      data: { usedAt: new Date() },
-    }),
-    prisma.auditLog.create({
+    });
+
+    await tx.passwordResetToken.updateMany({
+      where: {
+        userId: resetToken.userId,
+        usedAt: null,
+      },
+      data: { usedAt },
+    });
+
+    await tx.auditLog.create({
       data: {
         action: 'PASSWORD_RESET_SELF',
         actorUserId: resetToken.userId,
         targetUserId: resetToken.userId,
         meta: { sessionsRevoked: true },
       },
-    }),
-  ]);
+    });
+
+    return true;
+  });
+
+  if (!completed) {
+    return { message: 'この再設定リンクは無効または既に使用されています。' };
+  }
 
   return { ok: true, message: 'パスワードを再設定しました。新しいパスワードでログインしてください。' };
 }
