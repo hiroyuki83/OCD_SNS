@@ -7,6 +7,7 @@ import MobileMenu from "@/components/layout/MobileMenu";
 import NotificationsLink from "@/components/layout/NotificationsLink";
 import { prisma } from "@/lib/db";
 import { Role } from "@prisma/client";
+import { visibleAccountFilter } from "@/lib/accountStatus";
 
 const LABEL_HOME = "ホーム";
 const LABEL_TEST = "心理検査";
