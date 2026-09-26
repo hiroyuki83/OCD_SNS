@@ -105,6 +105,10 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
         ? ""
         : window.prompt(`${label} を ${statusLabels[selectedStatus]}にする理由を入力してください。`) ?? null;
     if (reason === null) return;
+    if (selectedStatus !== "ACTIVE" && reason.trim().length < 5) {
+      alert("投稿制限・停止の理由を5文字以上で入力してください。");
+      return;
+    }
 
     const currentPassword = window.prompt(
       "アカウント状態を変更するため、現在のADMINパスワードを入力してください。",
