@@ -1,5 +1,6 @@
 ﻿import Link from 'next/link';
 import { auth } from '@/auth';
+import { WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { submitWarningAppeal } from './actions';
 
@@ -56,11 +57,15 @@ export default async function NotificationsPage() {
                 id: true,
                 reason: true,
                 createdAt: true,
+                revokedAt: true,
                 appeal: {
                     select: {
                         id: true,
                         message: true,
                         createdAt: true,
+                        status: true,
+                        resolutionNote: true,
+                        reviewedAt: true,
                     },
                 },
             },
@@ -107,7 +112,9 @@ export default async function NotificationsPage() {
                                 className="p-4 border-b border-border flex flex-col gap-2 text-sm bg-amber-50/60"
                             >
                                 <div className="text-zinc-500 text-xs">{timestamp}</div>
-                                <div className="font-bold text-amber-900">運営からの警告</div>
+                                <div className={item.warning.revokedAt ? "font-bold text-green-800" : "font-bold text-amber-900"}>
+                                    {item.warning.revokedAt ? "運営からの警告（取消済み）" : "運営からの警告"}
+                                </div>
                                 <div className="whitespace-pre-wrap break-words text-zinc-800">
                                     {item.warning.reason}
                                 </div>
@@ -117,11 +124,23 @@ export default async function NotificationsPage() {
                                 {item.warning.appeal ? (
                                     <div className="rounded-md border border-amber-200 bg-white/70 p-3">
                                         <div className="text-xs font-semibold text-zinc-700">
-                                            異議申立てを受け付けました
+                                            {item.warning.appeal.status === WarningAppealStatus.PENDING
+                                                ? "異議申立てを受け付けました"
+                                                : item.warning.appeal.status === WarningAppealStatus.UPHELD
+                                                  ? "異議申立て結果：警告を維持しました"
+                                                  : "異議申立て結果：警告を取り消しました"}
                                         </div>
                                         <div className="mt-1 whitespace-pre-wrap break-words text-xs text-zinc-600">
                                             {item.warning.appeal.message}
                                         </div>
+                                        {item.warning.appeal.resolutionNote && (
+                                            <div className="mt-2 border-t border-amber-100 pt-2 text-xs text-zinc-700">
+                                                <span className="font-semibold">運営の判断理由：</span>
+                                                <span className="whitespace-pre-wrap break-words">
+                                                    {item.warning.appeal.resolutionNote}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 ) : (
                                     <form
