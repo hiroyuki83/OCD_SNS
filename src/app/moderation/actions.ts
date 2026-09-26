@@ -105,16 +105,21 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
     if (report.targetUser.role !== Role.USER && assignee.role !== Role.ADMIN) return;
   }
 
-  await prisma.$transaction([
-    prisma.report.update({
-      where: { id: report.id },
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.report.updateMany({
+      where: {
+        id: report.id,
+        status: { in: [ReportStatus.OPEN, ReportStatus.REVIEWING] },
+      },
       data: {
         priority,
         assignedToId,
         dueAt,
       },
-    }),
-    prisma.auditLog.create({
+    });
+    if (updated.count !== 1) return;
+
+    await tx.auditLog.create({
       data: {
         action: 'REPORT_ROUTING',
         actorUserId: actor.id,
@@ -130,8 +135,8 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
           note,
         },
       },
-    }),
-  ]);
+    });
+  });
 
   revalidatePath('/moderation');
   revalidatePath('/admin/audit');
