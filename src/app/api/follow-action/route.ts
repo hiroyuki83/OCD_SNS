@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { usersAreBlocked } from '@/lib/postAccess';
+import { isSuspensionActive } from '@/lib/accountStatus';
 import { validateJsonMutationRequest } from '@/lib/requestSecurity';
 
 const FOLLOW_ACTIONS = ['follow', 'unfollow'] as const;
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
 
     const targetUser = await prisma.user.findUnique({
         where: { id: targetUserId },
-        select: { id: true, isPrivate: true },
+        select: { id: true, isPrivate: true, status: true, suspendedUntil: true },
     });
     if (!targetUser) {
         return NextResponse.json({ ok: false }, { status: 404 });
