@@ -46,8 +46,13 @@ export async function GET(request: Request) {
 
     const [followRelation, isBlocked, isMuted, isBlockedBy] = viewerId
         ? await Promise.all([
-              prisma.follow.findFirst({
-                  where: { followerId: viewerId, followingId: user.id },
+              prisma.follow.findUnique({
+                  where: {
+                      followerId_followingId: {
+                          followerId: viewerId,
+                          followingId: user.id,
+                      },
+                  },
                   select: { id: true, acceptedAt: true },
               }),
               prisma.block
