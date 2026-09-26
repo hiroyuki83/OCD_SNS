@@ -25,6 +25,9 @@ export async function PATCH(
 
   const { id: rawId } = await params;
   const id = rawId.trim();
+  if (!id || id.length > 128) {
+    return NextResponse.json({ error: "ユーザーIDが不正です。" }, { status: 400 });
+  }
   const authz = await checkRoleApi(Role.ADMIN);
   if ("error" in authz) {
     return NextResponse.json({ error: authz.error }, { status: authz.status });
