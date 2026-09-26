@@ -357,8 +357,11 @@ export async function toggleLike(postId: string) {
             });
         }
     } else {
-        await prisma.like.create({ data: { userId, postId } });
-        if (post?.authorId && post.authorId !== userId) {
+        const createdLike = await prisma.like.createMany({
+            data: [{ userId, postId }],
+            skipDuplicates: true,
+        });
+        if (createdLike.count === 1 && post.authorId && post.authorId !== userId) {
             await prisma.notification.create({
                 data: {
                     type: 'LIKE',
