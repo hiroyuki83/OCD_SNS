@@ -67,6 +67,9 @@ export async function POST(request: NextRequest) {
   if (!postId && !targetUserId) {
     return NextResponse.json({ error: "通報対象が指定されていません。" }, { status: 400 });
   }
+  if (postId && targetUserId) {
+    return NextResponse.json({ error: "通報対象は投稿かユーザーのどちらか一方を指定してください。" }, { status: 400 });
+  }
 
   if (postId) {
     const post = await getAccessiblePostForViewer(reporterId, postId);
