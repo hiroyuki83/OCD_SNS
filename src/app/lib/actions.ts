@@ -546,6 +546,7 @@ export async function deletePost(postId: string) {
     revalidatePath('/profile');
     revalidatePath('/bookmarks');
     revalidatePath('/post');
+    revalidatePath(`/post/${postId}`);
 }
 
 
