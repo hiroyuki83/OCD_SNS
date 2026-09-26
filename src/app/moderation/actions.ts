@@ -50,6 +50,8 @@ async function allowSensitiveModeration(actorId: string) {
   return rateLimit(`moderation-sensitive:${actorId}`, 30, 15 * 60 * 1000);
 }
 
+class ModerationConflictError extends Error {}
+
 export async function updateReportRouting(reportId: string, formData: FormData) {
   reportId = reportId.trim();
   if (!reportId || reportId.length > 128) return;
