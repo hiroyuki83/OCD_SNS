@@ -82,8 +82,11 @@ export async function POST(request: Request) {
                 });
             }
         } else {
-            await prisma.like.create({ data: { userId, postId } });
-            if (visiblePost.authorId && visiblePost.authorId !== userId) {
+            const createdLike = await prisma.like.createMany({
+                data: [{ userId, postId }],
+                skipDuplicates: true,
+            });
+            if (createdLike.count > 0 && visiblePost.authorId && visiblePost.authorId !== userId) {
                 await prisma.notification.create({
                     data: {
                         type: 'LIKE',
