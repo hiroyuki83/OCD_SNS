@@ -158,7 +158,7 @@ export async function POST(request: Request) {
                                 : { ganbattaCount: { increment: 1 } },
                     });
                 }
-                if (createdReaction.count === 1 && post?.authorId && post.authorId !== userId) {
+                if (createdReaction.count === 1 && post.authorId && post.authorId !== userId) {
                     await tx.notification.create({
                         data: {
                             type,
