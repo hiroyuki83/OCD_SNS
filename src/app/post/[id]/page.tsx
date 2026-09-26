@@ -51,9 +51,24 @@ export default async function PostPage({ params }: { params?: { id?: string } })
                     suspendedUntil: true;
                 };
             };
-            likes: true;
-            bookmarks: true;
-            reactions: true;
+            likes: {
+                select: {
+                    id: true;
+                    userId: true;
+                };
+            };
+            bookmarks: {
+                select: {
+                    id: true;
+                    userId: true;
+                };
+            };
+            reactions: {
+                select: {
+                    userId: true;
+                    type: true;
+                };
+            };
             _count: {
                 select: {
                     likes: true;
