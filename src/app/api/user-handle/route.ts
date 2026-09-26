@@ -112,6 +112,11 @@ export async function GET(request: Request) {
                       },
                   },
                   {
+                      mutedBy: {
+                          none: { muterId: viewerId },
+                      },
+                  },
+                  {
                       OR: [
                           { isPrivate: false },
                           { id: viewerId },
