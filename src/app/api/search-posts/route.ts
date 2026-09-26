@@ -56,6 +56,29 @@ export async function GET(request: Request) {
         : [];
 
     const now = new Date();
+    const authorVisibility: Prisma.UserWhereInput = viewerId
+        ? {
+              AND: [
+                  visibleAccountFilter(now),
+                  {
+                      OR: [
+                          { isPrivate: false },
+                          { id: viewerId },
+                          {
+                              followers: {
+                                  some: {
+                                      followerId: viewerId,
+                                      acceptedAt: { not: null },
+                                  },
+                              },
+                          },
+                      ],
+                  },
+              ],
+          }
+        : {
+              AND: [visibleAccountFilter(now), { isPrivate: false }],
+          };
 
     const posts = await prisma.post.findMany({
         where: {
