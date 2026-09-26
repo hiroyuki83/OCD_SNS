@@ -68,8 +68,7 @@ export async function GET(request: Request) {
             isHidden: false,
             deletedAt: null,
             content: { contains: query, mode: insensitive },
-            ...(excludedAuthorIds.length > 0 ? { authorId: { notIn: excludedAuthorIds } } : {}),
-            author: visibleAccountFilter(now),
+            author: authorVisibility,
         },
         orderBy: { createdAt: 'desc' },
         include: {
