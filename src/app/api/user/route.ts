@@ -74,6 +74,7 @@ export async function GET(request: Request) {
             ? prisma.post.findMany({
                   where: { authorId: user.id, isHidden: false, deletedAt: null },
                   orderBy: { createdAt: 'desc' },
+              take: 100,
                   select: { id: true, content: true, imageUrl: true, createdAt: true },
               })
             : Promise.resolve([]),
