@@ -24,7 +24,8 @@ export default async function FollowingPage() {
         );
     }
 
-    const following = await prisma.follow.findMany({
+    const [following, acceptedFollowingCount, pendingFollowingCount] = await Promise.all([
+        prisma.follow.findMany({
         where: { followerId: userId },
         select: {
             id: true,
@@ -42,10 +43,21 @@ export default async function FollowingPage() {
             },
         },
         orderBy: { createdAt: 'desc' },
-    });
-
-    const acceptedFollowingCount = following.filter((entry) => entry.acceptedAt).length;
-    const pendingFollowingCount = following.length - acceptedFollowingCount;
+        take: 200,
+        }),
+        prisma.follow.count({
+            where: {
+                followerId: userId,
+                acceptedAt: { not: null },
+            },
+        }),
+        prisma.follow.count({
+            where: {
+                followerId: userId,
+                acceptedAt: null,
+            },
+        }),
+    ]);
 
     return (
         <div className="min-h-screen border-r border-border">
@@ -59,6 +71,11 @@ export default async function FollowingPage() {
                 </Link>
             </div>
             <div className="flex flex-col">
+                {acceptedFollowingCount + pendingFollowingCount > following.length && (
+                    <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
+                        最新200件を表示しています
+                    </div>
+                )}
                 {following.map((entry) => (
                     <div
                         key={entry.id}
@@ -150,7 +167,7 @@ export default async function FollowingPage() {
                         </div>
                     </div>
                 ))}
-                {following.length === 0 && (
+                {acceptedFollowingCount + pendingFollowingCount === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">フォロー一覧にユーザーがいません</div>
                 )}
             </div>
