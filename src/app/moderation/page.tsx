@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AccountStatus, Prisma, ReportPriority, ReportReason, ReportStatus, Role } from '@prisma/client';
+import { AccountStatus, Prisma, ReportPriority, ReportReason, ReportStatus, Role, WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
 import {
@@ -158,7 +158,7 @@ export default async function ModerationPage({
     AND: [{ status: statusFilter }, ...baseFilters],
   };
 
-  const [reports, counts, filteredCount, moderatorUsers] = await Promise.all([
+  const [reports, counts, filteredCount, moderatorUsers, pendingAppealCount] = await Promise.all([
     prisma.report.findMany({
       where,
       orderBy: { createdAt: 'desc' },
@@ -193,6 +193,9 @@ export default async function ModerationPage({
       select: { id: true, email: true, name: true, role: true },
       take: 100,
     }),
+    prisma.warningAppeal.count({
+      where: { status: WarningAppealStatus.PENDING },
+    }),
   ]);
 
   const countMap = new Map(counts.map((item) => [item.status, item._count._all]));
@@ -211,7 +214,7 @@ export default async function ModerationPage({
             href="/moderation/appeals"
             className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-700 hover:text-zinc-900"
           >
-            異議申立てを見る
+            異議申立てを見る{pendingAppealCount > 0 ? `（未審査 ${pendingAppealCount}）` : ''}
           </Link>
         </div>
       </div>
