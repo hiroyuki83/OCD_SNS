@@ -257,7 +257,7 @@ export async function recoverStaffTotpWithRecoveryCode(
   }
 
   const password = formData.get('currentPassword');
-  if (typeof password !== 'string' || !(await bcrypt.compare(password, user.password))) {
+  if (!isValidCurrentPassword(password) || !(await bcrypt.compare(password, user.password))) {
     return { message: '現在のパスワードを確認できませんでした。' };
   }
 
