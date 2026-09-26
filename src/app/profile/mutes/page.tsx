@@ -26,7 +26,18 @@ export default async function MutesPage() {
 
     const mutes = await prisma.mute.findMany({
         where: { muterId: userId },
-        include: { muted: true },
+        select: {
+            id: true,
+            muted: {
+                select: {
+                    id: true,
+                    name: true,
+                    handle: true,
+                    bio: true,
+                    avatarUrl: true,
+                },
+            },
+        },
         orderBy: { createdAt: 'desc' },
     });
 
