@@ -292,11 +292,17 @@ export default async function NotificationsPage() {
                                         </Link>
                                     </div>
                                 )}
-                            {notification.type === 'LIKE' && notification.post?.content && (
-                                <div className="text-zinc-500 text-xs line-clamp-2">
-                                    {notification.post.content}
-                                </div>
-                            )}
+                            {notification.post?.id &&
+                                (notification.type === 'LIKE' ||
+                                    notification.type === 'WAKARU' ||
+                                    notification.type === 'GANBATTA') && (
+                                    <Link
+                                        href={`/post?id=${notification.post.id}`}
+                                        className="mt-1 block text-zinc-500 text-xs line-clamp-2 hover:underline"
+                                    >
+                                        {notification.post.content?.trim() || '投稿を開く'}
+                                    </Link>
+                                )}
                             </div>
                         </div>
                     );
