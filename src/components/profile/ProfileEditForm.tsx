@@ -89,6 +89,12 @@ export default function ProfileEditForm({
 
     const aspect = cropTarget === 'avatar' ? AVATAR_ASPECT : HEADER_ASPECT;
 
+    useEffect(() => {
+        return () => {
+            if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+        };
+    }, [avatarPreview]);
+
     const handleAction = useMemo(
         () => async (formData: FormData) => {
             if (avatarFile) {
