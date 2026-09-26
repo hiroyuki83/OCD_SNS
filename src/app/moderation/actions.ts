@@ -521,6 +521,20 @@ export async function warnReportedUser(reportId: string, formData: FormData) {
   if (!canSanctionTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction(async (tx) => {
+    const claimed = await tx.report.updateMany({
+      where: {
+        id: report.id,
+        status: { in: [ReportStatus.OPEN, ReportStatus.REVIEWING] },
+      },
+      data: {
+        status: ReportStatus.RESOLVED,
+        reviewedById: actor.id,
+        reviewedAt: new Date(),
+        resolutionNote: `警告: ${note}`,
+      },
+    });
+    if (claimed.count !== 1) return;
+
     const warning = await tx.moderationWarning.create({
       data: {
         reason: note,
@@ -529,16 +543,6 @@ export async function warnReportedUser(reportId: string, formData: FormData) {
         reportId: report.id,
       },
       select: { id: true },
-    });
-
-    await tx.report.update({
-      where: { id: report.id },
-      data: {
-        status: ReportStatus.RESOLVED,
-        reviewedById: actor.id,
-        reviewedAt: new Date(),
-        resolutionNote: `警告: ${note}`,
-      },
     });
 
     await tx.auditLog.create({
