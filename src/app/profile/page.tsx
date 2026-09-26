@@ -146,7 +146,7 @@ export default async function ProfilePage() {
                     </div>
                 )}
                 {posts.map((post) => {
-                    const liked = !!userId && post.likes.some((like) => like.userId === userId);
+                    const liked = post.likes.length > 0;
                     const likeCount = post._count.likes;
                     const bookmarked = post.bookmarks.length > 0;
                     const wakaruReacted = post.reactions.some((reaction) => reaction.type === 'WAKARU');
