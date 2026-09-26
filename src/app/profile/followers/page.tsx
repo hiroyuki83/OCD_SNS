@@ -32,6 +32,7 @@ export default async function FollowersPage() {
             },
             select: {
                 id: true,
+                acceptedAt: true,
                 follower: {
                     select: {
                         id: true,
