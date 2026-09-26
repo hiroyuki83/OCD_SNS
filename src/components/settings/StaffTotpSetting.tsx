@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import {
   disableStaffTotp,
   enableStaffTotp,
+  regenerateStaffRecoveryCodes,
   startStaffTotpSetup,
   type TotpSetupState,
 } from '@/app/settings/security-actions';
@@ -35,10 +36,16 @@ export default function StaffTotpSetting({
     enableStaffTotp,
     undefined,
   );
+  const [recoveryState, recoveryAction] = useActionState<TotpSetupState, FormData>(
+    regenerateStaffRecoveryCodes,
+    undefined,
+  );
   const [disableState, disableAction] = useActionState<TotpSetupState, FormData>(
     disableStaffTotp,
     undefined,
   );
+  const displayedRecoveryCodes =
+    recoveryState?.recoveryCodes ?? enableState?.recoveryCodes;
 
   return (
     <section className="mt-6 rounded-lg border border-border p-4">
@@ -59,7 +66,7 @@ export default function StaffTotpSetting({
         </span>
       </div>
 
-      {enableState?.recoveryCodes && enableState.recoveryCodes.length > 0 && (
+      {displayedRecoveryCodes && displayedRecoveryCodes.length > 0 && (
         <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4">
           <div className="text-sm font-semibold text-amber-900">
             リカバリーコードを保存してください
@@ -68,7 +75,7 @@ export default function StaffTotpSetting({
             この10個のコードは今回だけ表示されます。認証アプリを使えないときに、1コードにつき1回だけ使用できます。
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {enableState.recoveryCodes.map((recoveryCode) => (
+            {displayedRecoveryCodes.map((recoveryCode) => (
               <code
                 key={recoveryCode}
                 className="rounded border border-amber-200 bg-white px-3 py-2 text-center text-sm font-semibold tracking-wide"
@@ -165,7 +172,41 @@ export default function StaffTotpSetting({
       )}
 
       {enabled && (
-        <form action={disableAction} className="mt-4 rounded-md border border-red-100 bg-red-50/50 p-3">
+        <>
+          <form action={recoveryAction} className="mt-4 rounded-md border border-border bg-zinc-50 p-3">
+            <div className="text-sm font-semibold text-zinc-900">リカバリーコードを再発行</div>
+            <p className="mt-1 text-xs text-zinc-500">
+              再発行すると、現在残っている古いリカバリーコードはすべて無効になります。
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <input
+                name="currentPassword"
+                type="password"
+                required
+                maxLength={128}
+                autoComplete="current-password"
+                placeholder="現在のパスワード"
+                className="rounded-md border border-border bg-white px-3 py-2 text-sm"
+              />
+              <input
+                name="code"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                minLength={6}
+                maxLength={6}
+                required
+                autoComplete="one-time-code"
+                placeholder="認証アプリの6桁コード"
+                className="rounded-md border border-border bg-white px-3 py-2 text-sm"
+              />
+            </div>
+            <button className="mt-3 rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-800">
+              新しい10個のコードを発行
+            </button>
+            <Message state={recoveryState} />
+          </form>
+
+          <form action={disableAction} className="mt-4 rounded-md border border-red-100 bg-red-50/50 p-3">
           <div className="text-sm font-semibold text-zinc-900">2段階認証を解除</div>
           <p className="mt-1 text-xs text-zinc-500">
             解除には現在のパスワードと認証アプリの新しい6桁コードが必要です。
@@ -197,6 +238,7 @@ export default function StaffTotpSetting({
           </button>
           <Message state={disableState} />
         </form>
+        </>
       )}
     </section>
   );
