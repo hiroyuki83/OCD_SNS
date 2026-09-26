@@ -119,6 +119,13 @@ export async function requestPasswordReset(
     await sendPasswordResetEmail(user.email, resetUrl);
   } catch (error) {
     console.error(error);
+    await prisma.passwordResetToken.updateMany({
+      where: {
+        tokenHash: tokenHash(token),
+        usedAt: null,
+      },
+      data: { usedAt: new Date() },
+    });
   }
 
   return { ok: true, message: genericRequestMessage };
