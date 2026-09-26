@@ -50,6 +50,18 @@ export async function reviewWarningAppeal(
   const reviewedAt = new Date();
 
   const reviewed = await prisma.$transaction(async (tx) => {
+    const currentAppeal = await tx.warningAppeal.findUnique({
+      where: { id: appeal.id },
+      select: {
+        status: true,
+        userId: true,
+        warningId: true,
+        user: { select: { role: true } },
+        warning: { select: { actorUserId: true } },
+      },
+    });
+    if (!currentAppeal || currentAppeal.status !== WarningAppealStatus.PENDING) return false;
+
     const claimed = await tx.warningAppeal.updateMany({
       where: { id: appeal.id, status: WarningAppealStatus.PENDING },
       data: {
