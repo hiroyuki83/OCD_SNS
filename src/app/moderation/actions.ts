@@ -58,6 +58,7 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
   if (!priority) return;
 
   const assignedToId = optionalText(formData, 'assignedToId');
+  if (assignedToId && assignedToId.length > 128) return;
   const dueAt = optionalDate(formData, 'dueAt');
   const note = noteFromFormData(formData);
 
