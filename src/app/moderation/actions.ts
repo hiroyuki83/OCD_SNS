@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { AccountStatus, ReportPriority, ReportStatus, Role } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
+import { rateLimit } from '@/lib/rateLimit';
 
 function noteFromFormData(formData: FormData) {
   const value = formData.get('note');
@@ -43,6 +44,10 @@ function canReviewTarget(actorRole: Role, targetRole: Role) {
 
 function canSanctionTarget(actorRole: Role, targetRole: Role) {
   return targetRole !== Role.ADMIN && canReviewTarget(actorRole, targetRole);
+}
+
+async function allowSensitiveModeration(actorId: string) {
+  return rateLimit(`moderation-sensitive:${actorId}`, 30, 15 * 60 * 1000);
 }
 
 export async function updateReportRouting(reportId: string, formData: FormData) {
@@ -229,6 +234,7 @@ export async function resolveReport(reportId: string, formData: FormData) {
 
 export async function hideReportedPost(reportId: string, formData: FormData) {
   const actor = await requireModerator();
+  if (!(await allowSensitiveModeration(actor.id))) return;
   const note = noteFromFormData(formData) ?? '通報対応により非表示';
   const report = await prisma.report.findUnique({
     where: { id: reportId },
@@ -281,6 +287,7 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
 
 export async function restorePost(postId: string, _targetUserId: string, formData: FormData) {
   const actor = await requireModerator();
+  if (!(await allowSensitiveModeration(actor.id))) return;
   const note = noteFromFormData(formData);
   const post = await prisma.post.findUnique({
     where: { id: postId },
@@ -324,6 +331,7 @@ export async function setReportedUserStatus(
   formData: FormData,
 ) {
   const actor = await requireModerator();
+  if (!(await allowSensitiveModeration(actor.id))) return;
   const note = noteFromFormData(formData);
   const report = await prisma.report.findUnique({
     where: { id: reportId },
@@ -388,6 +396,7 @@ export async function setReportedUserStatus(
 
 export async function warnReportedUser(reportId: string, formData: FormData) {
   const actor = await requireModerator();
+  if (!(await allowSensitiveModeration(actor.id))) return;
   const note = noteFromFormData(formData);
   if (!note) return;
 
