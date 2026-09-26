@@ -51,21 +51,20 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true });
     }
 
-    await prisma.block.upsert({
-        where: {
-            blockerId_blockedId: {
+    await prisma.$transaction([
+        prisma.block.upsert({
+            where: {
+                blockerId_blockedId: {
+                    blockerId: userId,
+                    blockedId: targetUserId,
+                },
+            },
+            update: {},
+            create: {
                 blockerId: userId,
                 blockedId: targetUserId,
             },
-        },
-        update: {},
-        create: {
-            blockerId: userId,
-            blockedId: targetUserId,
-        },
-    });
-
-    await prisma.$transaction([
+        }),
         prisma.follow.deleteMany({
             where: {
                 OR: [
