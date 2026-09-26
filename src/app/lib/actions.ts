@@ -711,6 +711,8 @@ export async function rejectFollowRequest(followerId: string) {
 }
 
 export async function removeFollower(followerId: string) {
+    followerId = followerId.trim();
+    if (!followerId || followerId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
