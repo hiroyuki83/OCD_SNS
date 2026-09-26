@@ -294,7 +294,7 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
       post: { select: { deletedAt: true, isHidden: true } },
     },
   });
-  if (!report?.postId || report.post?.deletedAt) return;
+  if (!report?.postId || report.post?.deletedAt || report.post.isHidden) return;
   if (report.status !== ReportStatus.OPEN && report.status !== ReportStatus.REVIEWING) return;
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
