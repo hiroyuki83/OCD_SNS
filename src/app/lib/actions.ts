@@ -521,15 +521,19 @@ export async function deletePost(postId: string) {
     if (!userId) return;
     if (!(await rateLimit(`post-delete:${userId}`, 30, 60 * 1000))) return;
 
-    await prisma.$transaction([
-        prisma.notification.deleteMany({ where: { postId } }),
-        prisma.post.update({
-            where: { id: postId },
+    await prisma.$transaction(async (tx) => {
+        const deletedAt = new Date();
+        const deleted = await tx.post.updateMany({
+            where: { id: postId, authorId: userId, deletedAt: null },
             data: {
-                deletedAt: new Date(),
+                deletedAt,
                 deletedById: userId,
             },
-        }),
+        });
+        if (deleted.count !== 1) return;
+
+        await tx.notification.deleteMany({ where: { postId } });
+        await tx.auditLog.create({
         prisma.auditLog.create({
             data: {
                 action: 'POST_DELETE_SELF',
