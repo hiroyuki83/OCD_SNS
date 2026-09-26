@@ -13,7 +13,7 @@ import {
 } from '@/lib/totp';
 
 export async function beginStaffTotpEnrollment() {
-  const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR], { allowUnenrolledStaff: true });
 
   if (!(await rateLimit(`staff-totp-enroll:${actor.id}`, 5, 60 * 60 * 1000))) {
     return;
