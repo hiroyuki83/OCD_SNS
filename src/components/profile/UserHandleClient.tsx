@@ -124,7 +124,12 @@ export default function UserHandleClient() {
         const selected = window.prompt(`通報理由を番号で選んでください。\n${reasonGuide}`);
         if (selected === null) return;
         const selectedIndex = Number.parseInt(selected, 10) - 1;
-        const reason: ReportReasonValue = REPORT_REASONS[selectedIndex]?.value ?? 'OTHER';
+        const selectedReason = REPORT_REASONS[selectedIndex];
+        if (!selectedReason) {
+            alert('通報理由の番号が正しくありません。');
+            return;
+        }
+        const reason: ReportReasonValue = selectedReason.value;
         const detail = window.prompt('通報理由を入力してください。空欄でも送信できます。');
         if (detail === null) return;
         const boundedDetail = detail.trim().slice(0, 500);
