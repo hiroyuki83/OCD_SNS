@@ -53,6 +53,7 @@ export default async function Sidebar() {
                 visibleAccountFilter(new Date()),
                 { blockedBy: { none: { blockerId: resolvedUserId } } },
                 { blocksInitiated: { none: { blockedId: resolvedUserId } } },
+                { mutedBy: { none: { muterId: resolvedUserId } } },
               ],
             },
           },
