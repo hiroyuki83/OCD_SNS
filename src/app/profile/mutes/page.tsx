@@ -54,15 +54,17 @@ export default async function MutesPage() {
                 {mutes.map((entry) => (
                     <div key={entry.id} className="p-4 border-b border-border flex items-center gap-4 justify-between">
                         <div className="flex items-center gap-4">
-                            {entry.muted.avatarUrl ? (
-                                <img
-                                    src={entry.muted.avatarUrl}
-                                    alt="ユーザー画像"
-                                    className="w-10 h-10 rounded-full object-cover"
-                                />
-                            ) : (
-                                <div className="w-10 h-10 rounded-full bg-slate-400" />
-                            )}
+                            <Link href={`/user/${entry.muted.handle}`} aria-label={`@${entry.muted.handle} のプロフィール`}>
+                                {entry.muted.avatarUrl ? (
+                                    <img
+                                        src={entry.muted.avatarUrl}
+                                        alt="ユーザー画像"
+                                        className="w-10 h-10 rounded-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-10 h-10 rounded-full bg-slate-400" />
+                                )}
+                            </Link>
                             <div className="flex flex-col">
                                 <span className="font-bold text-sm">{entry.muted.name ?? 'ユーザー'}</span>
                                 <span className="text-xs text-zinc-500">@{entry.muted.handle}</span>
