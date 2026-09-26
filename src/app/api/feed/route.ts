@@ -81,6 +81,7 @@ export async function GET(request: Request) {
                           reactions: userId ? { where: { userId }, select: { type: true } } : { take: 0 },
                           _count: { select: { likes: true, bookmarks: true } },
                       },
+                      take: 100,
                       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
                   })
                 : []
@@ -107,6 +108,7 @@ export async function GET(request: Request) {
                       reactions: userId ? { where: { userId }, select: { type: true } } : { take: 0 },
                       _count: { select: { likes: true, bookmarks: true } },
                   },
+                  take: 100,
                   orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
               });
 
