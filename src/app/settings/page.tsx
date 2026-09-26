@@ -36,7 +36,8 @@ export default async function SettingsPage({
     );
   }
 
-    const user = await prisma.user.findUnique({
+    const [user, unusedRecoveryCodeCount] = await Promise.all([
+      prisma.user.findUnique({
         where: { id: userId },
         select: {
           name: true,
@@ -46,7 +47,11 @@ export default async function SettingsPage({
           role: true,
           staffTotpEnabledAt: true,
         },
-    });
+      }),
+      prisma.staffRecoveryCode.count({
+        where: { userId, usedAt: null },
+      }),
+    ]);
 
   return (
     <div className="min-h-screen border-r border-border">
@@ -62,7 +67,10 @@ export default async function SettingsPage({
         <FontSizeSetting />
         <ProfileEditForm name={user?.name} bio={user?.bio} autoHashtag={user?.autoHashtag} />
         {user && (user.role === Role.ADMIN || user.role === Role.MODERATOR) && (
-          <StaffTotpSetting enabled={Boolean(user.staffTotpEnabledAt)} />
+          <StaffTotpSetting
+            enabled={Boolean(user.staffTotpEnabledAt)}
+            unusedRecoveryCodeCount={unusedRecoveryCodeCount}
+          />
         )}
         <div className="mt-4 text-xs text-zinc-500">
           メール: {user?.email ?? '-'}
