@@ -16,6 +16,7 @@ const statusLabels: Record<AccountStatus, string> = {
 };
 
 type UserAccessPanelProps = {
+  isCurrentUser?: boolean;
   user: {
     id: string;
     name: string | null;
@@ -32,7 +33,7 @@ const formatDate = (value: string) => {
   return date.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
 };
 
-export default function UserAccessPanel({ user }: UserAccessPanelProps) {
+export default function UserAccessPanel({ user, isCurrentUser = false }: UserAccessPanelProps) {
   const router = useRouter();
   const [selectedRole, setSelectedRole] = useState<Role>(user.role);
   const [savedRole, setSavedRole] = useState<Role>(user.role);
@@ -137,7 +138,7 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
               className="mt-2 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
               value={selectedRole}
               onChange={(event) => setSelectedRole(event.target.value as Role)}
-              disabled={pending !== null}
+              disabled={pending !== null || isCurrentUser}
             >
               {ROLE_OPTIONS.map((role) => (
                 <option key={role} value={role}>
@@ -150,10 +151,15 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
             type="button"
             className="mt-3 rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:bg-zinc-400"
             onClick={updateRole}
-            disabled={!roleChanged || pending !== null}
+            disabled={!roleChanged || pending !== null || isCurrentUser}
           >
             {pending === "role" ? "更新中" : "権限を更新"}
           </button>
+          {isCurrentUser && (
+            <p className="mt-2 text-xs text-zinc-500">
+              自分自身のADMIN権限はここでは変更できません。必要な場合は別のADMINから変更します。
+            </p>
+          )}
         </div>
 
         <div className="rounded-md bg-zinc-50 p-3">
