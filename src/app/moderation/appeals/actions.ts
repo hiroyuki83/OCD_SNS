@@ -39,6 +39,7 @@ export async function reviewWarningAppeal(
       userId: true,
       warningId: true,
       user: { select: { role: true } },
+      warning: { select: { actorUserId: true } },
     },
   });
   if (!appeal || appeal.status !== WarningAppealStatus.PENDING) return;
