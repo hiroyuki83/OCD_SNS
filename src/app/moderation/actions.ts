@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { AccountStatus, ReportPriority, ReportStatus, Role } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
+import { rateLimit } from '@/lib/rateLimit';
 
 function noteFromFormData(formData: FormData) {
   const value = formData.get('note');
@@ -37,6 +38,18 @@ async function requireModerator() {
   return requireAnyRole([Role.ADMIN, Role.MODERATOR]);
 }
 
+function canReviewTarget(actorRole: Role, targetRole: Role) {
+  return actorRole === Role.ADMIN || targetRole === Role.USER;
+}
+
+function canSanctionTarget(actorRole: Role, targetRole: Role) {
+  return targetRole !== Role.ADMIN && canReviewTarget(actorRole, targetRole);
+}
+
+async function allowSensitiveModeration(actorId: string) {
+  return rateLimit(`moderation-sensitive:${actorId}`, 30, 15 * 60 * 1000);
+}
+
 export async function updateReportRouting(reportId: string, formData: FormData) {
   const actor = await requireModerator();
   const priority = priorityFromFormData(formData);
@@ -54,9 +67,11 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
       priority: true,
       assignedToId: true,
       dueAt: true,
+      targetUser: { select: { role: true } },
     },
   });
   if (!report) return;
+  if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   if (assignedToId) {
     const assignee = await prisma.user.findFirst({
@@ -64,9 +79,10 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
         id: assignedToId,
         role: { in: [Role.ADMIN, Role.MODERATOR] },
       },
-      select: { id: true },
+      select: { id: true, role: true },
     });
     if (!assignee) return;
+    if (report.targetUser.role !== Role.USER && assignee.role !== Role.ADMIN) return;
   }
 
   await prisma.$transaction([
@@ -105,9 +121,15 @@ export async function markReportReviewing(reportId: string) {
   const actor = await requireModerator();
   const report = await prisma.report.findUnique({
     where: { id: reportId },
-    select: { id: true, targetUserId: true, status: true },
+    select: {
+      id: true,
+      targetUserId: true,
+      status: true,
+      targetUser: { select: { role: true } },
+    },
   });
   if (!report) return;
+  if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction([
     prisma.report.update({
@@ -137,9 +159,15 @@ export async function rejectReport(reportId: string, formData: FormData) {
   const note = noteFromFormData(formData);
   const report = await prisma.report.findUnique({
     where: { id: reportId },
-    select: { id: true, targetUserId: true, status: true },
+    select: {
+      id: true,
+      targetUserId: true,
+      status: true,
+      targetUser: { select: { role: true } },
+    },
   });
   if (!report) return;
+  if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction([
     prisma.report.update({
@@ -170,9 +198,15 @@ export async function resolveReport(reportId: string, formData: FormData) {
   const note = noteFromFormData(formData);
   const report = await prisma.report.findUnique({
     where: { id: reportId },
-    select: { id: true, targetUserId: true, status: true },
+    select: {
+      id: true,
+      targetUserId: true,
+      status: true,
+      targetUser: { select: { role: true } },
+    },
   });
   if (!report) return;
+  if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction([
     prisma.report.update({
@@ -200,6 +234,7 @@ export async function resolveReport(reportId: string, formData: FormData) {
 
 export async function hideReportedPost(reportId: string, formData: FormData) {
   const actor = await requireModerator();
+  if (!(await allowSensitiveModeration(actor.id))) return;
   const note = noteFromFormData(formData) ?? '通報対応により非表示';
   const report = await prisma.report.findUnique({
     where: { id: reportId },
@@ -209,10 +244,12 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
       targetUserId: true,
       status: true,
       reason: true,
+      targetUser: { select: { role: true } },
       post: { select: { deletedAt: true } },
     },
   });
   if (!report?.postId || report.post?.deletedAt) return;
+  if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction([
     prisma.post.update({
@@ -250,12 +287,18 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
 
 export async function restorePost(postId: string, _targetUserId: string, formData: FormData) {
   const actor = await requireModerator();
+  if (!(await allowSensitiveModeration(actor.id))) return;
   const note = noteFromFormData(formData);
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    select: { deletedAt: true, authorId: true },
+    select: {
+      deletedAt: true,
+      authorId: true,
+      author: { select: { role: true } },
+    },
   });
   if (!post || post.deletedAt) return;
+  if (!canReviewTarget(actor.role, post.author.role)) return;
 
   await prisma.$transaction([
     prisma.post.update({
@@ -288,6 +331,7 @@ export async function setReportedUserStatus(
   formData: FormData,
 ) {
   const actor = await requireModerator();
+  if (!(await allowSensitiveModeration(actor.id))) return;
   const note = noteFromFormData(formData);
   const report = await prisma.report.findUnique({
     where: { id: reportId },
@@ -301,13 +345,34 @@ export async function setReportedUserStatus(
   });
   if (!report) return;
   if (!Object.values(AccountStatus).includes(status)) return;
-  if (report.targetUser.role === Role.ADMIN) return;
-  if (actor.role === Role.MODERATOR && report.targetUser.role !== Role.USER) return;
+  if (status !== AccountStatus.ACTIVE && (!note || note.length < 5)) return;
+  if (!canSanctionTarget(actor.role, report.targetUser.role)) return;
 
-  const suspendedUntil =
-    status === AccountStatus.SUSPENDED
-      ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-      : null;
+  let suspendedUntil: Date | null = null;
+  let restrictionUntil: Date | null = null;
+  let suspensionDurationDays: number | null = null;
+  let permanentSuspension = false;
+
+  if (status === AccountStatus.POST_RESTRICTED) {
+    const durationRaw = optionalText(formData, 'durationHours');
+    const durationHours = durationRaw ? Number(durationRaw) : NaN;
+    if (![1, 24, 72].includes(durationHours)) return;
+    restrictionUntil = new Date(Date.now() + durationHours * 60 * 60 * 1000);
+  }
+
+  if (status === AccountStatus.SUSPENDED) {
+    const durationRaw = optionalText(formData, 'durationDays');
+
+    if (durationRaw === 'permanent') {
+      if (actor.role !== Role.ADMIN) return;
+      permanentSuspension = true;
+    } else {
+      const durationDays = durationRaw ? Number(durationRaw) : NaN;
+      if (![1, 7, 30].includes(durationDays)) return;
+      suspensionDurationDays = durationDays;
+      suspendedUntil = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+    }
+  }
 
   await prisma.$transaction([
     prisma.user.update({
@@ -315,6 +380,7 @@ export async function setReportedUserStatus(
       data: {
         status,
         suspendedUntil,
+        restrictionUntil,
         restrictionReason: status === AccountStatus.ACTIVE ? null : note,
       },
     }),
@@ -338,6 +404,9 @@ export async function setReportedUserStatus(
           fromStatus: report.targetUser.status,
           toStatus: status,
           suspendedUntil,
+          restrictionUntil,
+          suspensionDurationDays,
+          permanentSuspension,
           note,
         },
       },
@@ -353,6 +422,7 @@ export async function setReportedUserStatus(
 
 export async function warnReportedUser(reportId: string, formData: FormData) {
   const actor = await requireModerator();
+  if (!(await allowSensitiveModeration(actor.id))) return;
   const note = noteFromFormData(formData);
   if (!note) return;
 
@@ -367,8 +437,7 @@ export async function warnReportedUser(reportId: string, formData: FormData) {
   });
   if (!report) return;
   if (report.status !== ReportStatus.OPEN && report.status !== ReportStatus.REVIEWING) return;
-  if (report.targetUser.role === Role.ADMIN) return;
-  if (actor.role === Role.MODERATOR && report.targetUser.role !== Role.USER) return;
+  if (!canSanctionTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction(async (tx) => {
     const warning = await tx.moderationWarning.create({
