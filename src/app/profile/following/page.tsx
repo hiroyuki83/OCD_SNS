@@ -84,11 +84,18 @@ export default async function FollowingPage() {
                                 <div className="text-xs text-zinc-500">{entry.following.bio}</div>
                             )}
                         </div>
-                        {!entry.acceptedAt && (
-                            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
-                                申請中
-                            </span>
-                        )}
+                        <div className="flex items-center gap-2">
+                            {entry.following.isPrivate && (
+                                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">
+                                    非公開
+                                </span>
+                            )}
+                            {!entry.acceptedAt && (
+                                <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
+                                    申請中
+                                </span>
+                            )}
+                        </div>
                     </div>
                 ))}
                 {following.length === 0 && (
