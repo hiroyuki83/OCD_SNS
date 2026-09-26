@@ -95,6 +95,12 @@ export default function ProfileEditForm({
         };
     }, [avatarPreview]);
 
+    useEffect(() => {
+        return () => {
+            if (headerPreview) URL.revokeObjectURL(headerPreview);
+        };
+    }, [headerPreview]);
+
     const handleAction = useMemo(
         () => async (formData: FormData) => {
             if (avatarFile) {
