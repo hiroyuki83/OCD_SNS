@@ -8,7 +8,7 @@ import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 
 const AppealSchema = z.object({
-  warningId: z.string().min(1),
+  warningId: z.string().trim().min(1).max(128),
   message: z
     .string()
     .trim()
