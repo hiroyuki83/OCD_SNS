@@ -79,12 +79,6 @@ export async function GET(request: Request) {
         take: 20,
     });
 
-    const filtered = posts.filter((post) => {
-        if (!post.author.isPrivate) return true;
-        if (!viewerId) return false;
-        return followingIds.includes(post.author.id);
-    });
-
     return NextResponse.json({
         posts: filtered.map((post) => ({
             id: post.id,
