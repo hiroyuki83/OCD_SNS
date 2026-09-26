@@ -127,13 +127,14 @@ export default function UserHandleClient() {
         const reason: ReportReasonValue = REPORT_REASONS[selectedIndex]?.value ?? 'OTHER';
         const detail = window.prompt('通報理由を入力してください。空欄でも送信できます。');
         if (detail === null) return;
+        const boundedDetail = detail.trim().slice(0, 500);
 
         setReportingUser(true);
         try {
             const res = await fetch('/api/report', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ targetUserId: profile.user.id, reason, detail }),
+                body: JSON.stringify({ targetUserId: profile.user.id, reason, detail: boundedDetail }),
             });
             if (!res.ok) {
                 let message = '通報に失敗しました。';
