@@ -240,6 +240,10 @@ export default function UserHandleClient() {
                             <span className="text-lg font-bold">{user.name ?? 'ユーザー'}</span>
                             <span className="text-sm text-zinc-500">@{user.handle}</span>
                             {user.bio && <p className="text-sm text-zinc-500">{user.bio}</p>}
+                            <div className="mt-1 flex gap-4 text-xs text-zinc-500">
+                                <span>フォロー {user.followingCount}</span>
+                                <span>フォロワー {user.followerCount}</span>
+                            </div>
                         </div>
                     </div>
                     {isPrivate && (
