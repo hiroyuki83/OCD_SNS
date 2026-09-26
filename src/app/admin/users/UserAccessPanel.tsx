@@ -63,12 +63,19 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
       if (!confirmed) return;
     }
 
+    const currentPassword = window.prompt("権限変更を実行するため、現在のADMINパスワードを入力してください。");
+    if (currentPassword === null) return;
+    if (!currentPassword) {
+      alert("現在のADMINパスワードを入力してください。");
+      return;
+    }
+
     setPending("role");
     try {
       const res = await fetch(`/api/admin/users/${user.id}/role`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: selectedRole, adminConfirmation }),
+        body: JSON.stringify({ role: selectedRole, adminConfirmation, currentPassword }),
       });
 
       if (!res.ok) {
@@ -161,7 +168,7 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
           </label>
           {selectedRole === "ADMIN" && savedRole !== "ADMIN" && (
             <p className="mt-2 text-xs font-semibold text-red-700">
-              ADMINは全管理機能へアクセスできます。昇格時は確認文字列の入力が必要です。
+              ADMINは全管理機能へアクセスできます。昇格時は確認文字列と現在のADMINパスワードが必要です。
             </p>
           )}
           <button
