@@ -570,7 +570,11 @@ export async function followUser(targetUserId: string) {
         where: { id: targetUserId },
         select: { id: true, isPrivate: true, status: true, suspendedUntil: true },
     });
-    if (!targetUser || (await usersAreBlocked(userId, targetUserId))) return;
+    if (
+        !targetUser ||
+        isSuspensionActive(targetUser.status, targetUser.suspendedUntil) ||
+        (await usersAreBlocked(userId, targetUserId))
+    ) return;
 
     const createdFollow = await prisma.follow.createMany({
         data: [{
