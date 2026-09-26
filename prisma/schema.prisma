@@ -510,8 +510,9 @@ model Announcement {
 
 
 model ModerationWarning {
-  id           String   @id @default(cuid())
-  createdAt    DateTime @default(now())
+  id           String    @id @default(cuid())
+  createdAt    DateTime  @default(now())
+  readAt       DateTime?
   reason       String
   targetUserId String
   actorUserId  String
