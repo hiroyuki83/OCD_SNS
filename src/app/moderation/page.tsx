@@ -88,12 +88,23 @@ function moderationHref(
   return `/moderation?${params.toString()}`;
 }
 
-function NoteInput({ placeholder = '対応メモ' }: { placeholder?: string }) {
+function NoteInput({
+  placeholder = '対応メモ',
+  required = false,
+  minLength,
+}: {
+  placeholder?: string;
+  required?: boolean;
+  minLength?: number;
+}) {
   return (
     <input
       name="note"
       type="text"
       placeholder={placeholder}
+      required={required}
+      minLength={minLength}
+      maxLength={500}
       className="min-w-0 flex-1 rounded-md border border-border px-2 py-1 text-xs"
     />
   );
@@ -515,7 +526,7 @@ export default async function ModerationPage({
                         action={setReportedUserStatus.bind(null, report.id, AccountStatus.POST_RESTRICTED)}
                         className="flex min-w-[240px] flex-1 gap-2"
                       >
-                        <NoteInput placeholder="投稿制限理由" />
+                        <NoteInput placeholder="投稿制限理由（5文字以上）" required minLength={5} />
                         <button className="rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700">
                           投稿制限
                         </button>
@@ -524,7 +535,7 @@ export default async function ModerationPage({
                         action={setReportedUserStatus.bind(null, report.id, AccountStatus.SUSPENDED)}
                         className="flex min-w-[320px] flex-1 flex-wrap gap-2"
                       >
-                        <NoteInput placeholder="停止理由" />
+                        <NoteInput placeholder="停止理由（5文字以上）" required minLength={5} />
                         <select
                           name="durationDays"
                           defaultValue="7"
