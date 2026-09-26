@@ -141,6 +141,7 @@ export async function markReportReviewing(reportId: string) {
   reportId = reportId.trim();
   if (!reportId || reportId.length > 128) return;
   const actor = await requireModerator();
+  if (!(await allowModerationDecision(actor.id))) return;
   const report = await prisma.report.findUnique({
     where: { id: reportId },
     select: {
