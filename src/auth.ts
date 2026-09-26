@@ -26,7 +26,7 @@ async function getUser(email: string) {
     }
 }
 
-async function bootstrapRole(user: { id: string; email: string; role: Role }) {
+async function bootstrapRole(user: { id: string; email: string; role: Role; sessionVersion: number }) {
     const normalizedEmail = user.email.toLowerCase();
     if (user.role !== Role.USER) return user;
     if (ADMIN_EMAIL && normalizedEmail === ADMIN_EMAIL) {
@@ -59,11 +59,57 @@ const nextAuthResult = NextAuth({
             if (user?.id) {
                 token.id = user.id;
                 token.sub = user.id;
+
+                const roleValue = (user as { role?: Role }).role;
+                if (roleValue) {
+                    token.role = roleValue;
+                }
+
+                const sessionVersion = (user as { sessionVersion?: number }).sessionVersion;
+                if (typeof sessionVersion === 'number') {
+                    token.sessionVersion = sessionVersion;
+                }
+
+                return token;
             }
-            const roleValue = (user as { role?: Role } | undefined)?.role;
-            if (roleValue) {
-                token.role = roleValue;
+
+            const tokenUserId = (token.id ?? token.sub) as string | undefined;
+            if (!tokenUserId) return null;
+
+            const currentUser = await prisma.user.findUnique({
+                where: { id: tokenUserId },
+                select: {
+                    role: true,
+                    status: true,
+                    suspendedUntil: true,
+                    sessionVersion: true,
+                },
+            });
+
+            if (!currentUser) return null;
+
+            if (typeof token.sessionVersion !== 'number') {
+                token.sessionVersion = currentUser.sessionVersion;
+            } else if (token.sessionVersion !== currentUser.sessionVersion) {
+                return null;
             }
+
+            if (currentUser.status === AccountStatus.SUSPENDED) {
+                if (!currentUser.suspendedUntil || currentUser.suspendedUntil > new Date()) {
+                    return null;
+                }
+
+                await prisma.user.update({
+                    where: { id: tokenUserId },
+                    data: {
+                        status: AccountStatus.ACTIVE,
+                        suspendedUntil: null,
+                        restrictionReason: null,
+                    },
+                });
+            }
+
+            token.role = currentUser.role;
             return token;
         },
         async session({ session, token }) {
@@ -112,6 +158,7 @@ const nextAuthResult = NextAuth({
                             id: user.id,
                             email: user.email,
                             role: user.role as Role,
+                            sessionVersion: user.sessionVersion,
                         });
                         return updatedUser;
                     }
