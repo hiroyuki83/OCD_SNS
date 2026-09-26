@@ -29,7 +29,7 @@ export default async function ProfilePage() {
         select: { name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true },
     });
 
-    const [posts, followerCount, followingCount, pendingFollowingCount, pendingFollowRequestCount, blockCount] = await Promise.all([
+    const [posts, followerCount, followingCount, pendingFollowingCount, pendingFollowRequestCount, blockCount, muteCount] = await Promise.all([
         prisma.post.findMany({
             where: { authorId: userId, deletedAt: null },
             orderBy: { createdAt: 'desc' },
@@ -61,6 +61,9 @@ export default async function ProfilePage() {
         }),
         prisma.block.count({
             where: { blockerId: userId },
+        }),
+        prisma.mute.count({
+            where: { muterId: userId },
         }),
     ]);
 
