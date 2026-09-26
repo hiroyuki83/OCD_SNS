@@ -80,7 +80,7 @@ export async function register(
             select: { id: true, email: true },
         });
     } catch {
-        return { message: 'データベースエラー: 登録に失敗しました。' };
+        return { message: '登録に失敗しました。時間をおいて再度お試しください。' };
     }
 
     try {
