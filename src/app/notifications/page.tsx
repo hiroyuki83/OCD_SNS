@@ -32,18 +32,6 @@ export default async function NotificationsPage() {
         return <div className="p-6 text-sm text-zinc-400">通知を取得できませんでした。</div>;
     }
 
-    const readAt = new Date();
-    await Promise.all([
-        prisma.notification.updateMany({
-            where: { userId: resolvedUserId, readAt: null },
-            data: { readAt },
-        }),
-        prisma.moderationWarning.updateMany({
-            where: { targetUserId: resolvedUserId, readAt: null },
-            data: { readAt },
-        }),
-    ]);
-
     const [notifications, warnings, pendingFollowRows] = await Promise.all([
         prisma.notification.findMany({
             where: { userId: resolvedUserId },
