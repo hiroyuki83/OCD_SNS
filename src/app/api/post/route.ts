@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { publicHandleFromEmail } from '@/lib/publicUser';
 import { AccountStatus, Role } from '@prisma/client';
 
 export async function GET(request: Request) {
@@ -23,7 +22,7 @@ export async function GET(request: Request) {
             hiddenReason: true,
             deletedAt: true,
             author: {
-                select: { id: true, name: true, email: true, avatarUrl: true, isPrivate: true, status: true },
+                select: { id: true, name: true, handle: true, avatarUrl: true, isPrivate: true, status: true },
             },
         },
     });
@@ -95,7 +94,7 @@ export async function GET(request: Request) {
             author: {
                 id: post.author.id,
                 name: post.author.name,
-                email: publicHandleFromEmail(post.author.email),
+                handle: post.author.handle,
                 avatarUrl: post.author.avatarUrl,
             },
             hidden: isModerator

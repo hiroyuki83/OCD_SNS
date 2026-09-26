@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { publicHandleFromEmail } from '@/lib/publicUser';
 import { AccountStatus } from '@prisma/client';
 
 export async function GET(request: Request) {
@@ -72,7 +71,7 @@ export async function GET(request: Request) {
                       },
                   include: {
                           author: {
-                              select: { id: true, name: true, email: true, avatarUrl: true, isPrivate: true },
+                              select: { id: true, name: true, handle: true, avatarUrl: true, isPrivate: true },
                           },
                           likes: userId ? { where: { userId }, select: { id: true } } : { take: 0 },
                           bookmarks: userId ? { where: { userId }, select: { id: true } } : { take: 0 },
@@ -98,7 +97,7 @@ export async function GET(request: Request) {
                   },
                   include: {
                       author: {
-                          select: { id: true, name: true, email: true, avatarUrl: true, isPrivate: true },
+                          select: { id: true, name: true, handle: true, avatarUrl: true, isPrivate: true },
                       },
                       likes: userId ? { where: { userId }, select: { id: true } } : { take: 0 },
                       bookmarks: userId ? { where: { userId }, select: { id: true } } : { take: 0 },
@@ -147,7 +146,7 @@ export async function GET(request: Request) {
                 author: {
                     id: post.author.id,
                     name: post.author.name,
-                    email: publicHandleFromEmail(post.author.email),
+                    handle: post.author.handle,
                     avatarUrl: post.author.avatarUrl,
                 },
             };

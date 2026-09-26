@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { AccountStatus, ReportReason, ReportStatus } from "@prisma/client";
+import { ReportReason, ReportStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rateLimit";
+import { getAccessiblePostForViewer } from "@/lib/postAccess";
+import { validateJsonMutationRequest } from "@/lib/requestSecurity";
 
 const reportReasons = [
   ReportReason.HARASSMENT,
@@ -35,6 +37,11 @@ async function resolveViewerId() {
 }
 
 export async function POST(request: NextRequest) {
+  const requestCheck = validateJsonMutationRequest(request);
+  if (!requestCheck.ok) {
+    return NextResponse.json({ error: requestCheck.error }, { status: requestCheck.status });
+  }
+
   const reporterId = await resolveViewerId();
   if (!reporterId) {
     return NextResponse.json({ error: "ログインが必要です。" }, { status: 401 });
@@ -62,17 +69,8 @@ export async function POST(request: NextRequest) {
   }
 
   if (postId) {
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
-      select: {
-        id: true,
-        authorId: true,
-        deletedAt: true,
-        isHidden: true,
-        author: { select: { status: true } },
-      },
-    });
-    if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) {
+    const post = await getAccessiblePostForViewer(reporterId, postId);
+    if (!post) {
       return NextResponse.json({ error: "投稿が見つかりません。" }, { status: 404 });
     }
     targetUserId = post.authorId;

@@ -3,11 +3,18 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { AccountStatus } from '@prisma/client';
+import { getAccessiblePostForViewer } from '@/lib/postAccess';
+import { validateJsonMutationRequest } from '@/lib/requestSecurity';
 
 type ActionType = 'like' | 'wakaru' | 'ganbatta' | 'bookmark';
 const ACTION_TYPES = ['like', 'wakaru', 'ganbatta', 'bookmark'] as const;
 
 export async function POST(request: Request) {
+    const requestCheck = validateJsonMutationRequest(request);
+    if (!requestCheck.ok) {
+        return NextResponse.json({ ok: false, error: requestCheck.error }, { status: requestCheck.status });
+    }
+
     const body = await request.json().catch(() => ({}));
     const postId = typeof body?.postId === 'string' ? body.postId : '';
     const action = typeof body?.action === 'string' ? body.action : '';
@@ -53,16 +60,8 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false }, { status: 429 });
     }
 
-    const visiblePost = await prisma.post.findUnique({
-        where: { id: postId },
-        select: { id: true, authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
-    });
-    if (
-        !visiblePost ||
-        visiblePost.deletedAt ||
-        visiblePost.isHidden ||
-        visiblePost.author.status === AccountStatus.SUSPENDED
-    ) {
+    const visiblePost = await getAccessiblePostForViewer(userId, postId);
+    if (!visiblePost) {
         return NextResponse.json({ ok: false }, { status: 404 });
     }
 

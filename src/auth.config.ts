@@ -1,5 +1,15 @@
 import type { NextAuthConfig } from 'next-auth';
 
+const protectedPrefixes = [
+    '/admin',
+    '/moderation',
+    '/bookmarks',
+    '/notifications',
+    '/profile',
+    '/settings',
+    '/test',
+];
+
 export const authConfig = {
     pages: {
         signIn: '/login',
@@ -10,15 +20,21 @@ export const authConfig = {
     callbacks: {
         authorized({ auth, request: { nextUrl } }) {
             const isLoggedIn = !!auth?.user;
-            // Allow access to login and register pages
-            if (nextUrl.pathname.startsWith('/login') || nextUrl.pathname.startsWith('/register')) {
-                if (isLoggedIn) return Response.redirect(new URL('/', nextUrl)); // Redirect to home if already logged in
+            const pathname = nextUrl.pathname;
+
+            if (pathname.startsWith('/login') || pathname.startsWith('/register')) {
+                if (isLoggedIn) return Response.redirect(new URL('/', nextUrl));
                 return true;
             }
 
-            // Logic to protect generic routes if needed
-            // For X clone, maybe allow viewing feed but not posting?
-            // For now, let's just allow everything and handle protection in components or specific actions
+            const requiresLogin = protectedPrefixes.some(
+                (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+            );
+
+            if (requiresLogin && !isLoggedIn) {
+                return false;
+            }
+
             return true;
         },
     },

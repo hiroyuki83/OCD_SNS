@@ -11,7 +11,7 @@ type SearchPost = {
     createdAt: string;
     author: {
         name: string | null;
-        email: string;
+        handle: string;
     };
 };
 
@@ -106,7 +106,7 @@ export default function ExploreClient() {
                                 <span className="font-bold text-zinc-200">
                                     {post.author.name ?? 'ユーザー'}
                                 </span>
-                                <span>@{post.author.email.split('@')[0]}</span>
+                                <span>@{post.author.handle}</span>
                             </div>
                             <HashtagText text={post.content} className="text-sm leading-relaxed" />
                             {post.imageUrl && (

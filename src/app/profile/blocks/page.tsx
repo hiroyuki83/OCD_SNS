@@ -50,7 +50,7 @@ export default async function BlocksPage() {
                             )}
                             <div className="flex flex-col">
                                 <span className="font-bold text-sm">{entry.blocked.name ?? 'ユーザー'}</span>
-                                <span className="text-xs text-zinc-500">@{entry.blocked.email.split('@')[0]}</span>
+                                <span className="text-xs text-zinc-500">@{entry.blocked.handle}</span>
                                 {entry.blocked.bio && (
                                     <span className="text-xs text-zinc-500">{entry.blocked.bio}</span>
                                 )}

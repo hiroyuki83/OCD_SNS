@@ -11,7 +11,7 @@ type PostResponse = {
     content: string;
     imageUrl: string | null;
     createdAt: string;
-    author: { name: string | null; email: string; avatarUrl?: string | null };
+    author: { name: string | null; handle: string; avatarUrl?: string | null };
 };
 
 export default function PostPageClient() {
@@ -59,7 +59,7 @@ export default function PostPageClient() {
     }
 
     const post = result.post;
-    const handle = post.author.email.split('@')[0];
+    const handle = post.author.handle;
     const createdAt = formatPostTime(post.createdAt);
 
     return (

@@ -22,7 +22,7 @@ export default async function UserPage({
 
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { email: true },
+        select: { handle: true },
     });
     if (!user) {
         return (
@@ -33,6 +33,6 @@ export default async function UserPage({
         );
     }
 
-    const handle = user.email.split('@')[0];
+    const handle = user.handle;
     redirect(`/user/${handle}`);
 }

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { publicHandleFromEmail } from '@/lib/publicUser';
 import { AccountStatus, type Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
@@ -64,7 +63,7 @@ export async function GET(request: Request) {
         orderBy: { createdAt: 'desc' },
         include: {
             author: {
-                select: { id: true, name: true, email: true, isPrivate: true },
+                select: { id: true, name: true, handle: true, isPrivate: true },
             },
         },
         take: 20,
@@ -84,7 +83,7 @@ export async function GET(request: Request) {
             createdAt: post.createdAt,
             author: {
                 name: post.author.name,
-                email: publicHandleFromEmail(post.author.email),
+                handle: post.author.handle,
             },
         })),
     });

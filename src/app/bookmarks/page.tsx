@@ -68,7 +68,7 @@ export default async function BookmarksPage() {
                             <div className="flex-1 flex flex-col gap-2">
                                 <div className="flex items-center gap-2 text-sm flex-wrap">
                                     <span className="font-bold">{post.author.name ?? 'ユーザー'}</span>
-                                    <span className="text-zinc-500">@{post.author.email.split('@')[0]}</span>
+                                    <span className="text-zinc-500">@{post.author.handle}</span>
                                     <span className="text-zinc-500">・</span>
                                     <span className="text-zinc-500">{createdAt}</span>
                                 </div>

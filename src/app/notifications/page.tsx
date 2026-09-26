@@ -48,7 +48,7 @@ export default async function NotificationsPage() {
             </div>
             <div className="flex flex-col">
                 {notifications.map((notification) => {
-                    const actorName = notification.actor.name ?? notification.actor.email.split('@')[0];
+                    const actorName = notification.actor.name ?? `@${notification.actor.handle}`;
                     const timestamp = notification.createdAt.toLocaleString('ja-JP', {
                         year: 'numeric',
                         month: '2-digit',
