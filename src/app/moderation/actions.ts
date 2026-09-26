@@ -298,34 +298,46 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
   if (report.status !== ReportStatus.OPEN && report.status !== ReportStatus.REVIEWING) return;
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
-  await prisma.$transaction([
-    prisma.post.update({
-      where: { id: report.postId },
-      data: {
-        isHidden: true,
-        hiddenAt: new Date(),
-        hiddenReason: note,
-        hiddenById: actor.id,
-      },
-    }),
-    prisma.report.update({
-      where: { id: report.id },
-      data: {
-        status: ReportStatus.RESOLVED,
-        reviewedById: actor.id,
-        reviewedAt: new Date(),
-        resolutionNote: note,
-      },
-    }),
-    prisma.auditLog.create({
-      data: {
-        action: 'POST_HIDE',
-        actorUserId: actor.id,
-        targetUserId: report.targetUserId,
-        meta: { reportId: report.id, postId: report.postId, reason: report.reason, note },
-      },
-    }),
-  ]);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const claimed = await tx.report.updateMany({
+        where: {
+          id: report.id,
+          status: { in: [ReportStatus.OPEN, ReportStatus.REVIEWING] },
+        },
+        data: {
+          status: ReportStatus.RESOLVED,
+          reviewedById: actor.id,
+          reviewedAt: new Date(),
+          resolutionNote: note,
+        },
+      });
+      if (claimed.count !== 1) return;
+
+      const hidden = await tx.post.updateMany({
+        where: { id: report.postId, deletedAt: null, isHidden: false },
+        data: {
+          isHidden: true,
+          hiddenAt: new Date(),
+          hiddenReason: note,
+          hiddenById: actor.id,
+        },
+      });
+      if (hidden.count !== 1) throw new ModerationConflictError();
+
+      await tx.auditLog.create({
+        data: {
+          action: 'POST_HIDE',
+          actorUserId: actor.id,
+          targetUserId: report.targetUserId,
+          meta: { reportId: report.id, postId: report.postId, reason: report.reason, note },
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof ModerationConflictError) return;
+    throw error;
+  }
 
   revalidatePath('/');
   revalidatePath('/moderation');
