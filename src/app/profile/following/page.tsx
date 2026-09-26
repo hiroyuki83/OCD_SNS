@@ -90,7 +90,7 @@ export default async function FollowingPage() {
                             {entry.following.bio && (
                                 <div className="text-xs text-zinc-500">{entry.following.bio}</div>
                             )}
-                            {!entry.acceptedAt && (
+                            {!entry.acceptedAt ? (
                                 <div className="mt-1 text-[11px] text-zinc-400">
                                     申請日時{' '}
                                     {entry.createdAt.toLocaleString('ja-JP', {
@@ -100,6 +100,16 @@ export default async function FollowingPage() {
                                         day: '2-digit',
                                         hour: '2-digit',
                                         minute: '2-digit',
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="mt-1 text-[11px] text-zinc-400">
+                                    フォロー開始{' '}
+                                    {entry.acceptedAt.toLocaleDateString('ja-JP', {
+                                        timeZone: 'Asia/Tokyo',
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit',
                                     })}
                                 </div>
                             )}
