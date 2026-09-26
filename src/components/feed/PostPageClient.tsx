@@ -16,7 +16,8 @@ type PostResponse = {
 
 export default function PostPageClient() {
     const searchParams = useSearchParams();
-    const postId = searchParams.get('id') ?? '';
+    const rawPostId = (searchParams.get('id') ?? '').trim();
+    const postId = rawPostId.length <= 128 ? rawPostId : '';
     const [result, setResult] = useState<{
         postId: string;
         post: PostResponse | null;
