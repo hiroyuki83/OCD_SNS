@@ -42,8 +42,24 @@ export default function LoginPage() {
                             name="password"
                             type="password"
                             placeholder="パスワード"
+                            autoComplete="current-password"
                             className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
                         />
+                    </div>
+                    <div>
+                        <input
+                            name="totpCode"
+                            inputMode="numeric"
+                            pattern="[0-9]{6}"
+                            minLength={6}
+                            maxLength={6}
+                            autoComplete="one-time-code"
+                            placeholder="認証アプリの6桁コード（スタッフのみ）"
+                            className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
+                        />
+                        <p className="mt-1 text-xs text-zinc-500">
+                            2段階認証を有効にしているADMIN / MODERATORのみ入力してください。
+                        </p>
                     </div>
                     {errorMessage && (
                         <p className="text-red-500 text-sm text-center">{errorMessage}</p>
