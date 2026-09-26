@@ -13,6 +13,8 @@ type UserProfile = {
     bio: string | null;
     avatarUrl: string | null;
     headerUrl: string | null;
+    followerCount: number;
+    followingCount: number;
     posts: Array<{
         id: string;
         content: string;
@@ -98,7 +100,10 @@ export default function UserPageClient() {
                         <span className="text-lg font-bold">{profile.name ?? 'ユーザー'}</span>
                         <span className="text-sm text-zinc-500">@{profile.handle}</span>
                         {profile.bio && <p className="text-sm text-zinc-500">{profile.bio}</p>}
-                        <div className="flex gap-4 text-sm text-zinc-400 mt-2" />
+                        <div className="mt-1 flex gap-4 text-xs text-zinc-500">
+                            <span>フォロー {profile.followingCount}</span>
+                            <span>フォロワー {profile.followerCount}</span>
+                        </div>
                     </div>
                 </div>
             </div>
