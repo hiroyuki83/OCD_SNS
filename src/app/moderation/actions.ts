@@ -505,7 +505,7 @@ export async function warnReportedUser(reportId: string, formData: FormData) {
   const actor = await requireModerator();
   if (!(await allowSensitiveModeration(actor.id))) return;
   const note = noteFromFormData(formData);
-  if (!note) return;
+  if (!note || note.length < 5) return;
 
   const report = await prisma.report.findUnique({
     where: { id: reportId },
