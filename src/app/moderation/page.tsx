@@ -124,7 +124,7 @@ export default async function ModerationPage({
   const priorityParam = searchParams?.priority?.trim();
   const priorityFilter = reportPriorities.find((priority) => priority === priorityParam) ?? null;
   const assigneeFilter = searchParams?.assigned?.trim() ?? '';
-  const query = searchParams?.q?.trim() ?? '';
+  const query = (searchParams?.q?.trim() ?? '').slice(0, 100);
   const baseFilters: Prisma.ReportWhereInput[] = [];
 
   if (reasonFilter) {
