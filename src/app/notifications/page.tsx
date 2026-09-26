@@ -211,7 +211,12 @@ export default async function NotificationsPage() {
                         >
                             <div className="text-zinc-400 text-xs">{timestamp}</div>
                             <div>
-                                <span className="font-bold">{actorName}</span>
+                                <Link
+                                    href={`/user/${notification.actor.handle}`}
+                                    className="font-bold hover:underline"
+                                >
+                                    {actorName}
+                                </Link>
                                 {notification.type === 'LIKE' && ' があなたの投稿にいいねしました。'}
                                 {notification.type === 'WAKARU' && ' があなたの投稿に「わかる」を押しました。'}
                                 {notification.type === 'GANBATTA' && ' があなたの投稿に「頑張った！」を押しました。'}
