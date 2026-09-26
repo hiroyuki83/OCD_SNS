@@ -10,7 +10,7 @@ import { validateJsonMutationRequest } from "@/lib/requestSecurity";
 
 const BodySchema = z.object({
   role: z.enum([Role.USER, Role.MODERATOR, Role.ADMIN]),
-  adminConfirmation: z.string().optional(),
+  adminConfirmation: z.string().trim().max(64).optional(),
   currentPassword: z.string().min(1).max(128),
 });
 
