@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { AccountStatus } from '@prisma/client';
+import { isSuspensionActive } from '@/lib/accountStatus';
 import { prisma } from '@/lib/db';
 
 export async function getAccessiblePostForViewer(viewerId: string | null, postId: string) {
@@ -14,6 +14,7 @@ export async function getAccessiblePostForViewer(viewerId: string | null, postId
       author: {
         select: {
           status: true,
+          suspendedUntil: true,
           isPrivate: true,
         },
       },
@@ -24,7 +25,7 @@ export async function getAccessiblePostForViewer(viewerId: string | null, postId
     !post ||
     post.deletedAt ||
     post.isHidden ||
-    post.author.status === AccountStatus.SUSPENDED
+    isSuspensionActive(post.author.status, post.author.suspendedUntil)
   ) {
     return null;
   }
