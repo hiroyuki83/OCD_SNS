@@ -43,27 +43,10 @@ export default async function NotificationsPage() {
         ],
     };
 
-    const [blockedActorIds, mutedActorIds, blockedByActorIds] = await Promise.all([
-        prisma.block.findMany({
-            where: { blockerId: resolvedUserId },
-            select: { blockedId: true },
-        }).then((rows) => rows.map((row) => row.blockedId)),
-        prisma.mute.findMany({
-            where: { muterId: resolvedUserId },
-            select: { mutedId: true },
-        }).then((rows) => rows.map((row) => row.mutedId)),
-        prisma.block.findMany({
-            where: { blockedId: resolvedUserId },
-            select: { blockerId: true },
-        }).then((rows) => rows.map((row) => row.blockerId)),
-    ]);
-    const excludedActorIds = Array.from(new Set([...blockedActorIds, ...mutedActorIds, ...blockedByActorIds]));
-
     const [notifications, warnings] = await Promise.all([
         prisma.notification.findMany({
             where: {
                 userId: resolvedUserId,
-                ...(excludedActorIds.length > 0 ? { actorId: { notIn: excludedActorIds } } : {}),
                 actor: notificationActorFilter,
             },
             orderBy: { createdAt: 'desc' },
