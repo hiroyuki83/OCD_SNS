@@ -54,7 +54,7 @@ export default async function AdminUserDetailPage({
 }) {
   await requireRole(Role.ADMIN);
 
-  const userId = params.id;
+  const userId = params.id.trim();
   const [
     user,
     visiblePostCount,
