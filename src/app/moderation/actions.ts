@@ -122,6 +122,8 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
 }
 
 export async function markReportReviewing(reportId: string) {
+  reportId = reportId.trim();
+  if (!reportId || reportId.length > 128) return;
   const actor = await requireModerator();
   const report = await prisma.report.findUnique({
     where: { id: reportId },
