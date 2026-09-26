@@ -30,7 +30,14 @@ export async function GET(request: Request) {
         return NextResponse.json({ user: null }, { status: 404 });
     }
 
-    const [followerCount, followingCount] = await Promise.all([
+    const [
+        followerCount,
+        followingCount,
+        followRelation,
+        blockedRow,
+        mutedRow,
+        blockedByRow,
+    ] = await Promise.all([
         prisma.follow.count({
             where: {
                 followingId: user.id,
@@ -43,11 +50,8 @@ export async function GET(request: Request) {
                 acceptedAt: { not: null },
             },
         }),
-    ]);
-
-    const [followRelation, isBlocked, isMuted, isBlockedBy] = viewerId
-        ? await Promise.all([
-              prisma.follow.findUnique({
+        viewerId
+            ? prisma.follow.findUnique({
                   where: {
                       followerId_followingId: {
                           followerId: viewerId,
@@ -55,42 +59,45 @@ export async function GET(request: Request) {
                       },
                   },
                   select: { id: true, acceptedAt: true },
-              }),
-              prisma.block
-                  .findUnique({
-                      where: {
-                          blockerId_blockedId: {
-                              blockerId: viewerId,
-                              blockedId: user.id,
-                          },
+              })
+            : Promise.resolve(null),
+        viewerId
+            ? prisma.block.findUnique({
+                  where: {
+                      blockerId_blockedId: {
+                          blockerId: viewerId,
+                          blockedId: user.id,
                       },
-                      select: { id: true },
-                  })
-                  .then((result) => !!result),
-              prisma.mute
-                  .findUnique({
-                      where: {
-                          muterId_mutedId: {
-                              muterId: viewerId,
-                              mutedId: user.id,
-                          },
+                  },
+                  select: { id: true },
+              })
+            : Promise.resolve(null),
+        viewerId
+            ? prisma.mute.findUnique({
+                  where: {
+                      muterId_mutedId: {
+                          muterId: viewerId,
+                          mutedId: user.id,
                       },
-                      select: { id: true },
-                  })
-                  .then((result) => !!result),
-              prisma.block
-                  .findUnique({
-                      where: {
-                          blockerId_blockedId: {
-                              blockerId: user.id,
-                              blockedId: viewerId,
-                          },
+                  },
+                  select: { id: true },
+              })
+            : Promise.resolve(null),
+        viewerId
+            ? prisma.block.findUnique({
+                  where: {
+                      blockerId_blockedId: {
+                          blockerId: user.id,
+                          blockedId: viewerId,
                       },
-                      select: { id: true },
-                  })
-                  .then((result) => !!result),
-          ])
-        : [null, false, false, false];
+                  },
+                  select: { id: true },
+              })
+            : Promise.resolve(null),
+    ]);
+    const isBlocked = Boolean(blockedRow);
+    const isMuted = Boolean(mutedRow);
+    const isBlockedBy = Boolean(blockedByRow);
 
     const isFollowing = Boolean(followRelation?.acceptedAt);
     const isFollowPending = Boolean(followRelation && !followRelation.acceptedAt);
