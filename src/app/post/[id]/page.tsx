@@ -121,7 +121,7 @@ export default async function PostPage({ params }: { params?: { id?: string } })
     }
 
     const liked = !!userId && post.likes.some((like) => like.userId === userId);
-    const likeCount = post.likes.length;
+    const likeCount = post._count.likes;
     const bookmarked = !!userId && post.bookmarks.some((bookmark) => bookmark.userId === userId);
     const wakaruReacted = !!userId && post.reactions.some((reaction) => reaction.userId === userId && reaction.type === 'WAKARU');
     const ganbattaReacted = !!userId && post.reactions.some((reaction) => reaction.userId === userId && reaction.type === 'GANBATTA');
