@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { submitWarningAppeal } from './actions';
+import { acceptFollowRequest, rejectFollowRequest } from '@/app/lib/actions';
 
 export default async function NotificationsPage() {
     const session = await auth();
@@ -219,6 +220,27 @@ export default async function NotificationsPage() {
                                         ? ' からフォロー申請が届きました。'
                                         : ' があなたをフォローしました。')}
                             </div>
+                            {notification.type === 'FOLLOW' &&
+                                pendingFollowerIds.has(notification.actorId) && (
+                                    <div className="mt-2 flex gap-2">
+                                        <form action={acceptFollowRequest.bind(null, notification.actorId)}>
+                                            <button
+                                                type="submit"
+                                                className="rounded-full bg-black px-3 py-1 text-xs font-semibold text-white"
+                                            >
+                                                承認
+                                            </button>
+                                        </form>
+                                        <form action={rejectFollowRequest.bind(null, notification.actorId)}>
+                                            <button
+                                                type="submit"
+                                                className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-zinc-700"
+                                            >
+                                                拒否
+                                            </button>
+                                        </form>
+                                    </div>
+                                )}
                             {notification.type === 'LIKE' && notification.post?.content && (
                                 <div className="text-zinc-500 text-xs line-clamp-2">
                                     {notification.post.content}
