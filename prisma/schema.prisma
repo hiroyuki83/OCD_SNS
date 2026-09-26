@@ -58,6 +58,7 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   warningsReceived         ModerationWarning[] @relation("WarningTarget")
   warningsCreated          ModerationWarning[] @relation("WarningActor")
+  warningAppeals            WarningAppeal[]
 }
 
 model Post {
@@ -521,9 +522,24 @@ model ModerationWarning {
   targetUser User    @relation("WarningTarget", fields: [targetUserId], references: [id])
   actorUser  User    @relation("WarningActor", fields: [actorUserId], references: [id])
   report     Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  appeal     WarningAppeal?
 
   @@index([targetUserId, createdAt])
   @@index([targetUserId, readAt])
   @@index([actorUserId, createdAt])
   @@index([reportId])
+}
+
+
+model WarningAppeal {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  message   String
+  warningId String   @unique
+  userId    String
+
+  warning ModerationWarning @relation(fields: [warningId], references: [id], onDelete: Cascade)
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
