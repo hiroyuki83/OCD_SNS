@@ -104,7 +104,7 @@ export default async function ModerationPage({
 }: {
   searchParams?: { status?: string; reason?: string; q?: string; priority?: string; assigned?: string };
 }) {
-  await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
 
   const statusParam = searchParams?.status?.trim();
   const statusFilter = reportStatuses.find((status) => status === statusParam) ?? ReportStatus.OPEN;
@@ -322,6 +322,9 @@ export default async function ModerationPage({
         ) : (
           reports.map((report) => {
             const canAct = report.status === ReportStatus.OPEN || report.status === ReportStatus.REVIEWING;
+            const canReviewTarget = actor.role === Role.ADMIN || report.targetUser.role === Role.USER;
+            const canSanctionTarget =
+              report.targetUser.role !== Role.ADMIN && canReviewTarget;
             const reporterLabel = report.reporter.email ?? report.reporter.name ?? report.reporter.id;
             const targetLabel = report.targetUser.email ?? report.targetUser.name ?? report.targetUser.id;
             const assigneeLabel = report.assignedTo
@@ -398,6 +401,13 @@ export default async function ModerationPage({
                 )}
 
                 <div className="flex flex-col gap-2">
+                  {!canReviewTarget && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+                      スタッフ対象の通報はADMINのみ対応できます。
+                    </div>
+                  )}
+
+                  {canReviewTarget && (
                   <form
                     action={updateReportRouting.bind(null, report.id)}
                     className="grid gap-2 rounded-md bg-zinc-50 p-3 md:grid-cols-12"
@@ -424,7 +434,10 @@ export default async function ModerationPage({
                         className="mt-1 w-full rounded-md border border-border bg-white px-2 py-1 text-xs"
                       >
                         <option value="">未担当</option>
-                        {moderatorUsers.map((user) => (
+                        {(report.targetUser.role === Role.USER
+                          ? moderatorUsers
+                          : moderatorUsers.filter((user) => user.role === Role.ADMIN)
+                        ).map((user) => (
                           <option key={user.id} value={user.id}>
                             {user.email ?? user.name ?? user.id}
                           </option>
@@ -456,8 +469,9 @@ export default async function ModerationPage({
                       </button>
                     </div>
                   </form>
+                  )}
 
-                  {canAct && (
+                  {canAct && canReviewTarget && (
                     <div className="flex flex-wrap gap-2">
                       <form action={markReportReviewing.bind(null, report.id)}>
                         <button className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-zinc-700 hover:text-zinc-900">
@@ -479,7 +493,7 @@ export default async function ModerationPage({
                     </div>
                   )}
 
-                  {canAct && report.post && !report.post.deletedAt && !report.post.isHidden && (
+                  {canAct && canReviewTarget && report.post && !report.post.deletedAt && !report.post.isHidden && (
                     <form action={hideReportedPost.bind(null, report.id)} className="flex flex-wrap gap-2">
                       <NoteInput placeholder="非表示理由" />
                       <button className="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white">
@@ -488,7 +502,7 @@ export default async function ModerationPage({
                     </form>
                   )}
 
-                  {report.post?.isHidden && !report.post.deletedAt && (
+                  {canReviewTarget && report.post?.isHidden && !report.post.deletedAt && (
                     <form
                       action={restorePost.bind(null, report.post.id, report.targetUser.id)}
                       className="flex flex-wrap gap-2"
@@ -500,7 +514,7 @@ export default async function ModerationPage({
                     </form>
                   )}
 
-                  {canAct && (
+                  {canAct && canSanctionTarget && (
                     <form action={warnReportedUser.bind(null, report.id)} className="flex flex-wrap gap-2">
                       <NoteInput placeholder="警告理由（必須）" />
                       <button className="rounded-full border border-amber-400 px-3 py-1 text-xs font-semibold text-amber-800">
@@ -509,7 +523,7 @@ export default async function ModerationPage({
                     </form>
                   )}
 
-                  {canAct && (
+                  {canAct && canSanctionTarget && (
                     <div className="flex flex-wrap gap-2">
                       <form
                         action={setReportedUserStatus.bind(null, report.id, AccountStatus.POST_RESTRICTED)}
