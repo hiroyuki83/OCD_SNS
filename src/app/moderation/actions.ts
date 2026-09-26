@@ -106,6 +106,25 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
   }
 
   await prisma.$transaction(async (tx) => {
+    const currentReport = await tx.report.findUnique({
+      where: { id: report.id },
+      select: {
+        status: true,
+        priority: true,
+        assignedToId: true,
+        dueAt: true,
+        targetUser: { select: { role: true } },
+      },
+    });
+    if (
+      !currentReport ||
+      (currentReport.status !== ReportStatus.OPEN &&
+        currentReport.status !== ReportStatus.REVIEWING) ||
+      !canReviewTarget(actor.role, currentReport.targetUser.role)
+    ) {
+      return;
+    }
+
     const updated = await tx.report.updateMany({
       where: {
         id: report.id,
