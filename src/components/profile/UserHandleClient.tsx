@@ -26,7 +26,7 @@ type ProfileResponse = {
     user: {
         id: string;
         name: string | null;
-        email: string;
+        handle: string;
         bio: string | null;
         avatarUrl: string | null;
         headerUrl: string | null;
@@ -231,7 +231,7 @@ export default function UserHandleClient() {
                         </div>
                         <div className="flex flex-col gap-1">
                             <span className="text-lg font-bold">{user.name ?? 'ユーザー'}</span>
-                            <span className="text-sm text-zinc-500">@{user.email.split('@')[0]}</span>
+                            <span className="text-sm text-zinc-500">@{user.handle}</span>
                             {user.bio && <p className="text-sm text-zinc-500">{user.bio}</p>}
                         </div>
                     </div>
@@ -329,7 +329,7 @@ export default function UserHandleClient() {
                         <div className="flex-1 flex flex-col gap-2 relative z-10">
                             <div className="flex items-center gap-2 text-sm">
                                 <span className="font-bold">{user.name ?? 'ユーザー'}</span>
-                                <span className="text-zinc-500">@{user.email.split('@')[0]}</span>
+                                <span className="text-zinc-500">@{user.handle}</span>
                                 <span className="text-zinc-500">・</span>
                                 <span className="text-zinc-500">{formatPostTime(post.createdAt)}</span>
                             </div>
