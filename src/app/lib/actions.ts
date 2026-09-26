@@ -744,6 +744,7 @@ export async function blockUser(targetUserId: string) {
     ]);
 
     revalidatePath('/');
+    revalidatePath('/profile');
     revalidatePath('/profile/blocks');
     revalidatePath('/profile/following');
     revalidatePath('/profile/followers');
