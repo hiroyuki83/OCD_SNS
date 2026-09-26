@@ -67,8 +67,13 @@ export async function GET(request: Request) {
                   })
                   .then((result) => !!result),
               prisma.mute
-                  .findFirst({
-                      where: { muterId: viewerId, mutedId: user.id },
+                  .findUnique({
+                      where: {
+                          muterId_mutedId: {
+                              muterId: viewerId,
+                              mutedId: user.id,
+                          },
+                      },
                       select: { id: true },
                   })
                   .then((result) => !!result),
