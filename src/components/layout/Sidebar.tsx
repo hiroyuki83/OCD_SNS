@@ -48,7 +48,12 @@ export default async function Sidebar() {
           where: {
             userId: resolvedUserId,
             readAt: null,
-            actor: visibleAccountFilter(new Date()),
+            actor: {
+              AND: [
+                visibleAccountFilter(new Date()),
+                { blockedBy: { none: { blockerId: resolvedUserId } } },
+              ],
+            },
           },
         }),
         prisma.moderationWarning.count({
