@@ -80,6 +80,7 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
     },
   });
   if (!report) return;
+  if (report.status !== ReportStatus.OPEN && report.status !== ReportStatus.REVIEWING) return;
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   if (assignedToId) {
