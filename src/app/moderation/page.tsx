@@ -104,7 +104,7 @@ export default async function ModerationPage({
 }: {
   searchParams?: { status?: string; reason?: string; q?: string; priority?: string; assigned?: string };
 }) {
-  await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
 
   const statusParam = searchParams?.status?.trim();
   const statusFilter = reportStatuses.find((status) => status === statusParam) ?? ReportStatus.OPEN;
@@ -534,6 +534,9 @@ export default async function ModerationPage({
                           <option value="1">1日</option>
                           <option value="7">7日</option>
                           <option value="30">30日</option>
+                          {actor.role === Role.ADMIN && (
+                            <option value="permanent">永久停止</option>
+                          )}
                         </select>
                         <button className="rounded-full border border-red-300 px-3 py-1 text-xs font-semibold text-red-700">
                           アカウント停止
