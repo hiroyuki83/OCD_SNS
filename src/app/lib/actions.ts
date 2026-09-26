@@ -697,6 +697,42 @@ export async function rejectFollowRequest(followerId: string) {
     revalidatePath('/notifications');
 }
 
+export async function removeFollower(followerId: string) {
+    const session = await auth();
+    let userId = session?.user?.id;
+    if (!userId && session?.user?.email) {
+        const user = await prisma.user.findUnique({
+            where: { email: session.user.email },
+            select: { id: true },
+        });
+        userId = user?.id;
+    }
+    if (!userId || userId === followerId) return;
+    if (!(await rateLimit(`follower-remove:${userId}`, 100, 60 * 60 * 1000))) return;
+
+    await prisma.$transaction([
+        prisma.follow.deleteMany({
+            where: {
+                followerId,
+                followingId: userId,
+                acceptedAt: { not: null },
+            },
+        }),
+        prisma.notification.deleteMany({
+            where: {
+                type: 'FOLLOW',
+                userId,
+                actorId: followerId,
+            },
+        }),
+    ]);
+
+    revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/profile/followers');
+    revalidatePath('/notifications');
+}
+
 export async function blockUser(targetUserId: string) {
     const session = await auth();
     let userId = session?.user?.id;
