@@ -150,15 +150,17 @@ export default async function FollowersPage() {
             <div className="flex flex-col">
                 {followers.map((entry) => (
                     <div key={entry.id} className="p-4 border-b border-border flex items-center gap-4">
-                        {entry.follower.avatarUrl ? (
-                            <img
-                                src={entry.follower.avatarUrl}
-                                alt="ユーザー画像"
-                                className="w-10 h-10 rounded-full object-cover"
-                            />
-                        ) : (
-                            <div className="w-10 h-10 rounded-full bg-slate-400" />
-                        )}
+                        <Link href={`/user/${entry.follower.handle}`} aria-label={`@${entry.follower.handle} のプロフィール`}>
+                            {entry.follower.avatarUrl ? (
+                                <img
+                                    src={entry.follower.avatarUrl}
+                                    alt="ユーザー画像"
+                                    className="w-10 h-10 rounded-full object-cover"
+                                />
+                            ) : (
+                                <div className="w-10 h-10 rounded-full bg-slate-400" />
+                            )}
+                        </Link>
                         <div className="flex flex-col">
                             <Link
                                 href={`/user/${entry.follower.handle}`}
