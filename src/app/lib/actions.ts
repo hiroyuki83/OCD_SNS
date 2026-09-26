@@ -95,13 +95,31 @@ export async function register(
     return { ok: true, message: '確認メールを送信しました。メール内のリンクから登録を完了してください。' };
 }
 
+const AuthenticateSchema = z.object({
+    email: z.string().trim().toLowerCase().max(254).email(),
+    password: z.string().min(1).max(128),
+    totpCode: z.string().trim().regex(/^\d{6}$/).optional().or(z.literal('')),
+    recoveryCode: z.string().trim().max(64).optional().or(z.literal('')),
+});
+
 export async function authenticate(
     _prevState: string | undefined,
     formData: FormData,
 ) {
+    const parsed = AuthenticateSchema.safeParse({
+        email: formData.get('email'),
+        password: formData.get('password'),
+        totpCode: formData.get('totpCode') ?? '',
+        recoveryCode: formData.get('recoveryCode') ?? '',
+    });
+    if (!parsed.success) return '入力内容を確認してください。';
+
     try {
         await signIn('credentials', {
-            ...Object.fromEntries(formData),
+            email: parsed.data.email,
+            password: parsed.data.password,
+            totpCode: parsed.data.totpCode,
+            recoveryCode: parsed.data.recoveryCode,
             redirectTo: '/',
         });
     } catch (error) {
