@@ -1141,10 +1141,6 @@ export async function submitItq(
         return { message: 'ログインしてください。' };
     }
 
-    const eventDescription =
-        typeof formData.get('eventDescription') === 'string'
-            ? String(formData.get('eventDescription')).trim()
-            : null;
     const eventTiming =
         typeof formData.get('eventTiming') === 'string' ? String(formData.get('eventTiming')) : '';
     if (!eventTiming) {
@@ -1197,7 +1193,7 @@ export async function submitItq(
         await prisma.itqResult.create({
             data: {
                 userId,
-                eventDescription: eventDescription && eventDescription.length > 0 ? eventDescription : null,
+                eventDescription: null,
                 eventTiming,
                 ptsdScore,
                 dsoScore,
