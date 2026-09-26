@@ -34,6 +34,7 @@ type ProfileResponse = {
     };
     posts: ProfilePost[];
     isFollowing: boolean;
+    isFollowPending: boolean;
     isBlocked: boolean;
     isMuted: boolean;
     isBlockedBy: boolean;
@@ -55,6 +56,7 @@ export default function UserHandleClient() {
     const [profile, setProfile] = useState<ProfileResponse | null>(null);
     const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
     const [localFollowing, setLocalFollowing] = useState(false);
+    const [localFollowPending, setLocalFollowPending] = useState(false);
     const [localBlocked, setLocalBlocked] = useState(false);
     const [localMuted, setLocalMuted] = useState(false);
     const [localBlockedBy, setLocalBlockedBy] = useState(false);
@@ -94,6 +96,7 @@ export default function UserHandleClient() {
     useEffect(() => {
         if (profile) {
             setLocalFollowing(profile.isFollowing);
+            setLocalFollowPending(profile.isFollowPending);
             setLocalBlocked(profile.isBlocked);
             setLocalMuted(profile.isMuted);
             setLocalBlockedBy(profile.isBlockedBy);
@@ -171,12 +174,13 @@ export default function UserHandleClient() {
 
     const toggleFollow = async () => {
         if (!viewerId) return;
-        await fetch('/api/follow-action', {
+        const action = localFollowing || localFollowPending ? 'unfollow' : 'follow';
+        const res = await fetch('/api/follow-action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetUserId: user.id, action: localFollowing ? 'unfollow' : 'follow' }),
+            body: JSON.stringify({ targetUserId: user.id, action }),
         });
-        setLocalFollowing((prev) => !prev);
+        if (!res.ok) return;
         await fetchProfile();
     };
 
@@ -190,6 +194,7 @@ export default function UserHandleClient() {
         setLocalBlocked((prev) => !prev);
         if (!localBlocked) {
             setLocalFollowing(false);
+            setLocalFollowPending(false);
         }
         await fetchProfile();
     };
@@ -246,7 +251,11 @@ export default function UserHandleClient() {
                                     onClick={toggleFollow}
                                     className="text-xs text-[#1d9bf0] hover:underline"
                                 >
-                                    {localFollowing ? 'フォロー中' : 'フォローする'}
+                                    {localFollowing
+                                        ? 'フォロー中'
+                                        : localFollowPending
+                                          ? '申請中（取り消す）'
+                                          : 'フォローする'}
                                 </button>
                             )}
                             <button
@@ -290,7 +299,9 @@ export default function UserHandleClient() {
                 )}
                 {!localBlocked && !localMuted && !localBlockedBy && !canViewPosts && (
                     <div className="p-4 text-sm text-zinc-500 border-b border-border">
-                        このアカウントは非公開です。フォロー中のみ投稿を表示できます。
+                        {localFollowPending
+                            ? 'フォロー申請を送信済みです。承認されると投稿を表示できます。'
+                            : 'このアカウントは非公開です。承認されたフォロワーのみ投稿を表示できます。'}
                     </div>
                 )}
                 {posts.map((post) => (
