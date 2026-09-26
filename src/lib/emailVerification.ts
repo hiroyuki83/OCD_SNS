@@ -19,6 +19,7 @@ function appOrigin() {
 
 export async function sendEmailVerification(user: { id: string; email: string }) {
     const token = crypto.randomBytes(32).toString('base64url');
+    const hashedToken = hashVerificationToken(token);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     await prisma.$transaction([
@@ -29,23 +30,31 @@ export async function sendEmailVerification(user: { id: string; email: string })
         prisma.emailVerificationToken.create({
             data: {
                 userId: user.id,
-                tokenHash: hashVerificationToken(token),
+                tokenHash: hashedToken,
                 expiresAt,
             },
         }),
     ]);
 
     const verificationUrl = `${appOrigin()}/verify-email?token=${encodeURIComponent(token)}`;
-    await sendTransactionalEmail({
-        to: user.email,
-        subject: 'CoCo メールアドレスの確認',
-        text: [
-            'CoCoへの登録ありがとうございます。',
-            '',
-            '以下のリンクを開き、24時間以内にメールアドレスを確認してください。',
-            verificationUrl,
-            '',
-            'このメールに心当たりがない場合は、何もしないでください。',
-        ].join('\n'),
-    });
+    try {
+        await sendTransactionalEmail({
+            to: user.email,
+            subject: 'CoCo メールアドレスの確認',
+            text: [
+                'CoCoへの登録ありがとうございます。',
+                '',
+                '以下のリンクを開き、24時間以内にメールアドレスを確認してください。',
+                verificationUrl,
+                '',
+                'このメールに心当たりがない場合は、何もしないでください。',
+            ].join('\n'),
+        });
+    } catch (error) {
+        await prisma.emailVerificationToken.updateMany({
+            where: { tokenHash: hashedToken, usedAt: null },
+            data: { usedAt: new Date() },
+        });
+        throw error;
+    }
 }
