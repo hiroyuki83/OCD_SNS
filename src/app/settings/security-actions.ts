@@ -236,6 +236,105 @@ export async function regenerateStaffRecoveryCodes(
   };
 }
 
+class RecoveryCodeConsumedError extends Error {}
+
+export async function recoverStaffTotpWithRecoveryCode(
+  _prevState: TotpSetupState,
+  formData: FormData,
+): Promise<TotpSetupState> {
+  const user = await currentStaff();
+  if (!user || !isStaff(user.role)) return { message: 'この設定はスタッフ専用です。' };
+  if (!user.staffTotpEnabledAt) {
+    return { message: '2段階認証は有効になっていません。' };
+  }
+
+  if (!(await rateLimit(`staff-totp-recovery:${user.id}`, 3, 60 * 60 * 1000))) {
+    return { message: '復旧試行が多すぎます。しばらくしてから再度お試しください。' };
+  }
+
+  const password = formData.get('currentPassword');
+  if (typeof password !== 'string' || !(await bcrypt.compare(password, user.password))) {
+    return { message: '現在のパスワードを確認できませんでした。' };
+  }
+
+  const recoveryCodeValue = formData.get('recoveryCode');
+  if (typeof recoveryCodeValue !== 'string' || !recoveryCodeValue.trim()) {
+    return { message: 'リカバリーコードを入力してください。' };
+  }
+
+  const recovery = await prisma.staffRecoveryCode.findFirst({
+    where: {
+      userId: user.id,
+      codeHash: hashRecoveryCode(recoveryCodeValue),
+      usedAt: null,
+    },
+    select: { id: true },
+  });
+  if (!recovery) {
+    return { message: 'リカバリーコードを確認できませんでした。' };
+  }
+
+  const secret = generateTotpSecret();
+  const encrypted = encryptTotpSecret(secret);
+  const uri = buildTotpUri({ secret, accountName: user.email });
+  const resetAt = new Date();
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const consumed = await tx.staffRecoveryCode.updateMany({
+        where: {
+          id: recovery.id,
+          userId: user.id,
+          usedAt: null,
+        },
+        data: { usedAt: resetAt },
+      });
+      if (consumed.count !== 1) {
+        throw new RecoveryCodeConsumedError();
+      }
+
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          staffTotpSecretEncrypted: encrypted,
+          staffTotpEnabledAt: null,
+          staffTotpLastUsedStep: null,
+        },
+      });
+
+      await tx.staffRecoveryCode.deleteMany({
+        where: { userId: user.id },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          action: 'STAFF_TOTP_RECOVERY_STARTED',
+          actorUserId: user.id,
+          targetUserId: user.id,
+          meta: {
+            recoveryCodeId: recovery.id,
+            resetAt,
+            previousRecoveryCodesRevoked: true,
+          },
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof RecoveryCodeConsumedError) {
+      return { message: 'このリカバリーコードは既に使用されています。' };
+    }
+    throw error;
+  }
+
+  revalidatePath('/settings');
+  return {
+    ok: true,
+    message: '新しい認証アプリを登録し、6桁コードで再有効化してください。',
+    secret,
+    uri,
+  };
+}
+
 export async function disableStaffTotp(
   _prevState: TotpSetupState,
   formData: FormData,
