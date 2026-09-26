@@ -33,7 +33,7 @@ export default async function NotificationsPage() {
         return <div className="p-6 text-sm text-zinc-400">通知を取得できませんでした。</div>;
     }
 
-    const [blockedActorIds, mutedActorIds] = await Promise.all([
+    const [blockedActorIds, mutedActorIds, blockedByActorIds] = await Promise.all([
         prisma.block.findMany({
             where: { blockerId: resolvedUserId },
             select: { blockedId: true },
@@ -42,8 +42,12 @@ export default async function NotificationsPage() {
             where: { muterId: resolvedUserId },
             select: { mutedId: true },
         }).then((rows) => rows.map((row) => row.mutedId)),
+        prisma.block.findMany({
+            where: { blockedId: resolvedUserId },
+            select: { blockerId: true },
+        }).then((rows) => rows.map((row) => row.blockerId)),
     ]);
-    const excludedActorIds = Array.from(new Set([...blockedActorIds, ...mutedActorIds]));
+    const excludedActorIds = Array.from(new Set([...blockedActorIds, ...mutedActorIds, ...blockedByActorIds]));
 
     const [notifications, warnings, pendingFollowRows] = await Promise.all([
         prisma.notification.findMany({
