@@ -43,7 +43,7 @@ export default async function NotificationsPage() {
         }),
     ]);
 
-    const [notifications, warnings] = await Promise.all([
+    const [notifications, warnings, pendingFollowRows] = await Promise.all([
         prisma.notification.findMany({
             where: { userId: resolvedUserId },
             orderBy: { createdAt: 'desc' },
@@ -71,7 +71,16 @@ export default async function NotificationsPage() {
             },
             take: 50,
         }),
+        prisma.follow.findMany({
+            where: {
+                followingId: resolvedUserId,
+                acceptedAt: null,
+            },
+            select: { followerId: true },
+        }),
     ]);
+
+    const pendingFollowerIds = new Set(pendingFollowRows.map((row) => row.followerId));
 
     const items = [
         ...notifications.map((notification) => ({
@@ -188,7 +197,10 @@ export default async function NotificationsPage() {
                                 {notification.type === 'LIKE' && ' があなたの投稿にいいねしました。'}
                                 {notification.type === 'WAKARU' && ' があなたの投稿に「わかる」を押しました。'}
                                 {notification.type === 'GANBATTA' && ' があなたの投稿に「頑張った！」を押しました。'}
-                                {notification.type === 'FOLLOW' && ' があなたをフォローしました。'}
+                                {notification.type === 'FOLLOW' &&
+                                    (pendingFollowerIds.has(notification.actorId)
+                                        ? ' がフォローリクエストを送信しました。'
+                                        : ' があなたをフォローしました。')}
                             </div>
                             {notification.type === 'LIKE' && notification.post?.content && (
                                 <div className="text-zinc-500 text-xs line-clamp-2">
