@@ -88,12 +88,23 @@ function moderationHref(
   return `/moderation?${params.toString()}`;
 }
 
-function NoteInput({ placeholder = '対応メモ' }: { placeholder?: string }) {
+function NoteInput({
+  placeholder = '対応メモ',
+  required = false,
+  minLength,
+}: {
+  placeholder?: string;
+  required?: boolean;
+  minLength?: number;
+}) {
   return (
     <input
       name="note"
       type="text"
       placeholder={placeholder}
+      required={required}
+      minLength={minLength}
+      maxLength={500}
       className="min-w-0 flex-1 rounded-md border border-border px-2 py-1 text-xs"
     />
   );
@@ -104,7 +115,7 @@ export default async function ModerationPage({
 }: {
   searchParams?: { status?: string; reason?: string; q?: string; priority?: string; assigned?: string };
 }) {
-  await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
 
   const statusParam = searchParams?.status?.trim();
   const statusFilter = reportStatuses.find((status) => status === statusParam) ?? ReportStatus.OPEN;
@@ -137,15 +148,21 @@ export default async function ModerationPage({
         { reporter: {
           OR: [
             { id: { contains: query } },
-            { email: { contains: query, mode: 'insensitive' } },
+            { handle: { contains: query, mode: 'insensitive' } },
             { name: { contains: query, mode: 'insensitive' } },
+            ...(actor.role === Role.ADMIN
+              ? [{ email: { contains: query, mode: 'insensitive' as const } }]
+              : []),
           ],
         } },
         { targetUser: {
           OR: [
             { id: { contains: query } },
-            { email: { contains: query, mode: 'insensitive' } },
+            { handle: { contains: query, mode: 'insensitive' } },
             { name: { contains: query, mode: 'insensitive' } },
+            ...(actor.role === Role.ADMIN
+              ? [{ email: { contains: query, mode: 'insensitive' as const } }]
+              : []),
           ],
         } },
         { post: { content: { contains: query, mode: 'insensitive' } } },
@@ -164,10 +181,21 @@ export default async function ModerationPage({
       orderBy: { createdAt: 'desc' },
       take: 100,
       include: {
-        reporter: { select: { id: true, email: true, name: true } },
-        targetUser: { select: { id: true, email: true, name: true, role: true, status: true, suspendedUntil: true } },
-        reviewedBy: { select: { id: true, email: true, name: true } },
-        assignedTo: { select: { id: true, email: true, name: true } },
+        reporter: { select: { id: true, email: true, handle: true, name: true } },
+        targetUser: {
+          select: {
+            id: true,
+            email: true,
+            handle: true,
+            name: true,
+            role: true,
+            status: true,
+            restrictionUntil: true,
+            suspendedUntil: true,
+          },
+        },
+        reviewedBy: { select: { id: true, email: true, handle: true, name: true } },
+        assignedTo: { select: { id: true, email: true, handle: true, name: true } },
         post: {
           select: {
             id: true,
@@ -190,7 +218,7 @@ export default async function ModerationPage({
     prisma.user.findMany({
       where: { role: { in: [Role.ADMIN, Role.MODERATOR] } },
       orderBy: [{ role: 'desc' }, { createdAt: 'asc' }],
-      select: { id: true, email: true, name: true, role: true },
+      select: { id: true, email: true, handle: true, name: true, role: true },
       take: 100,
     }),
     prisma.warningAppeal.count({
@@ -247,7 +275,7 @@ export default async function ModerationPage({
               name="q"
               defaultValue={query}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-              placeholder="通報者、対象者、投稿本文、通報詳細"
+              placeholder={actor.role === Role.ADMIN ? "通報者、対象者、メール、投稿本文、通報詳細" : "通報者、対象者、@handle、投稿本文、通報詳細"}
             />
           </label>
           <label className="block text-sm font-medium text-zinc-700 xl:col-span-2">
@@ -305,7 +333,7 @@ export default async function ModerationPage({
               <option value="unassigned">未担当</option>
               {moderatorUsers.map((user) => (
                 <option key={user.id} value={user.id}>
-                  {user.email ?? user.name ?? user.id}
+                  {user.name ?? `@${user.handle}`}
                 </option>
               ))}
             </select>
