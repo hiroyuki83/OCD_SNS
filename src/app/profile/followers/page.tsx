@@ -89,8 +89,20 @@ export default async function FollowersPage() {
                                 <div className="w-10 h-10 rounded-full bg-slate-400" />
                             )}
                             <div className="min-w-0 flex-1">
-                                <div className="font-bold text-sm">{entry.follower.name ?? 'ユーザー'}</div>
-                                <div className="text-xs text-zinc-500">@{entry.follower.handle}</div>
+                                <Link
+                                    href={`/user/${entry.follower.handle}`}
+                                    className="font-bold text-sm hover:underline"
+                                >
+                                    {entry.follower.name ?? 'ユーザー'}
+                                </Link>
+                                <div>
+                                    <Link
+                                        href={`/user/${entry.follower.handle}`}
+                                        className="text-xs text-zinc-500 hover:underline"
+                                    >
+                                        @{entry.follower.handle}
+                                    </Link>
+                                </div>
                                 {entry.follower.bio && (
                                     <div className="mt-1 text-xs text-zinc-500 line-clamp-2">{entry.follower.bio}</div>
                                 )}
