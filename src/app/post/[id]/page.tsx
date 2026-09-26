@@ -214,11 +214,11 @@ export default async function PostPage({ params }: { params?: { id?: string } })
                                         bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
                                     }`}
                                 >
-                                    ブックマーク <span>{post.bookmarks.length}</span>
+                                    ブックマーク <span>{post._count.bookmarks}</span>
                                 </button>
                             </form>
                         ) : (
-                            <div className="text-xs">ブックマーク {post.bookmarks.length}</div>
+                            <div className="text-xs">ブックマーク {post._count.bookmarks}</div>
                         )}
                         {session?.user && post.authorId === userId && (
                             <form action={deletePost.bind(null, post.id)}>
