@@ -43,7 +43,11 @@ export async function GET(request: Request) {
     if (user.isPrivate && viewerId !== user.id) {
         const isFollowing = viewerId
             ? await prisma.follow.findFirst({
-                  where: { followerId: viewerId, followingId: user.id },
+                  where: {
+                      followerId: viewerId,
+                      followingId: user.id,
+                      acceptedAt: { not: null },
+                  },
                   select: { id: true },
               })
             : null;
