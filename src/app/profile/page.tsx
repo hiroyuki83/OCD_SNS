@@ -119,7 +119,7 @@ export default async function ProfilePage() {
                             ミュート {muteCount}
                         </Link>
                         <Link href="/profile/blocks" className="text-xs text-[#1d9bf0] hover:underline">
-                            ブロック一覧
+                            ブロック {blockCount}
                         </Link>
                     </div>
                 </div>
