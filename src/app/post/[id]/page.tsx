@@ -27,7 +27,8 @@ export default async function PostPage({ params }: { params?: { id?: string } })
             }
         }
     }
-    if (!postId) {
+    postId = postId?.trim();
+    if (!postId || postId.length > 128) {
         return (
             <div className="p-6 text-sm text-zinc-500">
                 投稿IDが取得できませんでした。
