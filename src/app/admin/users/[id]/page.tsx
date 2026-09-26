@@ -68,6 +68,8 @@ export default async function AdminUserDetailPage({
     recentPosts,
     reportsTargetingUser,
     reportsMade,
+    warningCount,
+    warnings,
     adminNotes,
     auditLogs,
   ] = await Promise.all([
@@ -131,6 +133,15 @@ export default async function AdminUserDetailPage({
         post: { select: { id: true, content: true, isHidden: true, deletedAt: true } },
       },
     }),
+    prisma.moderationWarning.count({ where: { targetUserId: userId } }),
+    prisma.moderationWarning.findMany({
+      where: { targetUserId: userId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      include: {
+        actorUser: { select: { id: true, email: true, name: true } },
+      },
+    }),
     prisma.adminNote.findMany({
       where: { targetUserId: userId },
       orderBy: { createdAt: "desc" },
@@ -157,6 +168,7 @@ export default async function AdminUserDetailPage({
     { label: "非表示投稿", value: hiddenPostCount, helper: "モデレーション済み" },
     { label: "削除済み投稿", value: deletedPostCount, helper: "本人削除の証跡" },
     { label: "未対応通報", value: openReports, helper: `対応中 ${reviewingReports} 件` },
+    { label: "警告", value: warningCount, helper: "運営からの警告履歴" },
     { label: "通報送信", value: reportsMadeCount, helper: "このユーザーが送った通報" },
     { label: "フォロワー", value: followerCount, helper: "このユーザーをフォロー" },
     { label: "フォロー中", value: followingCount, helper: "このユーザーがフォロー" },
@@ -219,6 +231,35 @@ export default async function AdminUserDetailPage({
           authorLabel: note.author.email ?? note.author.name ?? note.author.id,
         }))}
       />
+
+      <section className="mb-6 rounded-lg border border-border p-4">
+        <h2 className="text-base font-semibold text-zinc-900">警告履歴</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          通報対応で発行された警告です。警告の発行は監査ログにも記録されます。
+        </p>
+        <div className="mt-3 flex flex-col gap-3">
+          {warnings.length === 0 ? (
+            <div className="text-sm text-zinc-500">警告はありません。</div>
+          ) : (
+            warnings.map((warning) => (
+              <div key={warning.id} className="rounded-md bg-zinc-50 p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-semibold text-amber-800">警告</div>
+                  <div className="text-xs text-zinc-500">{formatDate(warning.createdAt)}</div>
+                </div>
+                <div className="mt-2 whitespace-pre-wrap break-words text-zinc-800">
+                  {warning.reason}
+                </div>
+                <div className="mt-2 text-xs text-zinc-500">
+                  actor: {warning.actorUser.email ?? warning.actorUser.name ?? warning.actorUser.id}
+                  {warning.reportId ? ` / report: ${warning.reportId}` : ""}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
 
       <div className="mb-6 rounded-lg border border-border p-4">
         <h2 className="text-base font-semibold text-zinc-900">プロフィール</h2>
