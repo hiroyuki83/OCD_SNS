@@ -341,17 +341,11 @@ export async function toggleLike(postId: string) {
     const post = await getAccessiblePostForViewer(userId, postId);
     if (!post) return;
 
-    const existing = await prisma.like.findUnique({
-        where: {
-            userId_postId: {
-                userId,
-                postId,
-            },
-        },
+    const removedLike = await prisma.like.deleteMany({
+        where: { userId, postId },
     });
 
-    if (existing) {
-        await prisma.like.delete({ where: { id: existing.id } });
+    if (removedLike.count > 0) {
         if (post?.authorId) {
             await prisma.notification.deleteMany({
                 where: {
