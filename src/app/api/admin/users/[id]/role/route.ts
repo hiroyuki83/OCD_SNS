@@ -23,7 +23,8 @@ export async function PATCH(
     return NextResponse.json({ error: requestCheck.error }, { status: requestCheck.status });
   }
 
-  const { id } = await params;
+  const { id: rawId } = await params;
+  const id = rawId.trim();
   const authz = await checkRoleApi(Role.ADMIN);
   if ("error" in authz) {
     return NextResponse.json({ error: authz.error }, { status: authz.status });
