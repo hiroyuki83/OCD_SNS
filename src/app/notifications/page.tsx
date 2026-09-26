@@ -64,7 +64,7 @@ export default async function NotificationsPage() {
             where: {
                 userId: resolvedUserId,
                 ...(excludedActorIds.length > 0 ? { actorId: { notIn: excludedActorIds } } : {}),
-                actor: visibleAccountFilter(new Date()),
+                actor: notificationActorFilter,
             },
             orderBy: { createdAt: 'desc' },
             select: {
