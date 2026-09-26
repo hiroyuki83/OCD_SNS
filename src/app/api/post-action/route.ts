@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { AccountStatus } from '@prisma/client';
+import { isSuspensionActive } from '@/lib/accountStatus';
 import { getAccessiblePostForViewer } from '@/lib/postAccess';
 import { validateJsonMutationRequest } from '@/lib/requestSecurity';
 
@@ -115,9 +116,9 @@ export async function POST(request: Request) {
             });
             const post = await tx.post.findUnique({
                 where: { id: postId },
-                select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
+                select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true, suspendedUntil: true } } },
             });
-            if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) return;
+            if (!post || post.deletedAt || post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) return;
             if (existing) {
                 await tx.reaction.delete({ where: { id: existing.id } });
                 await tx.post.update({
