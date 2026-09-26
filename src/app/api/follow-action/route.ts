@@ -82,7 +82,7 @@ export async function POST(request: Request) {
         });
     }
 
-    if (!existingFollow) {
+    if (createdFollow.count === 1) {
         await prisma.notification.create({
             data: {
                 type: 'FOLLOW',
