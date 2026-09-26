@@ -200,10 +200,20 @@ export default async function ModerationPage({
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold">モデレーション</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          通報を確認し、投稿非表示やユーザー制限を実行します。
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold">モデレーション</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              通報を確認し、投稿非表示やユーザー制限を実行します。
+            </p>
+          </div>
+          <Link
+            href="/moderation/appeals"
+            className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-700 hover:text-zinc-900"
+          >
+            異議申立てを見る
+          </Link>
+        </div>
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
