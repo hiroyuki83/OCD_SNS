@@ -28,6 +28,7 @@ export default async function BlocksPage() {
         where: { blockerId: userId },
         select: {
             id: true,
+            createdAt: true,
             blocked: {
                 select: {
                     id: true,
