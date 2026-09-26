@@ -305,11 +305,21 @@ export async function setReportedUserStatus(
   if (actor.role === Role.MODERATOR && report.targetUser.role !== Role.USER) return;
 
   let suspendedUntil: Date | null = null;
+  let suspensionDurationDays: number | null = null;
+  let permanentSuspension = false;
+
   if (status === AccountStatus.SUSPENDED) {
     const durationRaw = optionalText(formData, 'durationDays');
-    const durationDays = durationRaw ? Number(durationRaw) : NaN;
-    if (![1, 7, 30].includes(durationDays)) return;
-    suspendedUntil = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+
+    if (durationRaw === 'permanent') {
+      if (actor.role !== Role.ADMIN) return;
+      permanentSuspension = true;
+    } else {
+      const durationDays = durationRaw ? Number(durationRaw) : NaN;
+      if (![1, 7, 30].includes(durationDays)) return;
+      suspensionDurationDays = durationDays;
+      suspendedUntil = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+    }
   }
 
   await prisma.$transaction([
@@ -341,6 +351,8 @@ export async function setReportedUserStatus(
           fromStatus: report.targetUser.status,
           toStatus: status,
           suspendedUntil,
+          suspensionDurationDays,
+          permanentSuspension,
           note,
         },
       },
