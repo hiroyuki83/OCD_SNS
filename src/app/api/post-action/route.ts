@@ -100,11 +100,10 @@ export async function POST(request: Request) {
     }
 
     if (actionType === 'bookmark') {
-        const existing = await prisma.bookmark.findUnique({
-            where: { userId_postId: { userId, postId } },
+        const removedBookmark = await prisma.bookmark.deleteMany({
+            where: { userId, postId },
         });
-        if (existing) {
-            await prisma.bookmark.delete({ where: { id: existing.id } });
+        if (removedBookmark.count > 0) {
         } else {
             await prisma.bookmark.create({ data: { userId, postId } });
         }
