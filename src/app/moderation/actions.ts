@@ -348,6 +348,8 @@ export async function setReportedUserStatus(
   status: AccountStatus,
   formData: FormData,
 ) {
+  reportId = reportId.trim();
+  if (!reportId || reportId.length > 128) return;
   const actor = await requireModerator();
   if (!(await allowSensitiveModeration(actor.id))) return;
   const note = noteFromFormData(formData);
