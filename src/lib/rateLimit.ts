@@ -4,6 +4,23 @@ import { prisma } from '@/lib/db';
 
 type RateLimitResult = { count: number };
 
+let checksSinceCleanup = 0;
+const CLEANUP_EVERY_CHECKS = 100;
+
+async function maybeCleanupExpiredBuckets() {
+    checksSinceCleanup += 1;
+    if (checksSinceCleanup < CLEANUP_EVERY_CHECKS) return;
+    checksSinceCleanup = 0;
+
+    try {
+        await prisma.rateLimitBucket.deleteMany({
+            where: { resetAt: { lte: new Date() } },
+        });
+    } catch (error) {
+        console.error('Rate limit cleanup failed:', error);
+    }
+}
+
 export async function rateLimit(key: string, limit: number, windowMs: number) {
     if (!key || limit < 1 || windowMs < 1) return false;
 
@@ -27,6 +44,7 @@ export async function rateLimit(key: string, limit: number, windowMs: number) {
             RETURNING "count"
         `;
 
+        await maybeCleanupExpiredBuckets();
         return (rows[0]?.count ?? limit + 1) <= limit;
     } catch (error) {
         console.error('Rate limit check failed:', error);
