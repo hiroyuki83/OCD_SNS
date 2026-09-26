@@ -26,7 +26,7 @@ type FeedPost = {
     author: {
         id: string;
         name: string | null;
-        email: string;
+        handle: string;
         avatarUrl: string | null;
     };
 };
@@ -304,7 +304,7 @@ export default function Feed({
                     <div className="p-6 text-sm text-zinc-500 text-center">読み込みに失敗しました。</div>
                 )}
                 {data.posts.map((post) => {
-                    const handle = post.author.email.split('@')[0];
+                    const handle = post.author.handle;
                     const createdAt = formatPostTime(post.createdAt);
 
                     return (
