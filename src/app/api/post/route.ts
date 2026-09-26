@@ -58,16 +58,22 @@ export async function GET(request: Request) {
     }
 
     if (viewerId) {
-        const blocked = await prisma.block.findFirst({
-            where: {
-                OR: [
-                    { blockerId: viewerId, blockedId: post.authorId },
-                    { blockerId: post.authorId, blockedId: viewerId },
-                ],
-            },
-            select: { id: true },
-        });
-        if (blocked) {
+        const [blocked, muted] = await Promise.all([
+            prisma.block.findFirst({
+                where: {
+                    OR: [
+                        { blockerId: viewerId, blockedId: post.authorId },
+                        { blockerId: post.authorId, blockedId: viewerId },
+                    ],
+                },
+                select: { id: true },
+            }),
+            prisma.mute.findFirst({
+                where: { muterId: viewerId, mutedId: post.authorId },
+                select: { id: true },
+            }),
+        ]);
+        if (blocked || muted) {
             return NextResponse.json({ post: null }, { status: 404 });
         }
         if (post.author.isPrivate && viewerId !== post.authorId) {
