@@ -7,7 +7,7 @@
     "build": "npx prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test tests/**/*.test.ts",
+    "test": "tsx --test tests/*.test.ts",
     "seed": "npx --yes tsx prisma/seed.ts",
     "create-admin": "npx --yes tsx prisma/seed.ts"
   },
