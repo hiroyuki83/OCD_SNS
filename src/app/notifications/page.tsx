@@ -1,6 +1,6 @@
 ﻿import Link from 'next/link';
 import { auth } from '@/auth';
-import { WarningAppealStatus } from '@prisma/client';
+import { Prisma, WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { visibleAccountFilter } from '@/lib/accountStatus';
 import { submitWarningAppeal } from './actions';
@@ -33,6 +33,15 @@ export default async function NotificationsPage() {
     if (!resolvedUserId) {
         return <div className="p-6 text-sm text-zinc-400">通知を取得できませんでした。</div>;
     }
+
+    const notificationActorFilter: Prisma.UserWhereInput = {
+        AND: [
+            visibleAccountFilter(new Date()),
+            { blockedBy: { none: { blockerId: resolvedUserId } } },
+            { blocksInitiated: { none: { blockedId: resolvedUserId } } },
+            { mutedBy: { none: { muterId: resolvedUserId } } },
+        ],
+    };
 
     const [blockedActorIds, mutedActorIds, blockedByActorIds] = await Promise.all([
         prisma.block.findMany({
