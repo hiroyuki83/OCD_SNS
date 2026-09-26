@@ -441,8 +441,22 @@ export async function setReportedUserStatus(
     }
   }
 
-  await prisma.$transaction([
-    prisma.user.update({
+  await prisma.$transaction(async (tx) => {
+    const claimed = await tx.report.updateMany({
+      where: {
+        id: report.id,
+        status: { in: [ReportStatus.OPEN, ReportStatus.REVIEWING] },
+      },
+      data: {
+        status: ReportStatus.RESOLVED,
+        reviewedById: actor.id,
+        reviewedAt: new Date(),
+        resolutionNote: note,
+      },
+    });
+    if (claimed.count !== 1) return;
+
+    await tx.user.update({
       where: { id: report.targetUserId },
       data: {
         status,
@@ -450,17 +464,9 @@ export async function setReportedUserStatus(
         restrictionUntil,
         restrictionReason: status === AccountStatus.ACTIVE ? null : note,
       },
-    }),
-    prisma.report.update({
-      where: { id: report.id },
-      data: {
-        status: ReportStatus.RESOLVED,
-        reviewedById: actor.id,
-        reviewedAt: new Date(),
-        resolutionNote: note,
-      },
-    }),
-    prisma.auditLog.create({
+    });
+
+    await tx.auditLog.create({
       data: {
         action: 'USER_STATUS_CHANGE',
         actorUserId: actor.id,
@@ -477,8 +483,8 @@ export async function setReportedUserStatus(
           note,
         },
       },
-    }),
-  ]);
+    });
+  });
 
   revalidatePath('/');
   revalidatePath('/moderation');
