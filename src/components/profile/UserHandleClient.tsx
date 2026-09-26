@@ -66,7 +66,10 @@ export default function UserHandleClient() {
 
     const fetchProfile = useMemo(
         () => async () => {
-            if (!handle) return;
+            if (!handle || handle.length > 64) {
+                setStatus('error');
+                return;
+            }
             setStatus('loading');
             try {
                 const res = await fetch(`/api/user-handle?handle=${encodeURIComponent(handle)}`, {
