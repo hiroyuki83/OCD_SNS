@@ -38,7 +38,7 @@ export default function UserPageClient() {
     useEffect(() => {
         if (!userId) return;
         let active = true;
-        fetch(`/api/user?id=${encodeURIComponent(userId)}`)
+        fetch(`/api/user?id=${encodeURIComponent(userId)}`, { cache: 'no-store' })
             .then((res) => (res.ok ? res.json() : Promise.reject(res)))
             .then((data) => {
                 if (!active) return;
