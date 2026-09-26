@@ -628,6 +628,7 @@ export async function unfollowUser(targetUserId: string) {
     revalidatePath('/profile');
     revalidatePath('/profile/following');
     revalidatePath('/profile/followers');
+    revalidatePath('/notifications');
 }
 
 export async function acceptFollowRequest(followerId: string) {
