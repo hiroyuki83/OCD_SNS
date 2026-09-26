@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "tsx --test tests/*.test.ts",
     "seed": "npx --yes tsx prisma/seed.ts",
+    "seed:preview": "npx --yes tsx prisma/seed-preview.ts",
     "create-admin": "npx --yes tsx prisma/seed.ts",
     "vercel-build": "node scripts/vercel-build.mjs"
   },
