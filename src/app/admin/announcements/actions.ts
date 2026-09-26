@@ -82,8 +82,10 @@ export async function createAnnouncement(formData: FormData) {
 
 export async function setAnnouncementActive(announcementId: string, isActive: boolean) {
   const actor = await requireRole(Role.ADMIN);
+  const normalizedId = announcementId.trim();
+  if (!normalizedId || normalizedId.length > 128) return;
   const announcement = await prisma.announcement.findUnique({
-    where: { id: announcementId },
+    where: { id: normalizedId },
     select: { id: true, isActive: true },
   });
   if (!announcement || announcement.isActive === isActive) return;
