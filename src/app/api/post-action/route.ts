@@ -17,9 +17,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const postId = typeof body?.postId === 'string' ? body.postId : '';
+    const postId = typeof body?.postId === 'string' ? body.postId.trim() : '';
     const action = typeof body?.action === 'string' ? body.action : '';
-    if (!postId || !ACTION_TYPES.includes(action as ActionType)) {
+    if (!postId || postId.length > 128 || !ACTION_TYPES.includes(action as ActionType)) {
         return NextResponse.json({ ok: false }, { status: 400 });
     }
     const actionType = action as ActionType;
