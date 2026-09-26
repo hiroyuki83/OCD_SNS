@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { publicHandleFromEmail } from '@/lib/publicUser';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -12,7 +11,7 @@ export async function GET(request: Request) {
 
     const user = await prisma.user.findUnique({
         where: { id },
-        select: { id: true, name: true, email: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true },
+        select: { id: true, name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true },
     });
     if (!user) {
         return NextResponse.json({ user: null }, { status: 404 });
@@ -62,7 +61,6 @@ export async function GET(request: Request) {
     return NextResponse.json({
         user: {
             ...user,
-            email: publicHandleFromEmail(user.email),
             posts,
         },
     });
