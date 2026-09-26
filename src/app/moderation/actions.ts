@@ -359,7 +359,7 @@ export async function restorePost(postId: string, _targetUserId: string, formDat
       author: { select: { role: true } },
     },
   });
-  if (!post || post.deletedAt) return;
+  if (!post || post.deletedAt || !post.isHidden) return;
   if (!canReviewTarget(actor.role, post.author.role)) return;
 
   await prisma.$transaction([
