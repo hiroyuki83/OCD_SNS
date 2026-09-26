@@ -126,6 +126,7 @@ export default async function NotificationsPage() {
             <div className="flex flex-col">
                 {items.map((item) => {
                     const timestamp = item.createdAt.toLocaleString('ja-JP', {
+                        timeZone: 'Asia/Tokyo',
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit',
