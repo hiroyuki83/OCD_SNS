@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { acceptFollowRequest, rejectFollowRequest } from '@/app/lib/actions';
+import { acceptFollowRequest, rejectFollowRequest, removeFollower } from '@/app/lib/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -169,7 +169,7 @@ export default async function FollowersPage() {
                                 <div className="w-10 h-10 rounded-full bg-slate-400" />
                             )}
                         </Link>
-                        <div className="flex flex-col">
+                        <div className="min-w-0 flex-1 flex flex-col">
                             <Link
                                 href={`/user/${entry.follower.handle}`}
                                 className="font-bold text-sm hover:underline"
@@ -197,6 +197,14 @@ export default async function FollowersPage() {
                                 </span>
                             )}
                         </div>
+                        <form action={removeFollower.bind(null, entry.follower.id)}>
+                            <button
+                                type="submit"
+                                className="text-xs font-semibold text-zinc-500 hover:text-red-500 hover:underline"
+                            >
+                                フォロワーから削除
+                            </button>
+                        </form>
                     </div>
                 ))}
                 {followers.length === 0 && (
