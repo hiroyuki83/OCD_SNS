@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useEffect, useMemo, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { updateProfile, type ProfileState } from '@/app/lib/actions';
 import Cropper, { type Area } from 'react-easy-crop';
