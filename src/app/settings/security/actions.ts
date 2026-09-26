@@ -44,7 +44,7 @@ export async function beginStaffTotpEnrollment() {
 }
 
 export async function confirmStaffTotpEnrollment(formData: FormData) {
-  const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR], { allowUnenrolledStaff: true });
 
   if (!(await rateLimit(`staff-totp-confirm:${actor.id}`, 10, 15 * 60 * 1000))) {
     return;
