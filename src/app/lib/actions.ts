@@ -625,6 +625,7 @@ export async function unfollowUser(targetUserId: string) {
     });
 
     revalidatePath('/');
+    revalidatePath('/profile');
     revalidatePath('/profile/following');
     revalidatePath('/profile/followers');
 }
