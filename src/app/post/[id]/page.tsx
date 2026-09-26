@@ -41,7 +41,16 @@ export default async function PostPage({ params }: { params?: { id?: string } })
     let userId = undefined as string | undefined;
     type PostWithRelations = Prisma.PostGetPayload<{
         include: {
-            author: true;
+            author: {
+                select: {
+                    id: true;
+                    name: true;
+                    handle: true;
+                    avatarUrl: true;
+                    status: true;
+                    suspendedUntil: true;
+                };
+            };
             likes: true;
             bookmarks: true;
             reactions: true;
@@ -67,7 +76,16 @@ export default async function PostPage({ params }: { params?: { id?: string } })
         post = await prisma.post.findUnique({
             where: { id: postId },
             include: {
-                author: true,
+                author: {
+                    select: {
+                        id: true,
+                        name: true,
+                        handle: true,
+                        avatarUrl: true,
+                        status: true,
+                        suspendedUntil: true,
+                    },
+                },
                 likes: true,
                 bookmarks: true,
                 reactions: true,
