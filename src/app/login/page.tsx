@@ -33,6 +33,9 @@ export default function LoginPage() {
                         <input
                             name="email"
                             type="email"
+                            maxLength={254}
+                            required
+                            autoComplete="email"
                             placeholder="メールアドレス"
                             className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
                         />
