@@ -50,12 +50,28 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
     const confirmed = window.confirm(`${label} の権限を ${selectedRole} に変更しますか？`);
     if (!confirmed) return;
 
+    const currentPassword = window.prompt("安全確認のため、あなた自身のADMINパスワードを入力してください。");
+    if (!currentPassword) return;
+
+    let adminConfirmation: string | undefined;
+    if (selectedRole === "ADMIN" && savedRole !== "ADMIN") {
+      adminConfirmation = window.prompt('ADMINへ昇格するには「PROMOTE ADMIN」と入力してください。') ?? undefined;
+      if (adminConfirmation !== "PROMOTE ADMIN") {
+        alert("確認文字列が一致しないため、変更を中止しました。");
+        return;
+      }
+    }
+
     setPending("role");
     try {
       const res = await fetch(`/api/admin/users/${user.id}/role`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: selectedRole }),
+        body: JSON.stringify({
+          role: selectedRole,
+          currentPassword,
+          adminConfirmation,
+        }),
       });
 
       if (!res.ok) {
@@ -83,15 +99,22 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
     const reason =
       selectedStatus === "ACTIVE"
         ? ""
-        : window.prompt(`${label} を ${statusLabels[selectedStatus]}にする理由を入力してください。`) ?? null;
+        : window.prompt(`${label} を ${statusLabels[selectedStatus]}にする理由を5文字以上で入力してください。`) ?? null;
     if (reason === null) return;
+    if (selectedStatus !== "ACTIVE" && reason.trim().length < 5) {
+      alert("理由は5文字以上入力してください。");
+      return;
+    }
+
+    const currentPassword = window.prompt("安全確認のため、あなた自身のADMINパスワードを入力してください。");
+    if (!currentPassword) return;
 
     setPending("status");
     try {
       const res = await fetch(`/api/admin/users/${user.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: selectedStatus, reason }),
+        body: JSON.stringify({ status: selectedStatus, reason, currentPassword }),
       });
 
       if (!res.ok) {
@@ -119,7 +142,7 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
         <div>
           <h2 className="text-base font-semibold text-zinc-900">権限とアカウント状態</h2>
           <p className="mt-1 text-xs text-zinc-500">
-            変更は監査ログに記録されます。停止は7日間として保存されます。
+            変更は監査ログに記録されます。投稿制限は24時間、停止は7日間として保存されます。
           </p>
         </div>
         {user.suspendedUntil && (
