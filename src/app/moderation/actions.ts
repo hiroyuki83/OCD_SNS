@@ -442,6 +442,12 @@ export async function setReportedUserStatus(
   }
 
   await prisma.$transaction(async (tx) => {
+    const currentTarget = await tx.user.findUnique({
+      where: { id: report.targetUserId },
+      select: { status: true },
+    });
+    if (!currentTarget) return;
+
     const claimed = await tx.report.updateMany({
       where: {
         id: report.id,
@@ -474,7 +480,7 @@ export async function setReportedUserStatus(
         meta: {
           reportId: report.id,
           reason: report.reason,
-          fromStatus: report.targetUser.status,
+          fromStatus: currentTarget.status,
           toStatus: status,
           suspendedUntil,
           restrictionUntil,
