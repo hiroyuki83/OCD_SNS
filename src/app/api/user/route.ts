@@ -90,6 +90,7 @@ export async function GET(request: Request) {
             ...user,
             followerCount,
             followingCount,
+            canViewPosts,
             posts,
         },
     });
