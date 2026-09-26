@@ -6,7 +6,11 @@ import FontSizeSetting from '@/components/settings/FontSizeSetting';
 import StaffTotpSetting from '@/components/settings/StaffTotpSetting';
 import { Role } from '@prisma/client';
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams?: { mfa?: string };
+}) {
   const session = await auth();
   let userId = session?.user?.id ?? null;
   if (!userId && session?.user?.email) {
@@ -50,6 +54,11 @@ export default async function SettingsPage() {
         <h1 className="font-bold text-base">設定</h1>
       </div>
       <div className="p-6">
+        {searchParams?.mfa === 'required' && (
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            ADMIN / MODERATORとして管理機能を使うには、スタッフ2段階認証の設定が必要です。
+          </div>
+        )}
         <FontSizeSetting />
         <ProfileEditForm name={user?.name} bio={user?.bio} autoHashtag={user?.autoHashtag} />
         {user && (user.role === Role.ADMIN || user.role === Role.MODERATOR) && (
