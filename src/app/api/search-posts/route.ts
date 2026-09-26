@@ -61,6 +61,11 @@ export async function GET(request: Request) {
               AND: [
                   visibleAccountFilter(now),
                   {
+                      blocksInitiated: {
+                          none: { blockedId: viewerId },
+                      },
+                  },
+                  {
                       OR: [
                           { isPrivate: false },
                           { id: viewerId },
