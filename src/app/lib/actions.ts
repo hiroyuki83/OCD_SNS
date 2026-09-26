@@ -671,6 +671,8 @@ export async function acceptFollowRequest(followerId: string) {
     if (!userId || userId === followerId) return;
     if (!(await rateLimit(`follow-review:${userId}`, 100, 60 * 60 * 1000))) return;
 
+    if (await usersAreBlocked(userId, followerId)) return;
+
     await prisma.follow.updateMany({
         where: {
             followerId,
