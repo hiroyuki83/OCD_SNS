@@ -42,7 +42,7 @@ export async function POST(request: Request) {
         where: { id: targetUserId },
         select: { id: true, isPrivate: true, status: true, suspendedUntil: true },
     });
-    if (!targetUser) {
+    if (!targetUser || isSuspensionActive(targetUser.status, targetUser.suspendedUntil)) {
         return NextResponse.json({ ok: false }, { status: 404 });
     }
     if (!(await rateLimit(`follow-action:${userId}`, 60, 60 * 1000))) {
