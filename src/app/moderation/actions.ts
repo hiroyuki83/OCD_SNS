@@ -301,6 +301,7 @@ export async function setReportedUserStatus(
   });
   if (!report) return;
   if (!Object.values(AccountStatus).includes(status)) return;
+  if (status !== AccountStatus.ACTIVE && (!note || note.length < 5)) return;
   if (report.targetUser.role === Role.ADMIN) return;
   if (actor.role === Role.MODERATOR && report.targetUser.role !== Role.USER) return;
 
