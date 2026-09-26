@@ -109,7 +109,18 @@ export default async function NotificationsPage() {
         ),
     );
 
-    const pendingFollowerIds = new Set<string>();
+    const pendingFollowRows =
+        followActorIds.length > 0
+            ? await prisma.follow.findMany({
+                  where: {
+                      followingId: resolvedUserId,
+                      followerId: { in: followActorIds },
+                      acceptedAt: null,
+                  },
+                  select: { followerId: true },
+              })
+            : [];
+    const pendingFollowerIds = new Set(pendingFollowRows.map((row) => row.followerId));
 
     const items = [
         ...notifications.map((notification) => ({
