@@ -297,6 +297,7 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
   if (!report?.postId || !report.post || report.post.deletedAt || report.post.isHidden) return;
   if (report.status !== ReportStatus.OPEN && report.status !== ReportStatus.REVIEWING) return;
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
+  const postId = report.postId;
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -315,7 +316,7 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
       if (claimed.count !== 1) return;
 
       const hidden = await tx.post.updateMany({
-        where: { id: report.postId, deletedAt: null, isHidden: false },
+        where: { id: postId, deletedAt: null, isHidden: false },
         data: {
           isHidden: true,
           hiddenAt: new Date(),
@@ -330,7 +331,7 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
           action: 'POST_HIDE',
           actorUserId: actor.id,
           targetUserId: report.targetUserId,
-          meta: { reportId: report.id, postId: report.postId, reason: report.reason, note },
+          meta: { reportId: report.id, postId, reason: report.reason, note },
         },
       });
     });
