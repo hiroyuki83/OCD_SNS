@@ -88,7 +88,9 @@ export default function PostPageClient() {
                 )}
                 <div className="flex-1 flex flex-col gap-2">
                     <div className="flex items-center gap-2 text-sm flex-wrap">
-                        <span className="font-bold">{post.author.name ?? 'ユーザー'}</span>
+                        <Link href={`/user/${handle}`} className="font-bold hover:underline">
+                            {post.author.name ?? 'ユーザー'}
+                        </Link>
                         <span className="text-zinc-500">@{handle}</span>
                         <span className="text-zinc-500">・</span>
                         <span className="text-zinc-500">{createdAt}</span>
