@@ -513,9 +513,19 @@ export default async function ModerationPage({
                     <div className="flex flex-wrap gap-2">
                       <form
                         action={setReportedUserStatus.bind(null, report.id, AccountStatus.POST_RESTRICTED)}
-                        className="flex min-w-[240px] flex-1 gap-2"
+                        className="flex min-w-[320px] flex-1 flex-wrap gap-2"
                       >
                         <NoteInput placeholder="投稿制限理由" />
+                        <select
+                          name="durationHours"
+                          defaultValue="24"
+                          className="rounded-md border border-border bg-white px-2 py-1 text-xs"
+                          aria-label="投稿制限期間"
+                        >
+                          <option value="1">1時間</option>
+                          <option value="24">24時間</option>
+                          <option value="72">3日</option>
+                        </select>
                         <button className="rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700">
                           投稿制限
                         </button>
