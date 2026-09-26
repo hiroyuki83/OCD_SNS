@@ -60,8 +60,20 @@ export default async function FollowingPage() {
                             <div className="w-10 h-10 rounded-full bg-slate-400" />
                         )}
                         <div className="min-w-0 flex-1">
-                            <div className="font-bold text-sm">{entry.following.name ?? 'ユーザー'}</div>
-                            <div className="text-xs text-zinc-500">@{entry.following.handle}</div>
+                            <Link
+                                href={`/user/${entry.following.handle}`}
+                                className="font-bold text-sm hover:underline"
+                            >
+                                {entry.following.name ?? 'ユーザー'}
+                            </Link>
+                            <div>
+                                <Link
+                                    href={`/user/${entry.following.handle}`}
+                                    className="text-xs text-zinc-500 hover:underline"
+                                >
+                                    @{entry.following.handle}
+                                </Link>
+                            </div>
                             {entry.following.bio && (
                                 <div className="text-xs text-zinc-500">{entry.following.bio}</div>
                             )}
