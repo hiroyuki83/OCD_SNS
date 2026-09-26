@@ -929,6 +929,7 @@ export async function togglePrivateAccount() {
     revalidatePath('/profile');
     revalidatePath('/profile/following');
     revalidatePath('/profile/followers');
+    revalidatePath('/notifications');
 }
 
 export async function toggleBookmark(postId: string) {
