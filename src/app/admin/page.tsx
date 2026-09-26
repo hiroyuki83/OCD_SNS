@@ -43,7 +43,12 @@ export default async function AdminIndexPage() {
         OR: [{ restrictionUntil: null }, { restrictionUntil: { gt: now } }],
       },
     }),
-    prisma.user.count({ where: { status: AccountStatus.SUSPENDED } }),
+    prisma.user.count({
+      where: {
+        status: AccountStatus.SUSPENDED,
+        OR: [{ suspendedUntil: null }, { suspendedUntil: { gt: now } }],
+      },
+    }),
     prisma.announcement.count({
       where: {
         isActive: true,
