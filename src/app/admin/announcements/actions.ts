@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { Role } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireRole } from '@/lib/rbac';
+import { rateLimit } from '@/lib/rateLimit';
 
 function formText(formData: FormData, key: string, maxLength: number) {
   const value = formData.get(key);
@@ -42,6 +43,7 @@ function revalidateAnnouncementViews() {
 
 export async function createAnnouncement(formData: FormData) {
   const actor = await requireRole(Role.ADMIN);
+  if (!(await rateLimit(`announcement-create:${actor.id}`, 30, 60 * 60 * 1000))) return;
   const title = formText(formData, 'title', 80);
   const body = formText(formData, 'body', 600);
   if (!title || !body) return;
