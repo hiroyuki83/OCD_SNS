@@ -72,6 +72,7 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
     select: {
       id: true,
       targetUserId: true,
+      status: true,
       priority: true,
       assignedToId: true,
       dueAt: true,
