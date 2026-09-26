@@ -304,10 +304,13 @@ export async function setReportedUserStatus(
   if (report.targetUser.role === Role.ADMIN) return;
   if (actor.role === Role.MODERATOR && report.targetUser.role !== Role.USER) return;
 
-  const suspendedUntil =
-    status === AccountStatus.SUSPENDED
-      ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-      : null;
+  let suspendedUntil: Date | null = null;
+  if (status === AccountStatus.SUSPENDED) {
+    const durationRaw = optionalText(formData, 'durationDays');
+    const durationDays = durationRaw ? Number(durationRaw) : NaN;
+    if (![1, 7, 30].includes(durationDays)) return;
+    suspendedUntil = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+  }
 
   await prisma.$transaction([
     prisma.user.update({
