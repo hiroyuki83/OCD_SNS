@@ -71,6 +71,7 @@ export default async function NotificationsPage() {
                 },
                 post: {
                     select: {
+                        id: true,
                         content: true,
                     },
                 },
