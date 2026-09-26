@@ -309,12 +309,21 @@ export async function setReportedUserStatus(
       ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       : null;
 
+  let restrictionUntil: Date | null = null;
+  if (status === AccountStatus.POST_RESTRICTED) {
+    const durationRaw = optionalText(formData, 'durationHours');
+    const durationHours = durationRaw ? Number(durationRaw) : NaN;
+    if (![1, 24, 72].includes(durationHours)) return;
+    restrictionUntil = new Date(Date.now() + durationHours * 60 * 60 * 1000);
+  }
+
   await prisma.$transaction([
     prisma.user.update({
       where: { id: report.targetUserId },
       data: {
         status,
         suspendedUntil,
+        restrictionUntil,
         restrictionReason: status === AccountStatus.ACTIVE ? null : note,
       },
     }),
@@ -338,6 +347,7 @@ export async function setReportedUserStatus(
           fromStatus: report.targetUser.status,
           toStatus: status,
           suspendedUntil,
+          restrictionUntil,
           note,
         },
       },
