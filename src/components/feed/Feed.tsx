@@ -196,7 +196,7 @@ export default function Feed({
         postId: string,
     ) => {
         event.stopPropagation();
-        if (!data.viewerId || reportingPostId) return;
+        if (!data.viewerId || reportingPostId || !postId || postId.length > 128) return;
         const reasonGuide = REPORT_REASONS.map((reason, index) => `${index + 1}. ${reason.label}`).join('\n');
         const selected = window.prompt(`通報理由を番号で選んでください。\n${reasonGuide}`);
         if (selected === null) return;
