@@ -873,6 +873,8 @@ export async function muteUser(targetUserId: string) {
 }
 
 export async function unmuteUser(targetUserId: string) {
+    targetUserId = targetUserId.trim();
+    if (!targetUserId || targetUserId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
