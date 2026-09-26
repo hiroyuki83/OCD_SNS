@@ -24,7 +24,7 @@ export default async function FollowersPage() {
         );
     }
 
-    const [followers, pendingRequests] = await Promise.all([
+    const [followers, pendingRequests, followerCount, pendingRequestCount] = await Promise.all([
         prisma.follow.findMany({
             where: {
                 followingId: userId,
@@ -44,6 +44,7 @@ export default async function FollowersPage() {
                 },
             },
             orderBy: { createdAt: 'desc' },
+            take: 200,
         }),
         prisma.follow.findMany({
             where: {
@@ -64,6 +65,19 @@ export default async function FollowersPage() {
                 },
             },
             orderBy: { createdAt: 'desc' },
+            take: 200,
+        }),
+        prisma.follow.count({
+            where: {
+                followingId: userId,
+                acceptedAt: { not: null },
+            },
+        }),
+        prisma.follow.count({
+            where: {
+                followingId: userId,
+                acceptedAt: null,
+            },
         }),
     ]);
 
@@ -71,18 +85,18 @@ export default async function FollowersPage() {
         <div className="min-h-screen border-r border-border">
             <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center justify-between px-4">
                 <h1 className="font-bold text-base">
-                    フォロワー {followers.length}
-                    {pendingRequests.length > 0 ? `（承認待ち ${pendingRequests.length}）` : ''}
+                    フォロワー {followerCount}
+                    {pendingRequestCount > 0 ? `（承認待ち ${pendingRequestCount}）` : ''}
                 </h1>
                 <Link href="/profile" className="text-xs text-[#1d9bf0] hover:underline">
                     プロフィールへ戻る
                 </Link>
             </div>
 
-            {pendingRequests.length > 0 && (
+            {pendingRequestCount > 0 && (
                 <section className="border-b border-border">
                     <div className="px-4 py-3 text-sm font-semibold text-zinc-900">
-                        承認待ち {pendingRequests.length}件
+                        承認待ち {pendingRequestCount}件{pendingRequestCount > pendingRequests.length ? '（最新200件を表示）' : ''}
                     </div>
                     {pendingRequests.map((entry) => (
                         <div key={entry.id} className="p-4 border-t border-border bg-amber-50/40 flex items-center gap-4">
@@ -151,9 +165,9 @@ export default async function FollowersPage() {
             )}
 
             <div className="flex flex-col">
-                {followers.length > 0 && (
+                {followerCount > 0 && (
                     <div className="px-4 py-3 text-sm font-semibold text-zinc-900">
-                        承認済み {followers.length}件
+                        承認済み {followerCount}件{followerCount > followers.length ? '（最新200件を表示）' : ''}
                     </div>
                 )}
                 {followers.map((entry) => (
@@ -207,9 +221,9 @@ export default async function FollowersPage() {
                         </form>
                     </div>
                 ))}
-                {followers.length === 0 && (
+                {followerCount === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">
-                        {pendingRequests.length > 0 ? '承認済みフォロワーはいません' : 'フォロワーはいません'}
+                        {pendingRequestCount > 0 ? '承認済みフォロワーはいません' : 'フォロワーはいません'}
                     </div>
                 )}
             </div>
