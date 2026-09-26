@@ -180,6 +180,17 @@ export default async function FollowersPage() {
                             {entry.follower.bio && (
                                 <span className="text-xs text-zinc-500">{entry.follower.bio}</span>
                             )}
+                            {entry.acceptedAt && (
+                                <span className="mt-1 text-[11px] text-zinc-400">
+                                    フォロー開始{' '}
+                                    {entry.acceptedAt.toLocaleDateString('ja-JP', {
+                                        timeZone: 'Asia/Tokyo',
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                    })}
+                                </span>
+                            )}
                         </div>
                     </div>
                 ))}
