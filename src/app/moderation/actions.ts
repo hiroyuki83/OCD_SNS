@@ -199,25 +199,30 @@ export async function rejectReport(reportId: string, formData: FormData) {
   if (report.status !== ReportStatus.OPEN && report.status !== ReportStatus.REVIEWING) return;
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
-  await prisma.$transaction([
-    prisma.report.update({
-      where: { id: report.id },
+  await prisma.$transaction(async (tx) => {
+    const claimed = await tx.report.updateMany({
+      where: {
+        id: report.id,
+        status: { in: [ReportStatus.OPEN, ReportStatus.REVIEWING] },
+      },
       data: {
         status: ReportStatus.REJECTED,
         reviewedById: actor.id,
         reviewedAt: new Date(),
         resolutionNote: note,
       },
-    }),
-    prisma.auditLog.create({
+    });
+    if (claimed.count !== 1) return;
+
+    await tx.auditLog.create({
       data: {
         action: 'REPORT_REJECT',
         actorUserId: actor.id,
         targetUserId: report.targetUserId,
         meta: { reportId: report.id, fromStatus: report.status, note },
       },
-    }),
-  ]);
+    });
+  });
 
   revalidatePath('/moderation');
   revalidatePath('/admin/audit');
