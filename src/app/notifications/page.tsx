@@ -2,6 +2,7 @@
 import { auth } from '@/auth';
 import { WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
+import { visibleAccountFilter } from '@/lib/accountStatus';
 import { submitWarningAppeal } from './actions';
 import { acceptFollowRequest, rejectFollowRequest } from '@/app/lib/actions';
 import NotificationsReadMarker from '@/components/layout/NotificationsReadMarker';
@@ -54,6 +55,7 @@ export default async function NotificationsPage() {
             where: {
                 userId: resolvedUserId,
                 ...(excludedActorIds.length > 0 ? { actorId: { notIn: excludedActorIds } } : {}),
+                actor: visibleAccountFilter(new Date()),
             },
             orderBy: { createdAt: 'desc' },
             select: {
