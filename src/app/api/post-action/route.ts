@@ -67,11 +67,10 @@ export async function POST(request: Request) {
     }
 
     if (actionType === 'like') {
-        const existing = await prisma.like.findUnique({
-            where: { userId_postId: { userId, postId } },
+        const removedLike = await prisma.like.deleteMany({
+            where: { userId, postId },
         });
-        if (existing) {
-            await prisma.like.delete({ where: { id: existing.id } });
+        if (removedLike.count > 0) {
             if (visiblePost.authorId) {
                 await prisma.notification.deleteMany({
                     where: {
