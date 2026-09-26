@@ -137,7 +137,7 @@ export async function GET(request: Request) {
           };
 
     const posts =
-        !canViewPosts || isBlocked || isMuted || isBlockedBy || isSuspensionActive(user.status, user.suspendedUntil)
+        !canViewPosts || isBlocked || isMuted || isBlockedBy
         ? []
         : await prisma.post.findMany({
               where: {
