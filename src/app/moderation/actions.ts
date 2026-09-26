@@ -29,7 +29,7 @@ function optionalText(formData: FormData, key: string) {
 
 function optionalDate(formData: FormData, key: string) {
   const value = optionalText(formData, key);
-  if (!value) return null;
+  if (!value || value.length > 64) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
