@@ -33,6 +33,9 @@ export default function RegisterPage() {
                     <div>
                         <input
                             name="name"
+                            maxLength={50}
+                            required
+                            autoComplete="name"
                             placeholder="名前"
                             className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
                         />
