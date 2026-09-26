@@ -543,6 +543,8 @@ export async function deletePost(postId: string) {
 
 
 export async function followUser(targetUserId: string) {
+    targetUserId = targetUserId.trim();
+    if (!targetUserId || targetUserId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
