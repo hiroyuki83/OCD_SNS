@@ -37,7 +37,12 @@ export default async function AdminIndexPage() {
     prisma.report.count({ where: { status: ReportStatus.REVIEWING } }),
     prisma.post.count({ where: { isHidden: true, deletedAt: null } }),
     prisma.post.count({ where: { deletedAt: { not: null } } }),
-    prisma.user.count({ where: { status: AccountStatus.POST_RESTRICTED } }),
+    prisma.user.count({
+      where: {
+        status: AccountStatus.POST_RESTRICTED,
+        OR: [{ restrictionUntil: null }, { restrictionUntil: { gt: now } }],
+      },
+    }),
     prisma.user.count({ where: { status: AccountStatus.SUSPENDED } }),
     prisma.announcement.count({
       where: {
