@@ -22,6 +22,7 @@ export default async function AdminIndexPage() {
     restrictedUserCount,
     suspendedUserCount,
     activeAnnouncementCount,
+    staffMfaMissingCount,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.post.count({ where: { isHidden: false, deletedAt: null } }),
@@ -45,6 +46,12 @@ export default async function AdminIndexPage() {
           { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
           { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
         ],
+      },
+    }),
+    prisma.user.count({
+      where: {
+        role: { in: [Role.ADMIN, Role.MODERATOR] },
+        staffTotpEnabledAt: null,
       },
     }),
   ]);
@@ -92,6 +99,15 @@ export default async function AdminIndexPage() {
         >
           <div className="text-lg font-semibold text-zinc-900">Audit logs</div>
           <div className="text-sm text-zinc-500 mt-1">監査ログの確認</div>
+        </Link>
+        <Link
+          href="/admin/staff-security"
+          className="border border-border rounded-xl p-4 hover:bg-zinc-50 transition-colors"
+        >
+          <div className="text-lg font-semibold text-zinc-900">Staff security</div>
+          <div className="text-sm text-zinc-500 mt-1">
+            スタッフMFAの確認{staffMfaMissingCount > 0 ? `・未設定 ${staffMfaMissingCount} 件` : ''}
+          </div>
         </Link>
         <Link
           href="/moderation"
