@@ -14,7 +14,7 @@ export default async function AdminNewUserPage() {
         </Link>
         <h1 className="mt-3 text-2xl font-semibold">ユーザーを作成</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          管理者が初期パスワード付きでユーザーを作成し、必要な権限を付与できます。
+          名前・メールアドレス・権限を指定して招待します。本人が招待リンクから自分でパスワードを設定します。
         </p>
       </div>
 
