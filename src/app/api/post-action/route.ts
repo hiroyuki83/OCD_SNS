@@ -145,7 +145,10 @@ export async function POST(request: Request) {
                     });
                 }
             } else {
-                await tx.reaction.create({ data: { userId, postId, type } });
+                const createdReaction = await tx.reaction.createMany({
+                    data: [{ userId, postId, type }],
+                    skipDuplicates: true,
+                });
                 await tx.post.update({
                     where: { id: postId },
                     data:
