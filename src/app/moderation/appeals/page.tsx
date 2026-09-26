@@ -7,7 +7,7 @@ const formatDate = (date: Date) =>
   date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
 
 export default async function AppealListPage() {
-  await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
 
   const appeals = await prisma.warningAppeal.findMany({
     orderBy: { createdAt: 'desc' },
@@ -59,7 +59,8 @@ export default async function AppealListPage() {
                   <div>
                     <div className="font-semibold text-zinc-900">{userLabel}</div>
                     <div className="mt-1 text-xs text-zinc-500">
-                      @{appeal.user.handle} / {appeal.user.email}
+                      @{appeal.user.handle}
+                      {actor.role === Role.ADMIN ? ` / ${appeal.user.email}` : ''}
                     </div>
                   </div>
                   <div className="text-xs text-zinc-500">{formatDate(appeal.createdAt)}</div>
@@ -83,14 +84,16 @@ export default async function AppealListPage() {
                   </div>
                 </div>
 
-                <div className="mt-3">
-                  <Link
-                    href={`/admin/users/${appeal.user.id}`}
-                    className="text-xs font-semibold text-[#1d9bf0] hover:underline"
-                  >
-                    ユーザー詳細を開く
-                  </Link>
-                </div>
+                {actor.role === Role.ADMIN && (
+                  <div className="mt-3">
+                    <Link
+                      href={`/admin/users/${appeal.user.id}`}
+                      className="text-xs font-semibold text-[#1d9bf0] hover:underline"
+                    >
+                      ユーザー詳細を開く
+                    </Link>
+                  </div>
+                )}
               </article>
             );
           })
