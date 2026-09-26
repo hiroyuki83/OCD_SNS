@@ -54,6 +54,12 @@ export default async function PostPage({ params }: { params?: { id?: string } })
             likes: true;
             bookmarks: true;
             reactions: true;
+            _count: {
+                select: {
+                    likes: true;
+                    bookmarks: true;
+                };
+            };
         };
     }>;
     let post: PostWithRelations | null = null;
@@ -89,6 +95,7 @@ export default async function PostPage({ params }: { params?: { id?: string } })
                 likes: userId ? { where: { userId }, select: { id: true, userId: true } } : { take: 0 },
                 bookmarks: userId ? { where: { userId }, select: { id: true, userId: true } } : { take: 0 },
                 reactions: userId ? { where: { userId }, select: { userId: true, type: true } } : { take: 0 },
+                _count: { select: { likes: true, bookmarks: true } },
             },
         });
         }
