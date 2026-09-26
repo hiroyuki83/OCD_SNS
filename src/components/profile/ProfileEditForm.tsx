@@ -240,6 +240,11 @@ export default function ProfileEditForm({
                                         event.currentTarget.value = '';
                                         return;
                                     }
+                                    if (file.size === 0) {
+                                        alert('空の画像ファイルは使用できません。');
+                                        event.currentTarget.value = '';
+                                        return;
+                                    }
                                     if (file.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
                                         alert('画像は5MB以下にしてください。');
                                         event.currentTarget.value = '';
