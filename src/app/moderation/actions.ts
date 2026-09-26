@@ -51,6 +51,8 @@ async function allowSensitiveModeration(actorId: string) {
 }
 
 export async function updateReportRouting(reportId: string, formData: FormData) {
+  reportId = reportId.trim();
+  if (!reportId || reportId.length > 128) return;
   const actor = await requireModerator();
   const priority = priorityFromFormData(formData);
   if (!priority) return;
