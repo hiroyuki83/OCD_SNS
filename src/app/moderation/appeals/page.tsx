@@ -20,6 +20,7 @@ export default async function AppealListPage() {
           handle: true,
           name: true,
           email: true,
+          role: true,
         },
       },
       reviewer: {
@@ -37,6 +38,7 @@ export default async function AppealListPage() {
           createdAt: true,
           reportId: true,
           revokedAt: true,
+          actorUserId: true,
         },
       },
     },
