@@ -28,6 +28,7 @@ export default async function MutesPage() {
         where: { muterId: userId },
         select: {
             id: true,
+            createdAt: true,
             muted: {
                 select: {
                     id: true,
