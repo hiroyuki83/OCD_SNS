@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import {
   disableStaffTotp,
   enableStaffTotp,
+  recoverStaffTotpWithRecoveryCode,
   regenerateStaffRecoveryCodes,
   startStaffTotpSetup,
   type TotpSetupState,
@@ -40,12 +41,18 @@ export default function StaffTotpSetting({
     regenerateStaffRecoveryCodes,
     undefined,
   );
+  const [recoveryResetState, recoveryResetAction] = useActionState<TotpSetupState, FormData>(
+    recoverStaffTotpWithRecoveryCode,
+    undefined,
+  );
   const [disableState, disableAction] = useActionState<TotpSetupState, FormData>(
     disableStaffTotp,
     undefined,
   );
   const displayedRecoveryCodes =
     recoveryState?.recoveryCodes ?? enableState?.recoveryCodes;
+  const enrollmentSecret = recoveryResetState?.secret ?? setupState?.secret;
+  const enrollmentUri = recoveryResetState?.uri ?? setupState?.uri;
 
   return (
     <section className="mt-6 rounded-lg border border-border p-4">
@@ -110,7 +117,7 @@ export default function StaffTotpSetting({
             <Message state={setupState} />
           </form>
 
-          {setupState?.secret && (
+          {enrollmentSecret && (
             <div className="mt-4 rounded-md border border-border p-3">
               <div className="text-sm font-semibold text-zinc-900">認証アプリへ登録</div>
               <p className="mt-1 text-xs text-zinc-500">
@@ -119,16 +126,16 @@ export default function StaffTotpSetting({
               <div className="mt-3">
                 <div className="text-xs font-semibold text-zinc-500">秘密鍵</div>
                 <code className="mt-1 block break-all rounded bg-zinc-100 p-2 text-xs">
-                  {setupState.secret}
+                  {enrollmentSecret}
                 </code>
               </div>
-              {setupState.uri && (
+              {enrollmentUri && (
                 <details className="mt-3">
                   <summary className="cursor-pointer text-xs font-semibold text-zinc-600">
                     otpauth URIを表示
                   </summary>
                   <code className="mt-2 block break-all rounded bg-zinc-100 p-2 text-xs">
-                    {setupState.uri}
+                    {enrollmentUri}
                   </code>
                 </details>
               )}
@@ -173,6 +180,37 @@ export default function StaffTotpSetting({
 
       {enabled && (
         <>
+          <form action={recoveryResetAction} className="mt-4 rounded-md border border-amber-200 bg-amber-50/60 p-3">
+            <div className="text-sm font-semibold text-zinc-900">認証アプリを使えない場合</div>
+            <p className="mt-1 text-xs text-zinc-600">
+              現在のパスワードと未使用のリカバリーコードで、認証アプリを再登録できます。開始すると古い認証アプリと残りのリカバリーコードは無効になります。
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <input
+                name="currentPassword"
+                type="password"
+                required
+                maxLength={128}
+                autoComplete="current-password"
+                placeholder="現在のパスワード"
+                className="rounded-md border border-border bg-white px-3 py-2 text-sm"
+              />
+              <input
+                name="recoveryCode"
+                type="text"
+                required
+                maxLength={64}
+                autoComplete="off"
+                placeholder="リカバリーコード"
+                className="rounded-md border border-border bg-white px-3 py-2 text-sm"
+              />
+            </div>
+            <button className="mt-3 rounded-full border border-amber-400 px-4 py-2 text-sm font-semibold text-amber-900">
+              認証アプリを再登録
+            </button>
+            <Message state={recoveryResetState} />
+          </form>
+
           <form action={recoveryAction} className="mt-4 rounded-md border border-border bg-zinc-50 p-3">
             <div className="text-sm font-semibold text-zinc-900">リカバリーコードを再発行</div>
             <p className="mt-1 text-xs text-zinc-500">
