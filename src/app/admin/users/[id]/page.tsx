@@ -97,8 +97,12 @@ export default async function AdminUserDetailPage({
     prisma.report.count({ where: { targetUserId: userId, status: ReportStatus.OPEN } }),
     prisma.report.count({ where: { targetUserId: userId, status: ReportStatus.REVIEWING } }),
     prisma.report.count({ where: { reporterId: userId } }),
-    prisma.follow.count({ where: { followingId: userId } }),
-    prisma.follow.count({ where: { followerId: userId } }),
+    prisma.follow.count({
+      where: { followingId: userId, acceptedAt: { not: null } },
+    }),
+    prisma.follow.count({
+      where: { followerId: userId, acceptedAt: { not: null } },
+    }),
     prisma.post.findMany({
       where: { authorId: userId },
       orderBy: { createdAt: "desc" },
