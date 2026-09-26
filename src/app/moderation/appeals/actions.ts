@@ -49,9 +49,9 @@ export async function reviewWarningAppeal(
 
   const reviewedAt = new Date();
 
-  await prisma.$transaction(async (tx) => {
-    await tx.warningAppeal.update({
-      where: { id: appeal.id },
+  const reviewed = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.warningAppeal.updateMany({
+      where: { id: appeal.id, status: WarningAppealStatus.PENDING },
       data: {
         status: outcome,
         resolutionNote: parsed.data.note,
@@ -59,6 +59,7 @@ export async function reviewWarningAppeal(
         reviewerId: actor.id,
       },
     });
+    if (claimed.count !== 1) return false;
 
     await tx.moderationWarning.update({
       where: { id: appeal.warningId },
@@ -83,7 +84,9 @@ export async function reviewWarningAppeal(
         },
       },
     });
+    return true;
   });
+  if (!reviewed) return;
 
   revalidatePath('/moderation/appeals');
   revalidatePath('/notifications');
