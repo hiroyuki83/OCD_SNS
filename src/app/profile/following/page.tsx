@@ -42,10 +42,16 @@ export default async function FollowingPage() {
         orderBy: { createdAt: 'desc' },
     });
 
+    const acceptedFollowingCount = following.filter((entry) => entry.acceptedAt).length;
+    const pendingFollowingCount = following.length - acceptedFollowingCount;
+
     return (
         <div className="min-h-screen border-r border-border">
             <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center px-4">
-                <h1 className="font-bold text-base">フォロー一覧</h1>
+                <h1 className="font-bold text-base">
+                    フォロー {acceptedFollowingCount}
+                    {pendingFollowingCount > 0 ? `（申請中 ${pendingFollowingCount}）` : ''}
+                </h1>
             </div>
             <div className="flex flex-col">
                 {following.map((entry) => (
