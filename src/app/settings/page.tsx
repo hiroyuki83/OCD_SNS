@@ -3,6 +3,8 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import ProfileEditForm from '@/components/profile/ProfileEditForm';
 import FontSizeSetting from '@/components/settings/FontSizeSetting';
+import StaffTotpSetting from '@/components/settings/StaffTotpSetting';
+import { Role } from '@prisma/client';
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -32,7 +34,14 @@ export default async function SettingsPage() {
 
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { name: true, bio: true, email: true, autoHashtag: true },
+        select: {
+          name: true,
+          bio: true,
+          email: true,
+          autoHashtag: true,
+          role: true,
+          staffTotpEnabledAt: true,
+        },
     });
 
   return (
@@ -43,6 +52,9 @@ export default async function SettingsPage() {
       <div className="p-6">
         <FontSizeSetting />
         <ProfileEditForm name={user?.name} bio={user?.bio} autoHashtag={user?.autoHashtag} />
+        {user && (user.role === Role.ADMIN || user.role === Role.MODERATOR) && (
+          <StaffTotpSetting enabled={Boolean(user.staffTotpEnabledAt)} />
+        )}
         <div className="mt-4 text-xs text-zinc-500">
           メール: {user?.email ?? '-'}
         </div>
