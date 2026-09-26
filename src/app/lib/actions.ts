@@ -415,8 +415,9 @@ export async function addWakaru(postId: string) {
                 });
             }
         } else {
-            await tx.reaction.create({
-                data: { userId, postId, type: 'WAKARU' },
+            const createdReaction = await tx.reaction.createMany({
+                data: [{ userId, postId, type: 'WAKARU' }],
+                skipDuplicates: true,
             });
             await tx.post.update({
                 where: { id: postId },
