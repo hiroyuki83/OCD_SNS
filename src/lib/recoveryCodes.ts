@@ -1,5 +1,3 @@
-import 'server-only';
-
 import crypto from 'crypto';
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
