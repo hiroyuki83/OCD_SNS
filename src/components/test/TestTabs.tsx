@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { useTransition } from 'react';
 import YbocsForm from '@/components/test/YbocsForm';
 import IesrForm from '@/components/test/IesrForm';
 import ItqForm from '@/components/test/ItqForm';
 import LsasForm from '@/components/test/LsasForm';
+import { deleteSelfTestResult } from '@/app/lib/actions';
 
 type YbocsResult = {
     id: string;
@@ -51,6 +53,33 @@ type LsasResult = {
     avoidScore: number;
     resultLabel: string;
 };
+
+function DeleteResultButton({
+    testType,
+    resultId,
+}: {
+    testType: 'ybocs' | 'iesr' | 'itq' | 'lsas';
+    resultId: string;
+}) {
+    const [pending, startTransition] = useTransition();
+
+    return (
+        <button
+            type="button"
+            disabled={pending}
+            onClick={() => {
+                if (!window.confirm('この保存結果を削除しますか？この操作は元に戻せません。')) return;
+                startTransition(async () => {
+                    await deleteSelfTestResult(testType, resultId);
+                    window.location.reload();
+                });
+            }}
+            className="text-xs text-red-500 hover:underline disabled:text-zinc-400"
+        >
+            {pending ? '削除中...' : '削除'}
+        </button>
+    );
+}
 
 function ScoreChart({
     scores,
@@ -280,7 +309,7 @@ export default function TestTabs({
                                             className="grid items-center gap-2 text-zinc-400"
                                             style={{
                                                 gridTemplateColumns:
-                                                    'minmax(140px,1.2fr) minmax(90px,0.8fr) minmax(80px,0.6fr) minmax(90px,0.7fr) minmax(90px,0.7fr)',
+                                                    'minmax(140px,1.2fr) minmax(90px,0.8fr) minmax(80px,0.6fr) minmax(90px,0.7fr) minmax(90px,0.7fr) minmax(50px,0.4fr)',
                                             }}
                                         >
                                             <span>
@@ -299,6 +328,7 @@ export default function TestTabs({
                                             <span>合計 {result.totalScore}</span>
                                             <span>強迫観念 {result.obsessionsScore}</span>
                                             <span>強迫行為 {result.compulsionsScore}</span>
+                                            <DeleteResultButton testType="ybocs" resultId={result.id} />
                                         </div>
                                     );
                                 })}
@@ -342,7 +372,7 @@ export default function TestTabs({
                                         className="grid items-center gap-2 text-zinc-400"
                                         style={{
                                             gridTemplateColumns:
-                                                'minmax(140px,1.2fr) minmax(90px,0.8fr) minmax(100px,0.8fr) minmax(100px,0.8fr) minmax(100px,0.8fr)',
+                                                'minmax(140px,1.2fr) minmax(90px,0.8fr) minmax(100px,0.8fr) minmax(100px,0.8fr) minmax(100px,0.8fr) minmax(50px,0.4fr)',
                                         }}
                                     >
                                         <span>
@@ -358,6 +388,7 @@ export default function TestTabs({
                                         <span>侵入 {result.intrusionScore}</span>
                                         <span>回避 {result.avoidanceScore}</span>
                                         <span>過覚醒 {result.hyperarousalScore}</span>
+                                        <DeleteResultButton testType="iesr" resultId={result.id} />
                                     </div>
                                 ))}
                         </div>
@@ -384,7 +415,7 @@ export default function TestTabs({
                                         className="grid items-center gap-2 text-zinc-400"
                                         style={{
                                             gridTemplateColumns:
-                                                'minmax(140px,1.2fr) minmax(180px,1.2fr) minmax(80px,0.7fr) minmax(80px,0.7fr) minmax(120px,0.9fr)',
+                                                'minmax(140px,1.2fr) minmax(180px,1.2fr) minmax(80px,0.7fr) minmax(80px,0.7fr) minmax(120px,0.9fr) minmax(50px,0.4fr)',
                                         }}
                                     >
                                         <span>
@@ -402,6 +433,7 @@ export default function TestTabs({
                                         <span className="text-xs">
                                             侵入 {result.reScore} / 回避 {result.avScore} / 過覚醒 {result.thScore}
                                         </span>
+                                        <DeleteResultButton testType="itq" resultId={result.id} />
                                     </div>
                                 ))}
                         </div>
@@ -427,7 +459,7 @@ export default function TestTabs({
                                         className="grid items-center gap-2 text-zinc-400"
                                         style={{
                                             gridTemplateColumns:
-                                                'minmax(140px,1.2fr) minmax(140px,1fr) minmax(80px,0.7fr) minmax(90px,0.8fr) minmax(90px,0.8fr)',
+                                                'minmax(140px,1.2fr) minmax(140px,1fr) minmax(80px,0.7fr) minmax(90px,0.8fr) minmax(90px,0.8fr) minmax(50px,0.4fr)',
                                         }}
                                     >
                                         <span>
@@ -443,6 +475,7 @@ export default function TestTabs({
                                         <span>合計 {result.totalScore}</span>
                                         <span>恐怖 {result.fearScore}</span>
                                         <span>回避 {result.avoidScore}</span>
+                                        <DeleteResultButton testType="lsas" resultId={result.id} />
                                     </div>
                                 ))}
                         </div>
