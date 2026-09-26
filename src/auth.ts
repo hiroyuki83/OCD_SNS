@@ -111,6 +111,7 @@ const nextAuthResult = NextAuth({
                 if (!parsedCredentials.success) return null;
 
                 const { email, password, totpCode, recoveryCode } = parsedCredentials.data;
+                if (totpCode && recoveryCode) return null;
                 if (!(await rateLimit(`login:${email}`, 10, 15 * 60 * 1000))) {
                     return null;
                 }
