@@ -28,6 +28,7 @@ export default async function FollowingPage() {
         where: { followerId: userId },
         select: {
             id: true,
+            createdAt: true,
             acceptedAt: true,
             following: {
                 select: {
