@@ -24,6 +24,7 @@ model User {
   role                    Role                 @default(USER)
   status                  AccountStatus        @default(ACTIVE)
   restrictionReason       String?
+  restrictionUntil        DateTime?
   suspendedUntil          DateTime?
   createdAt               DateTime             @default(now())
   updatedAt               DateTime             @updatedAt
