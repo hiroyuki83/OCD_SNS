@@ -66,8 +66,12 @@ export default async function MutesPage() {
                                 )}
                             </Link>
                             <div className="flex flex-col">
-                                <span className="font-bold text-sm">{entry.muted.name ?? 'ユーザー'}</span>
-                                <span className="text-xs text-zinc-500">@{entry.muted.handle}</span>
+                                <Link href={`/user/${entry.muted.handle}`} className="font-bold text-sm hover:underline">
+                                    {entry.muted.name ?? 'ユーザー'}
+                                </Link>
+                                <Link href={`/user/${entry.muted.handle}`} className="text-xs text-zinc-500 hover:underline">
+                                    @{entry.muted.handle}
+                                </Link>
                                 {entry.muted.bio && (
                                     <span className="text-xs text-zinc-500">{entry.muted.bio}</span>
                                 )}
