@@ -96,6 +96,7 @@ export async function GET(request: Request) {
         : await prisma.post.findMany({
               where: { authorId: user.id, isHidden: false, deletedAt: null },
               orderBy: { createdAt: 'desc' },
+              take: 100,
               select: {
                   id: true,
                   content: true,
