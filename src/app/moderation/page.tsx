@@ -578,7 +578,7 @@ export default async function ModerationPage({
 
                   {canAct && canSanctionTarget && (
                     <form action={warnReportedUser.bind(null, report.id)} className="flex flex-wrap gap-2">
-                      <NoteInput placeholder="警告理由（必須）" />
+                      <NoteInput placeholder="警告理由（5文字以上）" required minLength={5} />
                       <button className="rounded-full border border-amber-400 px-3 py-1 text-xs font-semibold text-amber-800">
                         警告して解決
                       </button>
