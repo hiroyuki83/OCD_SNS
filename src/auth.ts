@@ -178,8 +178,14 @@ const nextAuthResult = NextAuth({
                                 return null;
                             }
 
-                            const secret = decryptTotpSecret(updatedUser.staffTotpSecretEncrypted);
-                            const step = verifyTotpCode(secret, totpCode, { window: 1 });
+                            let step: number | null = null;
+                            try {
+                                const secret = decryptTotpSecret(updatedUser.staffTotpSecretEncrypted);
+                                step = verifyTotpCode(secret, totpCode, { window: 1 });
+                            } catch (error) {
+                                console.error('Failed to verify staff TOTP:', error);
+                                return null;
+                            }
                             if (step === null) return null;
 
                             const replayGuard = await prisma.user.updateMany({
