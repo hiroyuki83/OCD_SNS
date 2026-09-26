@@ -30,24 +30,46 @@ export async function verifyEmail(
     }
 
     const verifiedAt = new Date();
-    await prisma.$transaction([
-        prisma.user.update({
+    const completed = await prisma.$transaction(async (tx) => {
+        const consumed = await tx.emailVerificationToken.updateMany({
+            where: {
+                id: record.id,
+                userId: record.userId,
+                usedAt: null,
+                expiresAt: { gt: verifiedAt },
+            },
+            data: { usedAt: verifiedAt },
+        });
+        if (consumed.count !== 1) return false;
+
+        await tx.user.update({
             where: { id: record.userId },
             data: { emailVerifiedAt: verifiedAt },
-        }),
-        prisma.emailVerificationToken.updateMany({
-            where: { userId: record.userId, usedAt: null },
+        });
+
+        await tx.emailVerificationToken.updateMany({
+            where: {
+                userId: record.userId,
+                usedAt: null,
+            },
             data: { usedAt: verifiedAt },
-        }),
-        prisma.auditLog.create({
+        });
+
+        await tx.auditLog.create({
             data: {
                 action: 'EMAIL_VERIFY',
                 actorUserId: record.userId,
                 targetUserId: record.userId,
                 meta: { verifiedAt },
             },
-        }),
-    ]);
+        });
+
+        return true;
+    });
+
+    if (!completed) {
+        return { message: '確認リンクは無効または既に使用されています。再送をお試しください。' };
+    }
 
     return { ok: true, message: 'メールアドレスを確認しました。ログインできます。' };
 }
