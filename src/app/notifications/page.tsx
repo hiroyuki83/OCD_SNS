@@ -4,6 +4,7 @@ import { WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { submitWarningAppeal } from './actions';
 import { acceptFollowRequest, rejectFollowRequest } from '@/app/lib/actions';
+import NotificationsReadMarker from '@/components/layout/NotificationsReadMarker';
 
 export default async function NotificationsPage() {
     const session = await auth();
@@ -108,7 +109,9 @@ export default async function NotificationsPage() {
         .slice(0, 50);
 
     return (
-        <div className="min-h-screen border-r border-border">
+        <>
+            <NotificationsReadMarker />
+            <div className="min-h-screen border-r border-border">
             <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center px-4">
                 <h1 className="font-bold text-base">通知</h1>
             </div>
@@ -282,6 +285,7 @@ export default async function NotificationsPage() {
                     <div className="p-6 text-sm text-zinc-500 text-center">通知はまだありません</div>
                 )}
             </div>
-        </div>
+            </div>
+        </>
     );
 }
