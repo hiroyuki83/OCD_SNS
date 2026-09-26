@@ -596,6 +596,13 @@ export async function followUser(targetUserId: string) {
         });
     }
 
+    if (await usersAreBlocked(userId, targetUserId)) {
+        await prisma.follow.deleteMany({
+            where: { followerId: userId, followingId: targetUserId },
+        });
+        return;
+    }
+
     if (createdFollow.count === 1) {
         await prisma.notification.create({
             data: {
