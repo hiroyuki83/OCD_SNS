@@ -135,6 +135,7 @@ export async function markReportReviewing(reportId: string) {
     },
   });
   if (!report) return;
+  if (report.status !== ReportStatus.OPEN) return;
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction([
