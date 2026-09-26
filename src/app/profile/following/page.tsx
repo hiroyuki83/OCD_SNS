@@ -47,11 +47,14 @@ export default async function FollowingPage() {
 
     return (
         <div className="min-h-screen border-r border-border">
-            <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center px-4">
+            <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center justify-between px-4">
                 <h1 className="font-bold text-base">
                     フォロー {acceptedFollowingCount}
                     {pendingFollowingCount > 0 ? `（申請中 ${pendingFollowingCount}）` : ''}
                 </h1>
+                <Link href="/profile" className="text-xs text-[#1d9bf0] hover:underline">
+                    プロフィールへ戻る
+                </Link>
             </div>
             <div className="flex flex-col">
                 {following.map((entry) => (
