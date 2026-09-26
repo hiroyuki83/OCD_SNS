@@ -58,7 +58,8 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   warningsReceived         ModerationWarning[] @relation("WarningTarget")
   warningsCreated          ModerationWarning[] @relation("WarningActor")
-  warningAppeals            WarningAppeal[]
+  warningAppeals            WarningAppeal[] @relation("AppealUser")
+  warningAppealsReviewed    WarningAppeal[] @relation("AppealReviewer")
 }
 
 model Post {
@@ -514,6 +515,7 @@ model ModerationWarning {
   id           String    @id @default(cuid())
   createdAt    DateTime  @default(now())
   readAt       DateTime?
+  revokedAt    DateTime?
   reason       String
   targetUserId String
   actorUserId  String
@@ -531,15 +533,28 @@ model ModerationWarning {
 }
 
 
-model WarningAppeal {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-  message   String
-  warningId String   @unique
-  userId    String
+enum WarningAppealStatus {
+  PENDING
+  UPHELD
+  OVERTURNED
+}
 
-  warning ModerationWarning @relation(fields: [warningId], references: [id], onDelete: Cascade)
-  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+model WarningAppeal {
+  id             String              @id @default(cuid())
+  createdAt      DateTime            @default(now())
+  message        String
+  status         WarningAppealStatus @default(PENDING)
+  resolutionNote String?
+  reviewedAt     DateTime?
+  reviewerId     String?
+  warningId      String              @unique
+  userId         String
+
+  warning  ModerationWarning @relation(fields: [warningId], references: [id], onDelete: Cascade)
+  user     User              @relation("AppealUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User?             @relation("AppealReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([reviewerId, createdAt])
 }
