@@ -75,6 +75,15 @@ export default async function BlocksPage() {
                                 {entry.blocked.bio && (
                                     <span className="text-xs text-zinc-500">{entry.blocked.bio}</span>
                                 )}
+                                <span className="mt-1 text-[11px] text-zinc-400">
+                                    ブロック開始{' '}
+                                    {entry.createdAt.toLocaleDateString('ja-JP', {
+                                        timeZone: 'Asia/Tokyo',
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                    })}
+                                </span>
                             </div>
                         </div>
                         <form action={unblockUser.bind(null, entry.blocked.id)}>
