@@ -29,11 +29,26 @@ export default async function ProfilePage() {
         select: { name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true },
     });
 
-    const [posts, followerCount, followingCount, pendingFollowingCount, pendingFollowRequestCount, blockCount, muteCount] = await Promise.all([
+    const [posts, postCount, followerCount, followingCount, pendingFollowingCount, pendingFollowRequestCount, blockCount, muteCount] = await Promise.all([
         prisma.post.findMany({
             where: { authorId: userId, deletedAt: null },
             orderBy: { createdAt: 'desc' },
-            include: { likes: true, bookmarks: true, reactions: true },
+            take: 100,
+            select: {
+                id: true,
+                content: true,
+                imageUrl: true,
+                createdAt: true,
+                wakaruCount: true,
+                ganbattaCount: true,
+                likes: { where: { userId }, select: { id: true } },
+                bookmarks: { where: { userId }, select: { id: true } },
+                reactions: { where: { userId }, select: { type: true } },
+                _count: { select: { likes: true, bookmarks: true } },
+            },
+        }),
+        prisma.post.count({
+            where: { authorId: userId, deletedAt: null },
         }),
         prisma.follow.count({
             where: {
@@ -125,12 +140,17 @@ export default async function ProfilePage() {
                 </div>
             </div>
             <div className="flex flex-col">
+                {postCount > posts.length && (
+                    <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
+                        最新100件を表示しています（全{postCount}件）
+                    </div>
+                )}
                 {posts.map((post) => {
                     const liked = !!userId && post.likes.some((like) => like.userId === userId);
-                    const likeCount = post.likes.length;
-                    const bookmarked = !!userId && post.bookmarks.some((bookmark) => bookmark.userId === userId);
-                    const wakaruReacted = !!userId && post.reactions.some((reaction) => reaction.userId === userId && reaction.type === 'WAKARU');
-                    const ganbattaReacted = !!userId && post.reactions.some((reaction) => reaction.userId === userId && reaction.type === 'GANBATTA');
+                    const likeCount = post._count.likes;
+                    const bookmarked = post.bookmarks.length > 0;
+                    const wakaruReacted = post.reactions.some((reaction) => reaction.type === 'WAKARU');
+                    const ganbattaReacted = post.reactions.some((reaction) => reaction.type === 'GANBATTA');
 
                     return (
                         <div
@@ -205,7 +225,7 @@ export default async function ProfilePage() {
                                             bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
                                         }`}
                                     >
-                                        ブックマーク <span>{post.bookmarks.length}</span>
+                                        ブックマーク <span>{post._count.bookmarks}</span>
                                     </button>
                                 </form>
                                 <form action={deletePost.bind(null, post.id)}>
@@ -218,7 +238,7 @@ export default async function ProfilePage() {
                     </div>
                     );
                 })}
-                {posts.length === 0 && (
+                {postCount === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">まだ投稿がありません</div>
                 )}
             </div>
