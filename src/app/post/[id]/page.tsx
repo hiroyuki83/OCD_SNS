@@ -88,7 +88,7 @@ export default async function PostPage({ params }: { params?: { id?: string } })
                 },
                 likes: userId ? { where: { userId }, select: { id: true, userId: true } } : { take: 0 },
                 bookmarks: userId ? { where: { userId }, select: { id: true, userId: true } } : { take: 0 },
-                reactions: true,
+                reactions: userId ? { where: { userId }, select: { userId: true, type: true } } : { take: 0 },
             },
         });
         }
