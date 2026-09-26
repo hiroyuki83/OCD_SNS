@@ -27,7 +27,8 @@ type UserProfile = {
 
 export default function UserPageClient() {
     const searchParams = useSearchParams();
-    const userId = searchParams.get('id') ?? '';
+    const rawUserId = (searchParams.get('id') ?? '').trim();
+    const userId = rawUserId.length <= 128 ? rawUserId : '';
     const [result, setResult] = useState<{
         userId: string;
         profile: UserProfile | null;
