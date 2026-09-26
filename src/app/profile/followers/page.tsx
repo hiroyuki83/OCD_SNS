@@ -112,6 +112,17 @@ export default async function FollowersPage() {
                                 {entry.follower.bio && (
                                     <div className="mt-1 text-xs text-zinc-500 line-clamp-2">{entry.follower.bio}</div>
                                 )}
+                                <div className="mt-1 text-[11px] text-zinc-400">
+                                    申請日時{' '}
+                                    {entry.createdAt.toLocaleString('ja-JP', {
+                                        timeZone: 'Asia/Tokyo',
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                    })}
+                                </div>
                             </div>
                             <div className="flex gap-2">
                                 <form action={acceptFollowRequest.bind(null, entry.follower.id)}>
