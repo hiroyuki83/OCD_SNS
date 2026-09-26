@@ -109,6 +109,10 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
       alert("理由は5文字以上入力してください。");
       return;
     }
+    if (reason.trim().length > 500) {
+      alert("理由は500文字以内で入力してください。");
+      return;
+    }
 
     if (!adminPassword) {
       alert("操作確認用のADMINパスワードを入力してください。");
