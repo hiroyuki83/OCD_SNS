@@ -209,7 +209,11 @@ export default async function NotificationsPage() {
                     return (
                         <div
                             key={item.id}
-                            className="p-4 border-b border-border flex gap-3 text-sm"
+                            className={`p-4 border-b border-border flex gap-3 text-sm ${
+                                notification.type === 'FOLLOW' && pendingFollowerIds.has(notification.actorId)
+                                    ? 'bg-amber-50/40'
+                                    : ''
+                            }`}
                         >
                             <Link
                                 href={`/user/${notification.actor.handle}`}
