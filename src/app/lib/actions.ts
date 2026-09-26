@@ -456,24 +456,17 @@ export async function addGanbatta(postId: string) {
     if (!(await getAccessiblePostForViewer(userId, postId))) return;
 
     await prisma.$transaction(async (tx) => {
-        const existing = await tx.reaction.findUnique({
-            where: {
-                userId_postId_type: {
-                    userId,
-                    postId,
-                    type: 'GANBATTA',
-                },
-            },
+        const removedReaction = await tx.reaction.deleteMany({
+            where: { userId, postId, type: 'GANBATTA' },
         });
         const post = await tx.post.findUnique({
             where: { id: postId },
             select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true, suspendedUntil: true } } },
         });
         if (!post || post.deletedAt || post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) return;
-        if (existing) {
-            await tx.reaction.delete({ where: { id: existing.id } });
-            await tx.post.update({
-                where: { id: postId },
+        if (removedReaction.count > 0) {
+            await tx.post.updateMany({
+                where: { id: postId, ganbattaCount: { gt: 0 } },
                 data: { ganbattaCount: { decrement: 1 } },
             });
             if (post?.authorId) {
