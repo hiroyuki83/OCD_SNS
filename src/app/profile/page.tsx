@@ -116,7 +116,7 @@ export default async function ProfilePage() {
                             {pendingFollowingCount > 0 ? `（申請中 ${pendingFollowingCount}）` : ''}
                         </Link>
                         <Link href="/profile/mutes" className="text-xs text-[#1d9bf0] hover:underline">
-                            ミュート一覧
+                            ミュート {muteCount}
                         </Link>
                         <Link href="/profile/blocks" className="text-xs text-[#1d9bf0] hover:underline">
                             ブロック一覧
