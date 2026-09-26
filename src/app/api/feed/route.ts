@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { AccountStatus } from '@prisma/client';
+import { visibleAccountFilter } from '@/lib/accountStatus';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
                               in: followingIds,
                               ...(excludedAuthorIds.length > 0 ? { notIn: excludedAuthorIds } : {}),
                           },
-                          author: { status: { not: AccountStatus.SUSPENDED } },
+                          author: visibleAccountFilter(now),
                       },
                   include: {
                           author: {
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
                   where: {
                       isHidden: false,
                       deletedAt: null,
-                      author: { status: { not: AccountStatus.SUSPENDED } },
+                      author: visibleAccountFilter(now),
                       createdAt: { gte: weekAgo },
                       ...(userId
                           ? {
