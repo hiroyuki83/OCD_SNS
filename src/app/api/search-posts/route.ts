@@ -40,8 +40,17 @@ export async function GET(request: Request) {
           ).map((row) => row.blockerId)
         : [];
 
+    const mutedIds = viewerId
+        ? (
+              await prisma.mute.findMany({
+                  where: { muterId: viewerId },
+                  select: { mutedId: true },
+              })
+          ).map((row) => row.mutedId)
+        : [];
+
     const excludedAuthorIds = viewerId
-        ? Array.from(new Set([...blockedIds, ...blockedByIds]))
+        ? Array.from(new Set([...blockedIds, ...blockedByIds, ...mutedIds]))
         : [];
 
     const followingIds = viewerId
