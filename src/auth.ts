@@ -27,7 +27,16 @@ async function getUser(email: string) {
     }
 }
 
-async function bootstrapRole(user: { id: string; email: string; role: Role }) {
+type AuthUserForRoleBootstrap = {
+    id: string;
+    email: string;
+    role: Role;
+    staffTotpEnabledAt: Date | null;
+    staffTotpSecretEncrypted: string | null;
+    staffTotpLastUsedStep: number | null;
+};
+
+async function bootstrapRole(user: AuthUserForRoleBootstrap) {
     const normalizedEmail = user.email.toLowerCase();
     if (user.role !== Role.USER) return user;
     if (ADMIN_EMAIL && normalizedEmail === ADMIN_EMAIL) {
@@ -146,6 +155,9 @@ const nextAuthResult = NextAuth({
                             id: user.id,
                             email: user.email,
                             role: user.role as Role,
+                            staffTotpEnabledAt: user.staffTotpEnabledAt,
+                            staffTotpSecretEncrypted: user.staffTotpSecretEncrypted,
+                            staffTotpLastUsedStep: user.staffTotpLastUsedStep,
                         });
 
                         const isStaff =
