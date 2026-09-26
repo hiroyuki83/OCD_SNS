@@ -3,11 +3,15 @@ import { AccountStatus, PrismaClient, Role } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 const previewDatabaseUrl = process.env.PREVIEW_DATABASE_URL?.trim();
-const runtimeDatabaseUrl = process.env.DATABASE_URL?.trim();
 const password = process.env.PREVIEW_TEST_PASSWORD ?? '';
 
 if (process.env.VERCEL_ENV !== 'preview') {
   console.error('Preview test users can only be seeded when VERCEL_ENV=preview.');
+  process.exit(1);
+}
+
+if (process.env.VERCEL_GIT_COMMIT_REF !== 'security-integration-final-20260926') {
+  console.error('Preview test users can only be seeded on security-integration-final-20260926.');
   process.exit(1);
 }
 
@@ -18,11 +22,6 @@ if (process.env.PREVIEW_SEED_USERS !== '1') {
 
 if (!previewDatabaseUrl) {
   console.error('PREVIEW_DATABASE_URL is required.');
-  process.exit(1);
-}
-
-if (!runtimeDatabaseUrl || runtimeDatabaseUrl !== previewDatabaseUrl) {
-  console.error('DATABASE_URL must exactly match PREVIEW_DATABASE_URL in Preview.');
   process.exit(1);
 }
 
