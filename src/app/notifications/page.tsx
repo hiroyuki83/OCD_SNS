@@ -216,7 +216,7 @@ export default async function NotificationsPage() {
                                 {notification.type === 'GANBATTA' && ' があなたの投稿に「頑張った！」を押しました。'}
                                 {notification.type === 'FOLLOW' &&
                                     (pendingFollowerIds.has(notification.actorId)
-                                        ? ' がフォローリクエストを送信しました。'
+                                        ? ' からフォロー申請が届きました。'
                                         : ' があなたをフォローしました。')}
                             </div>
                             {notification.type === 'LIKE' && notification.post?.content && (
