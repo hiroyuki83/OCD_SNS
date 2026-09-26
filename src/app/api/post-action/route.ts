@@ -105,7 +105,10 @@ export async function POST(request: Request) {
         });
         if (removedBookmark.count > 0) {
         } else {
-            await prisma.bookmark.create({ data: { userId, postId } });
+            await prisma.bookmark.createMany({
+                data: [{ userId, postId }],
+                skipDuplicates: true,
+            });
         }
     }
 
