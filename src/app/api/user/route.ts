@@ -36,7 +36,7 @@ export async function GET(request: Request) {
         viewerId = viewer?.id ?? null;
     }
 
-    let canViewPosts = true;
+    let canViewPosts = user.status !== 'SUSPENDED';
     if (viewerId) {
         const blocked = await prisma.block.findFirst({
             where: {
