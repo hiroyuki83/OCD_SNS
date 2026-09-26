@@ -39,6 +39,7 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
   const [selectedStatus, setSelectedStatus] = useState<AccountStatus>(user.status);
   const [savedStatus, setSavedStatus] = useState<AccountStatus>(user.status);
   const [pending, setPending] = useState<"role" | "status" | null>(null);
+  const [adminPassword, setAdminPassword] = useState("");
 
   const label = user.email ?? user.name ?? user.id;
   const roleChanged = selectedRole !== savedRole;
@@ -50,8 +51,10 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
     const confirmed = window.confirm(`${label} の権限を ${selectedRole} に変更しますか？`);
     if (!confirmed) return;
 
-    const currentPassword = window.prompt("安全確認のため、あなた自身のADMINパスワードを入力してください。");
-    if (!currentPassword) return;
+    if (!adminPassword) {
+      alert("操作確認用のADMINパスワードを入力してください。");
+      return;
+    }
 
     let adminConfirmation: string | undefined;
     if (selectedRole === "ADMIN" && savedRole !== "ADMIN") {
@@ -69,7 +72,7 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           role: selectedRole,
-          currentPassword,
+          currentPassword: adminPassword,
           adminConfirmation,
         }),
       });
@@ -87,6 +90,7 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
       }
 
       setSavedRole(selectedRole);
+      setAdminPassword("");
       router.refresh();
     } finally {
       setPending(null);
@@ -106,15 +110,21 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
       return;
     }
 
-    const currentPassword = window.prompt("安全確認のため、あなた自身のADMINパスワードを入力してください。");
-    if (!currentPassword) return;
+    if (!adminPassword) {
+      alert("操作確認用のADMINパスワードを入力してください。");
+      return;
+    }
 
     setPending("status");
     try {
       const res = await fetch(`/api/admin/users/${user.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: selectedStatus, reason, currentPassword }),
+        body: JSON.stringify({
+          status: selectedStatus,
+          reason,
+          currentPassword: adminPassword,
+        }),
       });
 
       if (!res.ok) {
@@ -130,6 +140,7 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
       }
 
       setSavedStatus(selectedStatus);
+      setAdminPassword("");
       router.refresh();
     } finally {
       setPending(null);
@@ -151,6 +162,23 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
           </div>
         )}
       </div>
+
+      <label className="mb-4 block max-w-xl text-sm font-medium text-zinc-700">
+        操作確認用のADMINパスワード
+        <input
+          type="password"
+          value={adminPassword}
+          onChange={(event) => setAdminPassword(event.target.value)}
+          autoComplete="current-password"
+          maxLength={128}
+          className="mt-2 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+          placeholder="権限・状態変更の直前に入力"
+          disabled={pending !== null}
+        />
+        <span className="mt-1 block text-xs text-zinc-500">
+          権限変更や停止・投稿制限の実行時に再認証します。保存はされません。
+        </span>
+      </label>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-md bg-zinc-50 p-3">
