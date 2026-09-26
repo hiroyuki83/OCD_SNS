@@ -80,7 +80,7 @@ export async function GET(request: Request) {
     });
 
     return NextResponse.json({
-        posts: filtered.map((post) => ({
+        posts: posts.map((post) => ({
             id: post.id,
             content: post.content,
             imageUrl: post.imageUrl,
