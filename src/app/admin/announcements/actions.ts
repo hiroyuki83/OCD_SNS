@@ -10,8 +10,8 @@ function formText(formData: FormData, key: string, maxLength: number) {
   const value = formData.get(key);
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  if (!trimmed) return null;
-  return trimmed.slice(0, maxLength);
+  if (!trimmed || trimmed.length > maxLength) return null;
+  return trimmed;
 }
 
 function optionalUrl(formData: FormData) {
