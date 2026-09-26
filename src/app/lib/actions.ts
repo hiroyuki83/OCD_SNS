@@ -641,6 +641,8 @@ export async function unfollowUser(targetUserId: string) {
 }
 
 export async function acceptFollowRequest(followerId: string) {
+    followerId = followerId.trim();
+    if (!followerId || followerId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
