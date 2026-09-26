@@ -14,9 +14,11 @@ const MODERATOR_EMAILS = (process.env.MODERATOR_EMAILS ?? process.env.MODERATOR_
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
 
+const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+
 async function getUser(email: string) {
     try {
-        const user = await prisma.user.findUnique({ where: { email } });
+        const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
         return user;
     } catch (error) {
         console.error('Failed to fetch user:', error);
@@ -44,6 +46,13 @@ async function bootstrapRole(user: { id: string; email: string; role: Role }) {
 
 const nextAuthResult = NextAuth({
     ...authConfig,
+    session: {
+        strategy: 'jwt',
+        maxAge: SESSION_MAX_AGE_SECONDS,
+    },
+    jwt: {
+        maxAge: SESSION_MAX_AGE_SECONDS,
+    },
     callbacks: {
         ...authConfig.callbacks,
         async jwt({ token, user }) {
@@ -71,13 +80,12 @@ const nextAuthResult = NextAuth({
         Credentials({
             async authorize(credentials) {
                 const parsedCredentials = z
-                    .object({ email: z.string().email(), password: z.string().min(6) })
+                    .object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(6).max(128) })
                     .safeParse(credentials);
 
                 if (parsedCredentials.success) {
                     const { email, password } = parsedCredentials.data;
-                    const normalizedEmail = email.toLowerCase();
-                    if (!(await rateLimit(`login:${normalizedEmail}`, 10, 15 * 60 * 1000))) {
+                    if (!(await rateLimit(`login:${email}`, 10, 15 * 60 * 1000))) {
                         return null;
                     }
                     const user = await getUser(email);
