@@ -23,38 +23,6 @@ export async function GET(request: Request) {
         viewerId = viewer?.id ?? null;
     }
 
-    const [blockedRows, blockedByRows, mutedRows, followingRows] = viewerId
-        ? await Promise.all([
-              prisma.block.findMany({
-                  where: { blockerId: viewerId },
-                  select: { blockedId: true },
-              }),
-              prisma.block.findMany({
-                  where: { blockedId: viewerId },
-                  select: { blockerId: true },
-              }),
-              prisma.mute.findMany({
-                  where: { muterId: viewerId },
-                  select: { mutedId: true },
-              }),
-              prisma.follow.findMany({
-                  where: {
-                      followerId: viewerId,
-                      acceptedAt: { not: null },
-                  },
-                  select: { followingId: true },
-              }),
-          ])
-        : [[], [], [], []];
-
-    const blockedIds = blockedRows.map((row) => row.blockedId);
-    const blockedByIds = blockedByRows.map((row) => row.blockerId);
-    const mutedIds = mutedRows.map((row) => row.mutedId);
-    const followingIds = followingRows.map((row) => row.followingId);
-    const excludedAuthorIds = viewerId
-        ? Array.from(new Set([...blockedIds, ...blockedByIds, ...mutedIds]))
-        : [];
-
     const now = new Date();
     const authorVisibility: Prisma.UserWhereInput = viewerId
         ? {
