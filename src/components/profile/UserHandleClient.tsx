@@ -208,11 +208,12 @@ export default function UserHandleClient() {
 
     const toggleMute = async () => {
         if (!viewerId) return;
-        await fetch('/api/mute-action', {
+        const res = await fetch('/api/mute-action', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ targetUserId: user.id, action: localMuted ? 'unmute' : 'mute' }),
         });
+        if (!res.ok) return;
         setLocalMuted((prev) => !prev);
         await fetchProfile();
     };
