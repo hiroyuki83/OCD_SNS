@@ -176,6 +176,7 @@ export async function rejectReport(reportId: string, formData: FormData) {
     },
   });
   if (!report) return;
+  if (report.status !== ReportStatus.OPEN && report.status !== ReportStatus.REVIEWING) return;
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction([
