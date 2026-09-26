@@ -134,6 +134,7 @@ export default function ProfileEditForm({
                 名前
                 <input
                     name="name"
+                    maxLength={50}
                     defaultValue={name ?? ''}
                     className="mt-1 w-full rounded-lg bg-zinc-100 border border-zinc-300 p-2 text-sm"
                 />
