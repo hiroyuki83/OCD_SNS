@@ -26,8 +26,10 @@ function Message({ state }: { state: TotpSetupState }) {
 
 export default function StaffTotpSetting({
   enabled,
+  unusedRecoveryCodeCount,
 }: {
   enabled: boolean;
+  unusedRecoveryCodeCount: number;
 }) {
   const [setupState, setupAction] = useActionState<TotpSetupState, FormData>(
     startStaffTotpSetup,
@@ -63,14 +65,26 @@ export default function StaffTotpSetting({
             ADMIN / MODERATOR 用の認証アプリによる6桁コードです。
           </p>
         </div>
-        <span
-          className={
-            'rounded-full px-3 py-1 text-xs font-semibold ' +
-            (enabled ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800')
-          }
-        >
-          {enabled ? '有効' : '未設定'}
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <span
+            className={
+              'rounded-full px-3 py-1 text-xs font-semibold ' +
+              (enabled ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800')
+            }
+          >
+            {enabled ? '有効' : '未設定'}
+          </span>
+          {enabled && (
+            <span
+              className={
+                'text-xs font-semibold ' +
+                (unusedRecoveryCodeCount <= 2 ? 'text-red-700' : 'text-zinc-500')
+              }
+            >
+              未使用リカバリーコード: {unusedRecoveryCodeCount} / 10
+            </span>
+          )}
+        </div>
       </div>
 
       {displayedRecoveryCodes && displayedRecoveryCodes.length > 0 && (
