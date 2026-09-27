@@ -1,8 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import HashtagText from '@/components/shared/HashtagText';
+import { formatPostTime } from '@/lib/formatTime';
 
 type SearchPost = {
     id: string;
@@ -27,11 +29,14 @@ export default function ExploreClient() {
     useEffect(() => {
         const current = (searchParams.get('q')?.trim() ?? '').slice(0, 100);
         if (!current) return;
-        let active = true;
-        fetch(`/api/search-posts?q=${encodeURIComponent(current)}`, { cache: 'no-store' })
+        const controller = new AbortController();
+        fetch(`/api/search-posts?q=${encodeURIComponent(current)}`, {
+            cache: 'no-store',
+            signal: controller.signal,
+        })
             .then((res) => (res.ok ? res.json() : Promise.reject(res)))
             .then((data) => {
-                if (!active) return;
+                if (controller.signal.aborted) return;
                 setResult({
                     query: current,
                     posts: Array.isArray(data?.posts) ? data.posts : [],
@@ -39,11 +44,11 @@ export default function ExploreClient() {
                 });
             })
             .catch(() => {
-                if (!active) return;
+                if (controller.signal.aborted) return;
                 setResult({ query: current, posts: [], error: true });
             });
         return () => {
-            active = false;
+            controller.abort();
         };
     }, [searchParams]);
 
@@ -104,10 +109,17 @@ export default function ExploreClient() {
                             className="border border-border rounded-2xl p-4 flex flex-col gap-3"
                         >
                             <div className="flex items-center gap-2 text-xs text-zinc-500">
-                                <span className="font-bold text-zinc-200">
+                                <Link
+                                    href={`/user/${post.author.handle}`}
+                                    className="font-bold text-zinc-900 hover:underline"
+                                >
                                     {post.author.name ?? 'ユーザー'}
-                                </span>
-                                <span>@{post.author.handle}</span>
+                                </Link>
+                                <Link href={`/user/${post.author.handle}`} className="hover:underline">
+                                    @{post.author.handle}
+                                </Link>
+                                <span>・</span>
+                                <span>{formatPostTime(post.createdAt)}</span>
                             </div>
                             <HashtagText text={post.content} className="text-sm leading-relaxed" />
                             {post.imageUrl && (
@@ -117,6 +129,12 @@ export default function ExploreClient() {
                                     className="rounded-xl border border-border max-h-[320px] object-cover"
                                 />
                             )}
+                            <Link
+                                href={`/post?id=${encodeURIComponent(post.id)}`}
+                                className="text-xs font-semibold text-[#1d9bf0] hover:underline"
+                            >
+                                投稿を開く
+                            </Link>
                         </div>
                     ))}
                 </div>
