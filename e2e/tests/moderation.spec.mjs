@@ -74,10 +74,12 @@ test('report → moderation warning → appeal → admin overturn', async ({ bro
   await warningCard.getByLabel('この警告に異議申立てをする').fill(appealMessage);
   const appealSubmitButton = warningCard.getByRole('button', { name: '異議申立てを送信' });
   await appealSubmitButton.click();
-  // The Server Action revalidates /notifications and may replace the client form.
-  // Verify persistence from the server-rendered warning card instead of relying on
-  // the transient useActionState status node.
-  await expect(appealSubmitButton).toHaveCount(0);
+  // The button label changes to "送信中…" immediately, so disappearance of the
+  // original locator does not mean the Server Action has committed yet.
+  // Wait for the success state returned by the action before reloading.
+  await expect(
+    warningCard.getByRole('status').filter({ hasText: '異議申立てを送信しました' }),
+  ).toBeVisible({ timeout: 15_000 });
   await author.reload();
   const appealedWarning = author.locator('[data-warning-card]').filter({ hasText: warningReason });
   await expect(appealedWarning.getByText('異議申立てを受け付けました')).toBeVisible();
