@@ -314,6 +314,9 @@ export async function createPost(
             }
         });
     } catch (error) {
+        if (imageUrl) {
+            await deleteManagedBlob(imageUrl);
+        }
         console.error('Failed to create post:', error);
         return { message: '投稿に失敗しました。' };
     }
