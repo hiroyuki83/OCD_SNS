@@ -147,7 +147,7 @@ export async function GET(request: Request) {
               orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
               skip: postPagination.skip,
               take: postPagination.pageSize,
-              select: { id: true, content: true, imageUrl: true, createdAt: true },
+              select: { id: true, content: true, imageUrl: true, imageAlt: true, createdAt: true },
           })
         : [];
 
