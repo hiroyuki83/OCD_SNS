@@ -2,13 +2,15 @@ import Link from "next/link";
 import { AccountStatus, ReportPriority, ReportStatus, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
+import { startOfTokyoDay } from "@/lib/tokyoDateTime";
+
+export const dynamic = "force-dynamic";
 
 export default async function AdminIndexPage() {
   await requireRole(Role.ADMIN);
 
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
   const now = new Date();
+  const startOfToday = startOfTokyoDay(now) ?? new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
   const [
     userCount,
