@@ -98,3 +98,53 @@ Production releaseはmain mergeとは別工程。
 - post-deploy smoke
 - runtime error scan
 - 必要時rollback
+
+
+## Preview DB migration 実行方法
+
+Preview DB migration は自動実行しない。GitHub Actions の
+`.github/workflows/preview-db-release.yml` を `workflow_dispatch` で手動実行する。
+
+安全条件:
+
+- branch が `security-integration-final-20260926`
+- `VERCEL_ENV=preview`
+- `DATABASE_URL === PREVIEW_DATABASE_URL`
+- 接続hostが承認済み `coco-preview` Neon endpoint
+- database名が `neondb`
+- confirmation が `MIGRATE_COCO_PREVIEW`
+- baselineを行う場合だけ `allow_baseline=true`
+
+Preview DBは既存schemaを持つ一方、現時点では `_prisma_migrations` が存在しない。
+そのため初回のみ、既存historical migrationをSQL再実行せず `prisma migrate resolve --applied`
+でbaseline登録してから、今回の未適用migrationを `prisma migrate deploy` する。
+
+対象historical baselineは `20260927002000_add_follow_approval` まで。
+その後に実適用するmigration:
+
+- `20260928013000_remove_reply_and_quote_post`
+- `20260928014500_add_post_image_alt`
+- `20260928023000_add_notification_preferences`
+- `20260928031500_add_email_change_pending`
+
+実行順:
+
+1. `npm run preview:db:preflight`
+2. historical migration baseline（初回のみ）
+3. `npm run preview:db:migrate`
+4. `npm run preview:db:verify`
+5. `npm run seed:preview`
+6. `npx prisma migrate status`
+
+### Prisma接続先の安全策
+
+Preview環境では `prisma.config.ts` も `PREVIEW_DATABASE_URL` を最優先する。
+`POSTGRES_URL_NON_POOLING` や `DATABASE_URL` に別環境の値が残っていても、
+Preview migrationがそれらを先に選ばないようにする。
+
+さらにmigration runnerは以下を全てPreview URLへ強制する。
+
+- `DATABASE_URL`
+- `PREVIEW_DATABASE_URL`
+- `POSTGRES_URL_NON_POOLING`
+- `POSTGRES_PRISMA_URL`
