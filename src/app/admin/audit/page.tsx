@@ -61,6 +61,7 @@ const actionOptions = [
   "STAFF_TOTP_RECOVERY_STARTED",
   "STAFF_RECOVERY_CODES_REGENERATED",
   "STAFF_RECOVERY_CODE_USED",
+  "USER_SESSIONS_REVOKED",
 ] as const;
 
 function selectedAction(value?: string) {
