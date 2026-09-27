@@ -6,10 +6,16 @@ import { toggleBookmark } from '@/app/lib/actions';
 import HashtagText from '@/components/shared/HashtagText';
 import { visibleAccountFilter } from '@/lib/accountStatus';
 import type { Prisma } from '@prisma/client';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
 
-export default async function BookmarksPage() {
+export default async function BookmarksPage({
+    searchParams,
+}: {
+    searchParams?: { page?: string };
+}) {
     const session = await auth();
     let userId = session?.user?.id ?? null;
     if (!userId && session?.user?.email) {
@@ -75,11 +81,18 @@ export default async function BookmarksPage() {
         },
     };
 
-    const [bookmarkRows, bookmarkCount] = await Promise.all([
-        prisma.bookmark.findMany({
+    const bookmarkCount = await prisma.bookmark.count({ where: bookmarkWhere });
+    const pagination = clampPage(
+        parsePageNumber(searchParams?.page),
+        bookmarkCount,
+        50,
+    );
+
+    const bookmarkRows = await prisma.bookmark.findMany({
         where: bookmarkWhere,
-        orderBy: { createdAt: 'desc' },
-        take: 200,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: pagination.skip,
+        take: pagination.pageSize,
         select: {
             id: true,
             post: {
@@ -102,9 +115,7 @@ export default async function BookmarksPage() {
                 },
             },
         },
-        }),
-        prisma.bookmark.count({ where: bookmarkWhere }),
-    ]);
+    });
 
     const bookmarks = bookmarkRows;
 
@@ -114,9 +125,9 @@ export default async function BookmarksPage() {
                 <h1 className="font-bold text-base">ブックマーク</h1>
             </div>
             <div className="flex flex-col">
-                {bookmarkCount > bookmarks.length && (
+                {bookmarkCount > 0 && (
                     <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
-                        最新200件を表示しています（全{bookmarkCount}件）
+                        全{bookmarkCount}件・{pagination.page}/{pagination.totalPages}ページ
                     </div>
                 )}
                 {bookmarks.map((entry) => {
@@ -174,6 +185,14 @@ export default async function BookmarksPage() {
                         </div>
                     );
                 })}
+                {bookmarkCount > 0 && (
+                    <PaginationLinks
+                        page={pagination.page}
+                        totalPages={pagination.totalPages}
+                        previousHref={pagination.hasPrevious ? `/bookmarks?page=${pagination.page - 1}` : null}
+                        nextHref={pagination.hasNext ? `/bookmarks?page=${pagination.page + 1}` : null}
+                    />
+                )}
                 {bookmarks.length === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">ブックマークはまだありません</div>
                 )}
