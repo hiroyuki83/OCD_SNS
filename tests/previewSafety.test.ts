@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validatePreviewSeedSafety } from '../src/lib/previewSafety';
+import { PREVIEW_GIT_REF } from '../src/lib/previewMigrationSafety';
 
 const valid = {
   vercelEnv: 'preview',
-  gitRef: 'security-integration-final-20260926',
+  gitRef: PREVIEW_GIT_REF,
   seedUsers: '1',
   databaseUrl: 'postgresql://preview-db',
   previewDatabaseUrl: 'postgresql://preview-db',
