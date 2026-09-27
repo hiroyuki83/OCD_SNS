@@ -16,19 +16,20 @@ const formatDate = (date: Date | null) =>
 export default async function StaffSecurityPage({
   searchParams,
 }: {
-  searchParams?: { q?: string; role?: string; mfa?: string; page?: string };
+  searchParams?: Promise<{ q?: string; role?: string; mfa?: string; page?: string }>;
 }) {
+  const params = await searchParams;
   await requireRole(Role.ADMIN);
 
-  const normalizedQuery = normalizeSearchQuery(searchParams?.q ?? '');
+  const normalizedQuery = normalizeSearchQuery(params?.q ?? '');
   const query = normalizedQuery.ok ? normalizedQuery.value : '';
   const roleFilter =
-    searchParams?.role === Role.ADMIN || searchParams?.role === Role.MODERATOR
-      ? searchParams.role
+    params?.role === Role.ADMIN || params?.role === Role.MODERATOR
+      ? params.role
       : null;
   const mfaFilter =
-    searchParams?.mfa === 'enabled' || searchParams?.mfa === 'missing'
-      ? searchParams.mfa
+    params?.mfa === 'enabled' || params?.mfa === 'missing'
+      ? params.mfa
       : null;
 
   const filters: Prisma.UserWhereInput[] = [
@@ -63,7 +64,7 @@ export default async function StaffSecurityPage({
   ]);
 
   const pagination = clampPage(
-    parsePageNumber(searchParams?.page),
+    parsePageNumber(params?.page),
     filteredCount,
     100,
   );
