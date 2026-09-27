@@ -23,14 +23,15 @@ function selectedStatus(value?: string) {
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams?: { q?: string; role?: string; status?: string; page?: string };
+  searchParams?: Promise<{ q?: string; role?: string; status?: string; page?: string }>;
 }) {
+  const params = await searchParams;
   await requireRole(Role.ADMIN);
 
-  const normalizedQuery = normalizeSearchQuery(searchParams?.q ?? "");
+  const normalizedQuery = normalizeSearchQuery(params?.q ?? "");
   const query = normalizedQuery.ok ? normalizedQuery.value : "";
-  const roleFilter = selectedRole(searchParams?.role);
-  const statusFilter = selectedStatus(searchParams?.status);
+  const roleFilter = selectedRole(params?.role);
+  const statusFilter = selectedStatus(params?.status);
   const filters: Prisma.UserWhereInput[] = [];
 
   if (query) {
@@ -58,7 +59,7 @@ export default async function AdminUsersPage({
   ]);
 
   const pagination = clampPage(
-    parsePageNumber(searchParams?.page),
+    parsePageNumber(params?.page),
     filteredCount,
     100,
   );
