@@ -32,6 +32,8 @@ export async function GET(request: Request) {
         return privateJson({ user: null }, { status: 404 });
     }
 
+    const now = new Date();
+
     const [
         followerCount,
         followingCount,
@@ -44,12 +46,14 @@ export async function GET(request: Request) {
             where: {
                 followingId: user.id,
                 acceptedAt: { not: null },
+                follower: visibleAccountFilter(now),
             },
         }),
         prisma.follow.count({
             where: {
                 followerId: user.id,
                 acceptedAt: { not: null },
+                following: visibleAccountFilter(now),
             },
         }),
         viewerId
@@ -106,7 +110,6 @@ export async function GET(request: Request) {
     const isFollowPending = Boolean(followRelation && !followRelation.acceptedAt);
     const canViewPosts =
         !user.isPrivate || viewerId === user.id || isFollowing;
-    const now = new Date();
     const postAuthorVisibility: Prisma.UserWhereInput = viewerId
         ? {
               AND: [
