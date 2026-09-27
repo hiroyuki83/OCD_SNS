@@ -100,10 +100,39 @@ export async function PATCH(
       }
     }
 
-    await tx.user.update({
-      where: { id: target.id },
-      data: { role: nextRole },
+    const clearsStaffMfa =
+      nextRole === Role.USER &&
+      (target.role === Role.ADMIN || target.role === Role.MODERATOR);
+
+    const updated = await tx.user.updateMany({
+      where: {
+        id: target.id,
+        role: target.role,
+      },
+      data: {
+        role: nextRole,
+        sessionVersion: { increment: 1 },
+        ...(clearsStaffMfa
+          ? {
+              staffTotpSecretEncrypted: null,
+              staffTotpEnabledAt: null,
+              staffTotpLastUsedStep: null,
+            }
+          : {}),
+      },
     });
+    if (updated.count !== 1) {
+      return {
+        error: "対象ユーザーの権限が変更されました。画面を更新してください。",
+        status: 409,
+      } as const;
+    }
+
+    if (clearsStaffMfa) {
+      await tx.staffRecoveryCode.deleteMany({
+        where: { userId: target.id },
+      });
+    }
 
     await tx.auditLog.create({
       data: {
@@ -114,6 +143,8 @@ export async function PATCH(
           fromRole: target.role,
           toRole: nextRole,
           elevatedToAdmin: nextRole === Role.ADMIN && target.role !== Role.ADMIN,
+          sessionsRevoked: true,
+          staffMfaCleared: clearsStaffMfa,
         },
       },
     });
