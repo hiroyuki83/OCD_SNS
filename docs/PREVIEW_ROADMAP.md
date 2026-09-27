@@ -101,16 +101,16 @@
 | NEXT-005 | Reply / Quote 削除後に validate / lint / test / typecheck / build | P0 | DONE |
 | NEXT-006 | 最新 Preview branch を Vercel Preview に同期 | P0 | TODO |
 | NEXT-007 | Preview DB migration / seed / smoke test | P0 | TODO |
-| NEXT-008 | Playwright E2E 基盤導入 | P0 | TODO |
-| NEXT-009 | 登録→確認→ログイン E2E | P0 | TODO |
-| NEXT-010 | private follow approval E2E | P0 | TODO |
-| NEXT-011 | block / mute E2E | P0 | TODO |
-| NEXT-012 | 投稿 / リアクション / bookmark / 削除 E2E | P0 | TODO |
-| NEXT-013 | 通報→moderation→警告 E2E | P0 | TODO |
-| NEXT-014 | 警告→異議申立て→審査 E2E | P0 | TODO |
-| NEXT-015 | ADMIN role / status change E2E | P0 | TODO |
-| NEXT-016 | staff TOTP / recovery code E2E | P0 | TODO |
-| NEXT-017 | session revoke E2E | P0 | TODO |
+| NEXT-008 | Playwright E2E 基盤導入 | P0 | IN PROGRESS |
+| NEXT-009 | 登録→確認→ログイン E2E | P0 | IN PROGRESS |
+| NEXT-010 | private follow approval E2E | P0 | IN PROGRESS |
+| NEXT-011 | block / mute E2E | P0 | IN PROGRESS |
+| NEXT-012 | 投稿 / リアクション / bookmark / 削除 E2E | P0 | IN PROGRESS |
+| NEXT-013 | 通報→moderation→警告 E2E | P0 | IN PROGRESS |
+| NEXT-014 | 警告→異議申立て→審査 E2E | P0 | IN PROGRESS |
+| NEXT-015 | ADMIN role / status change E2E | P0 | IN PROGRESS |
+| NEXT-016 | staff TOTP / recovery code E2E | P0 | IN PROGRESS |
+| NEXT-017 | session revoke E2E | P0 | IN PROGRESS |
 | NEXT-018 | 心理検査データのアクセス権仕様を明文化 | P0 | DONE |
 | NEXT-019 | 心理検査データを管理画面から原則参照不可にする確認 / 修正 | P0 | DONE |
 | NEXT-020 | アカウント削除 | P1 | TODO |
@@ -120,7 +120,7 @@
 | NEXT-024 | 制裁履歴をユーザー単位で統合表示 | P1 | DONE |
 | NEXT-025 | 警告以外の処分への Appeal model を検討 | P1 | TODO |
 | NEXT-026 | 異議申立て結果通知 | P1 | TODO |
-| NEXT-027 | 通知設定 | P2 | TODO |
+| NEXT-027 | 通知設定 | P2 | DONE |
 | NEXT-028 | ユーザー / @handle 検索 | P2 | DONE |
 | NEXT-029 | ハッシュタグ検索 | P2 | DONE |
 | NEXT-030 | 画像 alt text | P2 | DONE |
@@ -234,3 +234,43 @@ GitHub Actions `Security integration CI` run 36334031017 で最終確認済み�
 - NEXT-007: Preview DB migration / seed / smoke test
 
 今回のschema変更にはReply/Quote削除とPost.imageAlt追加が含まれるため、Preview DBの接続先を安全に特定できるまではmigrationを実行しない。
+
+
+## 2026-09-28 実装バッチ3（30タスク）
+
+| # | 内容 | Status |
+|---:|---|---|
+| 1 | 既存Playwright E2E基盤を監査 | DONE |
+| 2 | パスワード変更E2Eの再ログイン手順を修正 | DONE |
+| 3 | staff MFA E2Eのフォームlocatorを修正 | DONE |
+| 4 | staff MFA登録helperを共通化 | DONE |
+| 5 | TOTPログインhelperを追加 | DONE |
+| 6 | staff MFAテストを共通helperへ移行 | DONE |
+| 7 | E2E用Moderator 2をPreview seedへ追加 | DONE |
+| 8 | E2E用Admin 2をPreview seedへ追加 | DONE |
+| 9 | E2E用Admin 3をPreview seedへ追加 | DONE |
+| 10 | moderation report cardへ安定したE2E hookを追加 | DONE |
+| 11 | appeal cardへ安定したE2E hookを追加 | DONE |
+| 12 | warning notificationへ安定したE2E hookを追加 | DONE |
+| 13 | 投稿検索→詳細→通報helperを追加 | DONE |
+| 14 | 通報→対応中→警告E2Eを追加 | DONE |
+| 15 | 警告→異議申立てE2Eを追加 | DONE |
+| 16 | ADMINによる異議申立て取消審査E2Eを追加 | DONE |
+| 17 | 異議申立て結果のユーザー表示E2Eを追加 | DONE |
+| 18 | ADMIN role変更E2Eを追加 | DONE |
+| 19 | ADMIN投稿制限 / 解除E2Eを追加 | DONE |
+| 20 | ADMIN停止 / 解除E2Eを追加 | DONE |
+| 21 | アカウントデータexport E2Eを追加 | DONE |
+| 22 | 投稿画像alt text E2Eを追加 | DONE |
+| 23 | rootから実行できる test:e2e scriptを追加 | DONE |
+| 24 | CIでPlaywright .only禁止とretryを設定 | DONE |
+| 25 | PRでもE2Eを実行するworkflowを追加 | DONE |
+| 26 | いいね / リアクション / フォロー通知設定schemaを追加 | DONE |
+| 27 | 通知設定migrationを追加 | DONE |
+| 28 | 通知設定のServer Action / UI / parser testを追加 | DONE |
+| 29 | 通知生成処理へユーザー設定を適用 | DONE |
+| 30 | push / PR CI重複実行をhead branch単位で抑制 | DONE |
+
+### バッチ3検証
+
+通常CIとPlaywright E2Eの最新runが成功した時点で NEXT-008〜017 を DONE に更新する。
