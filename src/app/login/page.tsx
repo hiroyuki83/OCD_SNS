@@ -30,7 +30,9 @@ export default function LoginPage() {
                 <h1 className="text-3xl font-bold text-center">CoCoにログイン</h1>
                 <form action={dispatch} className="space-y-4">
                     <div>
+                        <label htmlFor="login-email" className="sr-only">メールアドレス</label>
                         <input
+                            id="login-email"
                             name="email"
                             type="email"
                             maxLength={254}
@@ -41,10 +43,12 @@ export default function LoginPage() {
                         />
                     </div>
                     <div>
+                        <label htmlFor="login-password" className="sr-only">パスワード</label>
                         <input
+                            id="login-password"
                             name="password"
                             type="password"
-                            minLength={1}
+                            minLength={6}
                             maxLength={128}
                             required
                             placeholder="パスワード"
@@ -53,7 +57,9 @@ export default function LoginPage() {
                         />
                     </div>
                     <div>
+                        <label htmlFor="login-totp" className="sr-only">認証アプリの6桁コード</label>
                         <input
+                            id="login-totp"
                             name="totpCode"
                             inputMode="numeric"
                             pattern="[0-9]{6}"
@@ -69,11 +75,15 @@ export default function LoginPage() {
                         </p>
                     </div>
                     <div>
+                        <label htmlFor="login-recovery" className="sr-only">リカバリーコード</label>
                         <input
+                            id="login-recovery"
                             name="recoveryCode"
                             type="text"
                             maxLength={64}
                             autoComplete="off"
+                            autoCapitalize="none"
+                            spellCheck={false}
                             placeholder="リカバリーコード（認証アプリを使えない場合）"
                             className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
                         />
