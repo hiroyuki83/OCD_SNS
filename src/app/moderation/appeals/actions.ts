@@ -24,6 +24,14 @@ const ReviewSchema = z.object({
 
 class AppealReviewConflictError extends Error {}
 
+export async function upholdWarningAppeal(appealId: string, formData: FormData) {
+  return reviewWarningAppeal(appealId, WarningAppealStatus.UPHELD, formData);
+}
+
+export async function overturnWarningAppeal(appealId: string, formData: FormData) {
+  return reviewWarningAppeal(appealId, WarningAppealStatus.OVERTURNED, formData);
+}
+
 export async function reviewWarningAppeal(
   appealId: string,
   outcome: WarningAppealStatus,
