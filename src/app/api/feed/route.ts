@@ -4,6 +4,7 @@ import { visibleAccountFilter } from '@/lib/accountStatus';
 import { privateJson } from '@/lib/apiResponse';
 import type { Prisma } from '@prisma/client';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
+import { jstDateKey, stableShuffle } from '@/lib/stableShuffle';
 
 export const dynamic = 'force-dynamic';
 
@@ -148,14 +149,10 @@ export async function GET(request: Request) {
 
     const shuffled =
         tab === 'for-you'
-            ? (() => {
-                  const copy = [...posts];
-                  for (let i = copy.length - 1; i > 0; i -= 1) {
-                      const j = Math.floor(Math.random() * (i + 1));
-                      [copy[i], copy[j]] = [copy[j], copy[i]];
-                  }
-                  return copy;
-              })()
+            ? stableShuffle(
+                  posts,
+                  `${jstDateKey(now)}:${userId ?? 'guest'}:for-you`,
+              )
             : posts;
 
     return privateJson({
