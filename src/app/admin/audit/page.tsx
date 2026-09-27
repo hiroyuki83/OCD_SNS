@@ -98,32 +98,22 @@ export default async function AdminAuditPage({
     filters.push({ action: actionFilter });
   }
 
-  let matchingUserIds: string[] = [];
   if (query) {
-    const matchingUsers = await prisma.user.findMany({
-      where: {
-        OR: [
-          { id: { contains: query } },
-          { email: { contains: query, mode: "insensitive" } },
-          { name: { contains: query, mode: "insensitive" } },
-        ],
-      },
-      select: { id: true },
-      take: 200,
-    });
-    matchingUserIds = matchingUsers.map((user) => user.id);
+    const userMatch: Prisma.UserWhereInput = {
+      OR: [
+        { id: { contains: query } },
+        { email: { contains: query, mode: "insensitive" } },
+        { name: { contains: query, mode: "insensitive" } },
+      ],
+    };
 
     filters.push({
       OR: [
         { action: { contains: query, mode: "insensitive" } },
         { actorUserId: { contains: query } },
         { targetUserId: { contains: query } },
-        ...(matchingUserIds.length
-          ? [
-              { actorUserId: { in: matchingUserIds } },
-              { targetUserId: { in: matchingUserIds } },
-            ]
-          : []),
+        { actorUser: { is: userMatch } },
+        { targetUser: { is: userMatch } },
       ],
     });
   }
