@@ -5,7 +5,6 @@ import { auth } from '@/auth';
 import { Prisma, WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { visibleAccountFilter } from '@/lib/accountStatus';
-import { submitWarningAppeal } from './actions';
 import {
     AcceptFollowForm,
     RejectFollowForm,
@@ -13,6 +12,7 @@ import {
 import NotificationsReadMarker from '@/components/layout/NotificationsReadMarker';
 import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
+import WarningAppealForm from '@/components/notifications/WarningAppealForm';
 
 const notificationFilters = ['all', 'social', 'warnings'] as const;
 type NotificationFilter = (typeof notificationFilters)[number];
@@ -320,32 +320,7 @@ export default async function NotificationsPage({
                                         警告が取り消されているため、異議申立ては不要です。
                                     </div>
                                 ) : (
-                                    <form
-                                        action={submitWarningAppeal}
-                                        className="rounded-md border border-amber-200 bg-white/70 p-3"
-                                    >
-                                        <input type="hidden" name="warningId" value={item.warning.id} />
-                                        <label className="block text-xs font-semibold text-zinc-700">
-                                            この警告に異議申立てをする
-                                            <textarea
-                                                name="message"
-                                                minLength={10}
-                                                maxLength={1000}
-                                                required
-                                                rows={3}
-                                                placeholder="警告が適切でないと考える理由を入力してください"
-                                                className="mt-2 w-full resize-y rounded-md border border-border bg-white px-3 py-2 text-sm"
-                                            />
-                                        </label>
-                                        <div className="mt-2 flex justify-end">
-                                            <button
-                                                type="submit"
-                                                className="rounded-full border border-amber-400 px-3 py-1 text-xs font-semibold text-amber-900"
-                                            >
-                                                異議申立てを送信
-                                            </button>
-                                        </div>
-                                    </form>
+                                    <WarningAppealForm warningId={item.warning.id} />
                                 )}
                             </div>
                         );
