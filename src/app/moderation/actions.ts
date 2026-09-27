@@ -16,6 +16,21 @@ function normalizeModerationText(value: string, maxLength: number) {
     .slice(0, maxLength);
 }
 
+function hasInvalidModerationText(
+  formData: FormData,
+  key: string,
+  maxLength: number,
+) {
+  const value = formData.get(key);
+  if (value === null) return false;
+  if (typeof value !== 'string') return true;
+  const normalized = value
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim();
+  return Array.from(normalized).length > maxLength;
+}
+
 function noteFromFormData(formData: FormData) {
   const value = formData.get('note');
   if (typeof value !== 'string') return null;
@@ -78,11 +93,18 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
   const priority = priorityFromFormData(formData);
   if (!priority) return;
 
+  if (
+    hasInvalidModerationText(formData, 'assignedToId', 128) ||
+    hasInvalidModerationText(formData, 'dueAt', 64) ||
+    hasInvalidModerationText(formData, 'note', 500)
+  ) {
+    return;
+  }
   const assignedToId = optionalText(formData, 'assignedToId');
-  if (assignedToId && assignedToId.length > 128) return;
-  const dueAtRaw = optionalText(formData, 'dueAt');
+  const rawDueAt = formData.get('dueAt');
+  if (typeof rawDueAt !== 'string') return;
   const dueAt = optionalDate(formData, 'dueAt');
-  if (dueAtRaw && !dueAt) return;
+  if (rawDueAt.trim() && !dueAt) return;
   const note = noteFromFormData(formData);
 
   const report = await prisma.report.findUnique({
@@ -270,6 +292,7 @@ export async function rejectReport(reportId: string, formData: FormData) {
   if (!reportId || reportId.length > 128) return;
   const actor = await requireModerator();
   if (!(await allowModerationDecision(actor.id))) return;
+  if (hasInvalidModerationText(formData, 'note', 500)) return;
   const note = noteFromFormData(formData);
   const report = await prisma.report.findUnique({
     where: { id: reportId },
@@ -335,6 +358,7 @@ export async function resolveReport(reportId: string, formData: FormData) {
   if (!reportId || reportId.length > 128) return;
   const actor = await requireModerator();
   if (!(await allowModerationDecision(actor.id))) return;
+  if (hasInvalidModerationText(formData, 'note', 500)) return;
   const note = noteFromFormData(formData);
   const report = await prisma.report.findUnique({
     where: { id: reportId },
@@ -400,6 +424,7 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
   if (!reportId || reportId.length > 128) return;
   const actor = await requireModerator();
   if (!(await allowSensitiveModeration(actor.id))) return;
+  if (hasInvalidModerationText(formData, 'note', 500)) return;
   const note = noteFromFormData(formData) ?? '通報対応により非表示';
   const report = await prisma.report.findUnique({
     where: { id: reportId },
@@ -490,6 +515,7 @@ export async function restorePost(postId: string, _targetUserId: string, formDat
   if (!postId || postId.length > 128) return;
   const actor = await requireModerator();
   if (!(await allowSensitiveModeration(actor.id))) return;
+  if (hasInvalidModerationText(formData, 'note', 500)) return;
   const note = noteFromFormData(formData);
   const post = await prisma.post.findUnique({
     where: { id: postId },
@@ -556,6 +582,7 @@ export async function setReportedUserStatus(
   if (!reportId || reportId.length > 128) return;
   const actor = await requireModerator();
   if (!(await allowSensitiveModeration(actor.id))) return;
+  if (hasInvalidModerationText(formData, 'note', 500)) return;
   const note = noteFromFormData(formData);
   const report = await prisma.report.findUnique({
     where: { id: reportId },
@@ -570,7 +597,7 @@ export async function setReportedUserStatus(
   if (!report) return;
   if (report.status !== ReportStatus.OPEN && report.status !== ReportStatus.REVIEWING) return;
   if (!Object.values(AccountStatus).includes(status)) return;
-  if (status !== AccountStatus.ACTIVE && (!note || note.length < 5)) return;
+  if (status !== AccountStatus.ACTIVE && (!note || Array.from(note).length < 5)) return;
   if (!canSanctionTarget(actor.role, report.targetUser.role)) return;
 
   let suspendedUntil: Date | null = null;
@@ -688,8 +715,9 @@ export async function warnReportedUser(reportId: string, formData: FormData) {
   if (!reportId || reportId.length > 128) return;
   const actor = await requireModerator();
   if (!(await allowSensitiveModeration(actor.id))) return;
+  if (hasInvalidModerationText(formData, 'note', 500)) return;
   const note = noteFromFormData(formData);
-  if (!note || note.length < 5) return;
+  if (!note || Array.from(note).length < 5) return;
 
   const report = await prisma.report.findUnique({
     where: { id: reportId },
