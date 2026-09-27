@@ -1,14 +1,16 @@
-import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 import { visibleAccountFilter } from '@/lib/accountStatus';
+import { privateJson } from '@/lib/apiResponse';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const rawQuery = searchParams.get('q')?.trim() ?? '';
     if (!rawQuery) {
-        return NextResponse.json({ posts: [] });
+        return privateJson({ posts: [] });
     }
     const query = rawQuery.slice(0, 100);
     const insensitive: Prisma.QueryMode = 'insensitive';
@@ -79,7 +81,7 @@ export async function GET(request: Request) {
         take: 20,
     });
 
-    return NextResponse.json({
+    return privateJson({
         posts: posts.map((post) => ({
             id: post.id,
             content: post.content,
