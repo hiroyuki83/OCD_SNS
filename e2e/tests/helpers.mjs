@@ -82,3 +82,47 @@ export function totpCode(secret, stepOffset = 0) {
     (digest[offset + 3] & 0xff);
   return String(binary % 1_000_000).padStart(6, '0');
 }
+
+
+export async function enrollStaffMfa(page, email, password = PREVIEW_PASSWORD) {
+  await login(page, email, password);
+  await page.goto('/settings?mfa=required');
+
+  const section = page.locator('section').filter({
+    has: page.getByRole('heading', { name: 'スタッフ2段階認証' }),
+  });
+
+  const alreadyEnabled = await section.getByText('有効', { exact: true }).count();
+  if (alreadyEnabled > 0) {
+    return { secret: null, recoveryCodes: [] };
+  }
+
+  await section.getByLabel('現在のパスワード').first().fill(password);
+  await section.getByRole('button', { name: '2段階認証の登録を開始' }).click();
+
+  await expect(section.getByText('秘密鍵')).toBeVisible();
+  const secret = (await section.locator('code').first().textContent())?.trim() ?? '';
+  expect(secret.length).toBeGreaterThan(10);
+
+  const enableButton = section.getByRole('button', { name: 'コードを確認して有効化' });
+  const enrollment = enableButton.locator('xpath=ancestor::form');
+  await enrollment.getByLabel('現在のパスワード').fill(password);
+  await enrollment.getByLabel('6桁コード').fill(totpCode(secret));
+  await enableButton.click();
+
+  await expect(section.getByText('リカバリーコードを保存してください')).toBeVisible();
+  const recoveryCodes = (await section.locator('code').allTextContents())
+    .map((value) => value.trim())
+    .filter((value) => value.length >= 10 && value !== secret);
+
+  return { secret, recoveryCodes };
+}
+
+export async function loginStaffWithTotp(page, email, secret, password = PREVIEW_PASSWORD) {
+  await page.goto('/login');
+  await page.getByLabel('メールアドレス').fill(email);
+  await page.getByLabel('パスワード').fill(password);
+  await page.getByLabel('6桁コード').fill(totpCode(secret));
+  await page.locator('#main-content').getByRole('button', { name: 'ログイン', exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+}
