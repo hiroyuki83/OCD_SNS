@@ -2,10 +2,16 @@ import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { unmuteUser } from '@/app/lib/actions';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
 
-export default async function MutesPage() {
+export default async function MutesPage({
+    searchParams,
+}: {
+    searchParams?: { page?: string };
+}) {
     const session = await auth();
     let userId = session?.user?.id ?? null;
     if (!userId && session?.user?.email) {
@@ -24,8 +30,9 @@ export default async function MutesPage() {
         );
     }
 
-    const [mutes, muteCount] = await Promise.all([
-        prisma.mute.findMany({
+    const muteCount = await prisma.mute.count({ where: { muterId: userId } });
+    const pagination = clampPage(parsePageNumber(searchParams?.page), muteCount, 50);
+    const mutes = await prisma.mute.findMany({
         where: { muterId: userId },
         select: {
             id: true,
@@ -40,11 +47,10 @@ export default async function MutesPage() {
                 },
             },
         },
-        orderBy: { createdAt: 'desc' },
-        take: 200,
-        }),
-        prisma.mute.count({ where: { muterId: userId } }),
-    ]);
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: pagination.skip,
+        take: pagination.pageSize,
+    });
 
     return (
         <div className="min-h-screen border-r border-border">
@@ -55,9 +61,9 @@ export default async function MutesPage() {
                 </Link>
             </div>
             <div className="flex flex-col">
-                {muteCount > mutes.length && (
+                {muteCount > 0 && (
                     <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
-                        最新200件を表示しています
+                        ミュート {muteCount}件・{pagination.page} / {pagination.totalPages}ページ
                     </div>
                 )}
                 {mutes.map((entry) => (
@@ -102,6 +108,14 @@ export default async function MutesPage() {
                         </form>
                     </div>
                 ))}
+                {muteCount > 0 && (
+                    <PaginationLinks
+                        page={pagination.page}
+                        totalPages={pagination.totalPages}
+                        previousHref={pagination.hasPrevious ? `/profile/mutes?page=${pagination.page - 1}` : null}
+                        nextHref={pagination.hasNext ? `/profile/mutes?page=${pagination.page + 1}` : null}
+                    />
+                )}
                 {muteCount === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">ミュート中のユーザーがいません</div>
                 )}
