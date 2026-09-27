@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
-import { usersAreBlocked } from '@/lib/postAccess';
-import { isSuspensionActive } from '@/lib/accountStatus';
 import { parseJsonMutationRequest } from '@/lib/requestSecurity';
+import { mutateFollowRelation } from '@/lib/userRelations';
 
 const FOLLOW_ACTIONS = ['follow', 'unfollow'] as const;
 type FollowAction = (typeof FOLLOW_ACTIONS)[number];
@@ -38,70 +37,28 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, error: '自分自身はフォローできません。' }, { status: 400 });
     }
 
-    const targetUser = await prisma.user.findUnique({
-        where: { id: targetUserId },
-        select: { id: true, isPrivate: true, status: true, suspendedUntil: true },
-    });
-    if (!targetUser || isSuspensionActive(targetUser.status, targetUser.suspendedUntil)) {
-        return NextResponse.json({ ok: false }, { status: 404 });
-    }
     if (!(await rateLimit(`follow-action:${userId}`, 60, 60 * 1000))) {
         return NextResponse.json({ ok: false }, { status: 429 });
     }
 
-    if (action === 'unfollow') {
-        await prisma.follow.deleteMany({
-            where: { followerId: userId, followingId: targetUserId },
-        });
-        await prisma.notification.deleteMany({
-            where: { type: 'FOLLOW', userId: targetUserId, actorId: userId },
-        });
-        return NextResponse.json({ ok: true });
+    const result = await mutateFollowRelation(
+        userId,
+        targetUserId,
+        action as FollowAction,
+    );
+    if (!result.ok) {
+        const status =
+            result.reason === 'NOT_FOUND'
+                ? 404
+                : result.reason === 'BLOCKED'
+                  ? 403
+                  : 400;
+        return NextResponse.json({ ok: false }, { status });
     }
 
-    if (await usersAreBlocked(userId, targetUserId)) {
-        return NextResponse.json({ ok: false }, { status: 403 });
-    }
-
-    const createdFollow = await prisma.follow.createMany({
-        data: [{
-            followerId: userId,
-            followingId: targetUserId,
-            acceptedAt: targetUser.isPrivate ? null : new Date(),
-        }],
-        skipDuplicates: true,
-    });
-
-    if (!targetUser.isPrivate) {
-        await prisma.follow.updateMany({
-            where: {
-                followerId: userId,
-                followingId: targetUserId,
-                acceptedAt: null,
-            },
-            data: { acceptedAt: new Date() },
-        });
-    }
-
-    if (await usersAreBlocked(userId, targetUserId)) {
-        await prisma.follow.deleteMany({
-            where: { followerId: userId, followingId: targetUserId },
-        });
-        return NextResponse.json({ ok: false }, { status: 403 });
-    }
-
-    if (createdFollow.count === 1) {
-        await prisma.notification.create({
-            data: {
-                type: 'FOLLOW',
-                userId: targetUserId,
-                actorId: userId,
-            },
-        });
-    }
 
     return NextResponse.json({
         ok: true,
-        followState: targetUser.isPrivate ? 'PENDING' : 'ACCEPTED',
+        followState: result.state,
     });
 }
