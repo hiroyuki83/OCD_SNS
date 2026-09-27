@@ -386,12 +386,12 @@ export default function Feed({
                                 if (target.closest('button') || target.closest('a') || target.closest('[data-action-area]')) {
                                     return;
                                 }
-                                router.push(`/post?id=${post.id}`);
+                                router.push(`/post/${encodeURIComponent(post.id)}`);
                             }}
                             onKeyDown={(event) => {
                                 if (event.key === 'Enter' || event.key === ' ') {
                                     event.preventDefault();
-                                    router.push(`/post?id=${post.id}`);
+                                    router.push(`/post/${encodeURIComponent(post.id)}`);
                                 }
                             }}
                         >
