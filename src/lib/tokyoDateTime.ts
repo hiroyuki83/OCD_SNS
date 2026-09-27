@@ -53,3 +53,30 @@ export function parseTokyoDateTimeLocal(value: string | null | undefined) {
 
   return date;
 }
+
+
+export function formatTokyoDateTimeLocal(date: Date | null | undefined) {
+  if (!date) return '';
+  if (Number.isNaN(date.getTime())) return '';
+
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  );
+
+  if (!values.year || !values.month || !values.day || !values.hour || !values.minute) {
+    return '';
+  }
+
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+}
