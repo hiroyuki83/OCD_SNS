@@ -145,11 +145,12 @@ export default function ProfileEditForm({
         setCropError(null);
         try {
             const blob = await getCroppedBlob(cropSrc, croppedArea);
-            if (blob.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
-                setCropError('切り抜き後の画像は5MB以下にしてください。');
+            const file = new File([blob], pendingFileName || 'crop.jpg', { type: 'image/jpeg' });
+            const validationError = await validateClientImageFile(file);
+            if (validationError) {
+                setCropError(validationError);
                 return;
             }
-            const file = new File([blob], pendingFileName || 'crop.jpg', { type: 'image/jpeg' });
             const preview = URL.createObjectURL(file);
             if (cropTarget === 'avatar') {
                 setAvatarFile(file);
