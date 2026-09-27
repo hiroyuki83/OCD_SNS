@@ -48,6 +48,17 @@ export default async function NotificationsPage() {
             where: {
                 userId: resolvedUserId,
                 actor: notificationActorFilter,
+                OR: [
+                    { type: 'FOLLOW' },
+                    {
+                        post: {
+                            is: {
+                                deletedAt: null,
+                                isHidden: false,
+                            },
+                        },
+                    },
+                ],
             },
             orderBy: { createdAt: 'desc' },
             select: {
