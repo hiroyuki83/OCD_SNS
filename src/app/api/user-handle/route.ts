@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { isSuspensionActive, visibleAccountFilter } from '@/lib/accountStatus';
 import { privateJson } from '@/lib/apiResponse';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const rawHandle = searchParams.get('handle')?.trim() ?? '';
     const handle = rawHandle.startsWith('@') ? rawHandle.slice(1) : rawHandle;
+    const requestedPage = parsePageNumber(searchParams.get('page'));
     if (!handle || handle.length > 64) {
         return privateJson({ user: null }, { status: 400 });
     }
@@ -149,18 +151,29 @@ export async function GET(request: Request) {
               AND: [visibleAccountFilter(now), { isPrivate: false }],
           };
 
+    const canReadPosts =
+        canViewPosts && !isBlocked && !isMuted && !isBlockedBy;
+
+    const postWhere: Prisma.PostWhereInput = {
+        authorId: user.id,
+        isHidden: false,
+        deletedAt: null,
+        author: postAuthorVisibility,
+    };
+
+    const postCount = canReadPosts
+        ? await prisma.post.count({ where: postWhere })
+        : 0;
+    const postPagination = clampPage(requestedPage, postCount, 50);
+
     const posts =
-        !canViewPosts || isBlocked || isMuted || isBlockedBy
+        !canReadPosts
         ? []
         : await prisma.post.findMany({
-              where: {
-                  authorId: user.id,
-                  isHidden: false,
-                  deletedAt: null,
-                  author: postAuthorVisibility,
-              },
-              orderBy: { createdAt: 'desc' },
-              take: 100,
+              where: postWhere,
+              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+              skip: postPagination.skip,
+              take: postPagination.pageSize,
               select: {
                   id: true,
                   content: true,
@@ -200,7 +213,12 @@ export async function GET(request: Request) {
         isBlocked,
         isMuted,
         isBlockedBy,
-        posts: canViewPosts
+        postCount,
+        page: postPagination.page,
+        totalPages: postPagination.totalPages,
+        hasPrevious: postPagination.hasPrevious,
+        hasNext: postPagination.hasNext,
+        posts: canReadPosts
             ? posts.map((post) => {
                 const types = new Set(post.reactions.map((reaction) => reaction.type));
                 return {
