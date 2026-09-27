@@ -31,9 +31,9 @@ test.describe.serial('staff MFA gate', () => {
     secret = (await section.locator('code').first().textContent())?.trim() ?? '';
     expect(secret.length).toBeGreaterThan(10);
 
-    const enrollment = section.locator('form').filter({
-      has: section.getByRole('button', { name: 'コードを確認して有効化' }),
-    });
+    const enrollment = section
+      .getByRole('button', { name: 'コードを確認して有効化' })
+      .locator('form');
     await enrollment.getByLabel('現在のパスワード').fill(PREVIEW_PASSWORD);
     await enrollment.getByLabel('6桁コード').fill(totpCode(secret));
     await enrollment
