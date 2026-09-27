@@ -103,8 +103,8 @@
 | NEXT-003 | Reply / Quote の残存コードを全検索して削除 | P0 | DONE |
 | NEXT-004 | Reply / Quote 削除 migration を作成 | P0 | DONE |
 | NEXT-005 | Reply / Quote 削除後に validate / lint / test / typecheck / build | P0 | DONE |
-| NEXT-006 | 最新 Preview branch を Vercel Preview に同期 | P0 | TODO |
-| NEXT-007 | Preview DB migration / seed / smoke test | P0 | IN PROGRESS |
+| NEXT-006 | 最新 Preview branch を Vercel Preview に同期 | P0 | DONE |
+| NEXT-007 | Preview DB migration / seed / smoke test | P0 | DONE |
 | NEXT-008 | Playwright E2E 基盤導入 | P0 | DONE |
 | NEXT-009 | 登録→確認→ログイン E2E | P0 | DONE |
 | NEXT-010 | private follow approval E2E | P0 | DONE |
@@ -131,11 +131,11 @@
 | NEXT-031 | キーボード / focus / screen reader 監査 | P2 | DONE |
 | NEXT-032 | アプリレベルのエラー監視 | P2 | DONE |
 | NEXT-033 | DB / Blob バックアップ・復旧手順の文書化 | P2 | DONE |
-| NEXT-034 | Preview最終受入確認（主要機能・migration・smoke・runtime error確認） | P0 | TODO |
-| NEXT-035 | main統合前ゲート確認（NEXT-006/007/034完了、Production自動deployの有無確認） | P0 | TODO |
-| NEXT-036 | PR #47 を main へmerge | P0 | TODO |
-| NEXT-037 | main merge後のCI / E2E再確認 | P0 | TODO |
-| NEXT-038 | integration branch終了・不要な一時Neon branch整理 | P1 | TODO |
+| NEXT-034 | Preview最終受入確認（主要機能・migration・smoke・runtime error確認） | P0 | DONE |
+| NEXT-035 | main統合前ゲート確認（NEXT-006/007/034完了、Production自動deployの有無確認） | P0 | DONE |
+| NEXT-036 | PR #47 を main へmerge | P0 | DONE |
+| NEXT-037 | main merge後のCI / E2E再確認 | P0 | DONE |
+| NEXT-038 | integration branch終了・不要な一時Neon branch整理 | P1 | IN PROGRESS |
 | NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | HOLD |
 | NEXT-040 | Productionへ明示release・post-deploy smoke / error scan | P0 | HOLD |
 
@@ -147,11 +147,11 @@ mainへ統合する位置を、以下のゲートで固定する。
 |---|---|---|---|
 | PHASE-A | 機能実装 | 要件上の主要機能・セキュリティ・管理機能が実装済み | DONE |
 | PHASE-B | ローカル/CI検証 | Prisma / lint / unit / TypeScript / build / Playwright E2E が成功 | DONE |
-| PHASE-C | Preview DB同期 | Preview専用DBを特定し、backup/snapshot後にmigration・seedを完了 | IN PROGRESS |
-| PHASE-D | Preview最終受入 | 最新commitのVercel Previewでsmoke・主要機能・runtime error確認 | TODO |
-| PHASE-E | main統合ゲート | PHASE-C/D完了、Production自動deployの有無と影響を確認 | TODO |
-| PHASE-F | mainへ統合 | PR #47をmainへmergeし、main上のCI/E2Eを再確認 | TODO |
-| PHASE-G | 統合後整理 | integration branchと不要な一時Neon branchを整理 | TODO |
+| PHASE-C | Preview DB同期 | Preview専用DBを特定し、backup/snapshot後にmigration・seedを完了 | DONE |
+| PHASE-D | Preview最終受入 | 最新commitのVercel Previewでsmoke・主要機能・runtime error確認 | DONE |
+| PHASE-E | main統合ゲート | PHASE-C/D完了、Production自動deployの有無と影響を確認 | DONE |
+| PHASE-F | mainへ統合 | PR #47をmainへmergeし、main上のCI/E2Eを再確認 | DONE |
+| PHASE-G | 統合後整理 | integration branchと不要な一時Neon branchを整理 | IN PROGRESS |
 | PHASE-H | Production release | 別途明示承認のうえProduction DB migration→deploy→smoke | HOLD |
 
 ### mainへ統合するタイミング
@@ -187,8 +187,8 @@ Production releaseは `NEXT-039/040` の別工程とし、明示的に実施す�
 
 調査の結果、Vercel Previewが古いcommitで止まっていた原因は `vercel.json` の設定だった。
 
-- `security-integration-final-20260926: false` → Preview DB migration前のため現時点では維持
-- `main: true` → main mergeでProductionへ自動deployしてしまうため `false` へ変更済み
+- `security-integration-final-20260926` はPreview DB migration後に一時的に有効化し、最新Preview受入を完了
+- `main: false` を維持し、main mergeだけではProductionへdeployしない
 
 今後は:
 
@@ -202,29 +202,34 @@ Production releaseは `NEXT-039/040` の別工程とし、明示的に実施す�
 
 ### 現在位置
 
-現在は **PHASE-C / NEXT-007**。
+現在は **PHASE-G / NEXT-038**。
 
 完了済み:
-- Preview専用Neon project `coco-preview` を特定
-- project ID `plain-dawn-64792117` を確認
-- DB `neondb` を確認
-- schema差分を確認
+- Preview専用Neon project `coco-preview` / DB `neondb` を特定
 - migration前snapshot `before-preview-schema-sync-2026-09-28` を作成
-- Prisma Preview migration接続先を `PREVIEW_DATABASE_URL` 最優先へ修正
-- 承認済みNeon host / DB名 / branch / 確認文字列を検証するmigration guardを追加
-- Preview DB preflight / schema verify / guarded migration scriptを追加
-- 手動専用 `preview-db-release.yml` workflowを追加
-- `_prisma_migrations` 不在時のhistorical baseline手順を実装
-- CI / E2E trigger整理: integration pushの重複実行を廃止し、PR検証 + main merge後検証へ統一
+- 既存35 migrationをbaseline登録し、今回4 migrationを実適用
+- `_prisma_migrations` 39件を正常登録
+- `Reply` / `quotePostId` 削除
+- `Post.imageAlt` 追加
+- 通知設定3列追加
+- `EmailVerificationToken.pendingEmail` 追加
+- Preview acceptance用 core seed user 5件を確認
+- 最新Vercel Preview deployment `dpl_7DCntJcd975vxrVTFVDWniMxHiSB` READY
+- Preview public smoke: `/`, `/login`, `/register`, `/explore`, `/safety` がすべて HTTP 200
+- PostgreSQL SSL modeを `verify-full` へ明示し、最新deploymentで旧warningの再発なし
+- Preview受入時 CI / E2E: SUCCESS
+- PR #47 を mainへmerge
+- main merge commit: `09a720a6a71ed195fdc038008fb27c8347e4b294`
+- main上 Security integration CI run `36352909511`: SUCCESS / unit **144 / 144 PASS**
+- main上 CoCo E2E run `36352909491`: SUCCESS / Playwright **15 / 15 PASS**
+- `main` のVercel自動deployは無効のままで、Production deployは発生していない
 
 未完了:
-- 手動Preview DB release workflowの実行
-- historical migration baseline登録（初回のみ）
-- 4本のPreview migration適用
-- Preview seed
-- 最新commitのVercel Preview同期（DB migration完了後にintegration branchのVercel deployを有効化）
-- Preview smoke / acceptance
-- main merge
+- integration branch `security-integration-final-20260926` の終了・削除
+- migration検証用の一時Neon branch整理
+- Production release準備（NEXT-039 / HOLD）
+- Production release（NEXT-040 / HOLD）
+
 
 ## 実装しない機能
 
@@ -519,3 +524,49 @@ NEXT-006 は Vercel Preview最新同期待ち。NEXT-007 は Preview DB特定・
 8. NEXT-035 main統合ゲート
 9. NEXT-036 PR #47をmainへmerge
 
+
+
+## 2026-09-28 Preview受入・main統合完了
+
+### Preview DB
+
+- Neon project: `coco-preview`
+- project ID: `plain-dawn-64792117`
+- DB: `neondb`
+- snapshot: `before-preview-schema-sync-2026-09-28`
+- Prisma migration history: **39 / 39**
+- pending release migrations: **4 / 4 applied**
+- core Preview seed users: **5 users verified**
+
+### Preview deployment
+
+- validated code commit: `d179443c939a25b2eae96602438ef05ff2676b52`
+- deployment: `dpl_7DCntJcd975vxrVTFVDWniMxHiSB`
+- state: **READY**
+- public smoke:
+  - `/`: 200
+  - `/login`: 200
+  - `/register`: 200
+  - `/explore`: 200
+  - `/safety`: 200
+- latest deployment runtime log: PostgreSQL SSL alias warningの再発なし
+
+### main integration
+
+- PR: **#47**
+- merge commit: `09a720a6a71ed195fdc038008fb27c8347e4b294`
+- Production auto-deploy: **disabled**
+
+Post-merge validation:
+
+- Security integration CI `36352909511`: **SUCCESS**
+  - unit: **144 / 144 PASS**
+  - TypeScript: PASS
+  - Next.js build: PASS
+- CoCo E2E `36352909491`: **SUCCESS**
+  - all migrations: PASS
+  - E2E seed: PASS
+  - Playwright: **15 / 15 PASS**
+
+現在は **PHASE-G / NEXT-038**。
+Production releaseは引き続き `NEXT-039 / NEXT-040` としてHOLDする。
