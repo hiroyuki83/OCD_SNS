@@ -35,13 +35,20 @@ const forcedEnv = {
   VERCEL_ENV: 'preview',
 };
 
-function runPrisma(args: string[]) {
-  const result = spawnSync(npx, ['prisma', ...args], {
+function runCommand(args: string[]) {
+  const result = spawnSync(npx, args, {
     stdio: 'inherit',
     env: forcedEnv,
   });
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
+
+function runPrisma(args: string[]) {
+  runCommand(['prisma', ...args]);
+}
+
+console.log('Running Preview DB safety preflight.');
+runCommand(['tsx', 'scripts/preview-db-preflight.ts']);
 
 const client = new Client({ connectionString: safety.previewDatabaseUrl });
 let clientClosed = false;
@@ -90,6 +97,9 @@ try {
 
   console.log('Applying pending migrations to approved Preview DB only.');
   runPrisma(['migrate', 'deploy']);
+
+  console.log('Verifying Preview schema after migration.');
+  runCommand(['tsx', 'scripts/preview-db-verify.ts']);
 } finally {
   if (!clientClosed) await client.end().catch(() => undefined);
 }
