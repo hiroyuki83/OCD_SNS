@@ -83,7 +83,7 @@ export default function MobileMenu({
                 >
                     <Image
                         src="/icon/logo.png"
-                        alt="Menu"
+                        alt=""
                         width={44}
                         height={44}
                         className="h-11 w-11 rounded-full object-cover"
@@ -112,7 +112,7 @@ export default function MobileMenu({
                             >
                                 <Image
                                     src="/icon/logo.png"
-                                    alt="Logo"
+                                    alt="CoCo ホーム"
                                     width={56}
                                     height={56}
                                     className="h-full w-full rounded-full object-cover"
@@ -173,10 +173,7 @@ export default function MobileMenu({
                             </div>
                             {user ? (
                                 <div className="flex items-center justify-between gap-2">
-                                    <button
-                                        type="button"
-                                        className="flex items-center gap-3 p-3 flex-1 rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors text-left overflow-hidden"
-                                    >
+                                    <div className="flex items-center gap-3 p-3 flex-1 rounded-full text-left overflow-hidden">
                                         {user.avatarUrl ? (
                                             <img
                                                 src={user.avatarUrl}
@@ -190,7 +187,7 @@ export default function MobileMenu({
                                             <p className="font-bold text-sm truncate">{user.name}</p>
                                             <p className="text-zinc-500 text-sm truncate">{user.email}</p>
                                         </div>
-                                    </button>
+                                    </div>
                                     <Button
                                         variant="ghost"
                                         size="icon"
