@@ -215,6 +215,7 @@ Production releaseは `NEXT-039/040` の別工程とし、明示的に実施す�
 - Preview DB preflight / schema verify / guarded migration scriptを追加
 - 手動専用 `preview-db-release.yml` workflowを追加
 - `_prisma_migrations` 不在時のhistorical baseline手順を実装
+- CI / E2E trigger整理: integration pushの重複実行を廃止し、PR検証 + main merge後検証へ統一
 
 未完了:
 - 手動Preview DB release workflowの実行
