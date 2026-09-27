@@ -9,6 +9,7 @@ import { rateLimit } from '@/lib/rateLimit';
 import { AccountStatus, Role } from '@prisma/client';
 import { decryptTotpSecret, verifyTotpCode } from '@/lib/totp';
 import { hashRecoveryCode, normalizeRecoveryCode } from '@/lib/recoveryCodes';
+import { getNormalizedAccountModerationState } from '@/lib/accountModeration';
 
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 
@@ -50,15 +51,7 @@ const nextAuthResult = NextAuth({
             const tokenUserId = (token.id ?? token.sub) as string | undefined;
             if (!tokenUserId) return null;
 
-            const currentUser = await prisma.user.findUnique({
-                where: { id: tokenUserId },
-                select: {
-                    role: true,
-                    status: true,
-                    suspendedUntil: true,
-                    sessionVersion: true,
-                },
-            });
+            const currentUser = await getNormalizedAccountModerationState(tokenUserId);
             if (!currentUser) return null;
 
             if (typeof token.sessionVersion !== 'number') {
@@ -69,19 +62,7 @@ const nextAuthResult = NextAuth({
             }
 
             if (currentUser.status === AccountStatus.SUSPENDED) {
-                if (!currentUser.suspendedUntil || currentUser.suspendedUntil > new Date()) {
-                    return null;
-                }
-
-                await prisma.user.update({
-                    where: { id: tokenUserId },
-                    data: {
-                        status: AccountStatus.ACTIVE,
-                        suspendedUntil: null,
-                        restrictionUntil: null,
-                        restrictionReason: null,
-                    },
-                });
+                return null;
             }
 
             token.role = currentUser.role;
@@ -120,24 +101,16 @@ const nextAuthResult = NextAuth({
                 const user = await getUser(email);
                 if (!user || !user.emailVerifiedAt) return null;
 
-                if (user.status === AccountStatus.SUSPENDED) {
-                    if (!user.suspendedUntil || user.suspendedUntil > new Date()) {
-                        return null;
-                    }
-                    await prisma.user.update({
-                        where: { id: user.id },
-                        data: {
-                            status: AccountStatus.ACTIVE,
-                            suspendedUntil: null,
-                            restrictionUntil: null,
-                            restrictionReason: null,
-                        },
-                    });
+                const moderationState = await getNormalizedAccountModerationState(user.id);
+                if (!moderationState || moderationState.status === AccountStatus.SUSPENDED) {
+                    return null;
                 }
 
                 if (!(await bcrypt.compare(password, user.password))) return null;
 
-                const isStaff = user.role === Role.ADMIN || user.role === Role.MODERATOR;
+                const isStaff =
+                    moderationState.role === Role.ADMIN ||
+                    moderationState.role === Role.MODERATOR;
                 if (isStaff && user.staffTotpEnabledAt) {
                     if (!(await rateLimit(`staff-mfa-login:${user.id}`, 10, 15 * 60 * 1000))) {
                         return null;
@@ -196,7 +169,15 @@ const nextAuthResult = NextAuth({
                     }
                 }
 
-                return user;
+                return {
+                    ...user,
+                    role: moderationState.role,
+                    status: moderationState.status,
+                    suspendedUntil: moderationState.suspendedUntil,
+                    restrictionUntil: moderationState.restrictionUntil,
+                    restrictionReason: moderationState.restrictionReason,
+                    sessionVersion: moderationState.sessionVersion,
+                };
             },
         }),
     ],
