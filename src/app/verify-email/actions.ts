@@ -20,8 +20,13 @@ export async function verifyEmail(
     const parsed = tokenSchema.safeParse(formData.get('token'));
     if (!parsed.success) return { message: '確認リンクが正しくありません。' };
 
+    const verificationHash = hashVerificationToken(parsed.data);
+    if (!(await rateLimit(`email-verify-token:${verificationHash.slice(0, 16)}`, 10, 15 * 60 * 1000))) {
+        return { message: '確認の試行が多すぎます。しばらくしてから再度お試しください。' };
+    }
+
     const record = await prisma.emailVerificationToken.findUnique({
-        where: { tokenHash: hashVerificationToken(parsed.data) },
+        where: { tokenHash: verificationHash },
         select: { id: true, userId: true, usedAt: true, expiresAt: true },
     });
 
@@ -42,10 +47,14 @@ export async function verifyEmail(
         });
         if (consumed.count !== 1) return false;
 
-        await tx.user.update({
-            where: { id: record.userId },
+        const verified = await tx.user.updateMany({
+            where: {
+                id: record.userId,
+                emailVerifiedAt: null,
+            },
             data: { emailVerifiedAt: verifiedAt },
         });
+        if (verified.count !== 1) return false;
 
         await tx.emailVerificationToken.updateMany({
             where: {
@@ -80,7 +89,7 @@ export async function requestEmailVerification(
 ): Promise<VerifyEmailState> {
     const parsed = emailSchema.safeParse(formData.get('email'));
     if (!parsed.success) {
-        return { errors: { email: parsed.error.flatten().formErrors }, message: '入力内容を確認してください。' };
+        return { errors: { email: parsed.error.flatten().fieldErrors.email }, message: '入力内容を確認してください。' };
     }
 
     const genericMessage = '未確認の登録メールアドレスであれば、確認メールを送信しました。';
