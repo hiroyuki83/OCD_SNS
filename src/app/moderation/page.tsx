@@ -2,6 +2,12 @@ import Link from 'next/link';
 import { AccountStatus, Prisma, ReportPriority, ReportReason, ReportStatus, Role, WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
+import { normalizeSearchQuery } from '@/lib/searchInput';
+import { visibleAccountFilter } from '@/lib/accountStatus';
+
+export const dynamic = 'force-dynamic';
 import {
   hideReportedPost,
   markReportReviewing,
@@ -79,12 +85,14 @@ function moderationHref(
   query: string,
   priority: ReportPriority | null,
   assignee: string,
+  page = 1,
 ) {
   const params = new URLSearchParams({ status });
   if (reason) params.set('reason', reason);
   if (query) params.set('q', query);
   if (priority) params.set('priority', priority);
   if (assignee) params.set('assigned', assignee);
+  if (page > 1) params.set('page', String(page));
   return `/moderation?${params.toString()}`;
 }
 
@@ -113,7 +121,14 @@ function NoteInput({
 export default async function ModerationPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; reason?: string; q?: string; priority?: string; assigned?: string };
+  searchParams?: {
+    status?: string;
+    reason?: string;
+    q?: string;
+    priority?: string;
+    assigned?: string;
+    page?: string;
+  };
 }) {
   const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
 
@@ -125,7 +140,8 @@ export default async function ModerationPage({
   const priorityFilter = reportPriorities.find((priority) => priority === priorityParam) ?? null;
   const rawAssigneeFilter = searchParams?.assigned?.trim() ?? '';
   const assigneeFilter = rawAssigneeFilter.length <= 128 ? rawAssigneeFilter : '';
-  const query = (searchParams?.q?.trim() ?? '').slice(0, 100);
+  const normalizedQuery = normalizeSearchQuery(searchParams?.q ?? '');
+  const query = normalizedQuery.ok ? normalizedQuery.value : '';
   const baseFilters: Prisma.ReportWhereInput[] = [];
 
   if (reasonFilter) {
@@ -176,40 +192,7 @@ export default async function ModerationPage({
     AND: [{ status: statusFilter }, ...baseFilters],
   };
 
-  const [reports, counts, filteredCount, moderatorUsers, pendingAppealCount] = await Promise.all([
-    prisma.report.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      include: {
-        reporter: { select: { id: true, email: true, handle: true, name: true } },
-        targetUser: {
-          select: {
-            id: true,
-            email: true,
-            handle: true,
-            name: true,
-            role: true,
-            status: true,
-            restrictionUntil: true,
-            suspendedUntil: true,
-          },
-        },
-        reviewedBy: { select: { id: true, email: true, handle: true, name: true } },
-        assignedTo: { select: { id: true, email: true, handle: true, name: true } },
-        post: {
-          select: {
-            id: true,
-            content: true,
-            imageUrl: true,
-            isHidden: true,
-            hiddenReason: true,
-            deletedAt: true,
-            createdAt: true,
-          },
-        },
-      },
-    }),
+  const [counts, filteredCount, moderatorUsers, pendingAppealCount] = await Promise.all([
     prisma.report.groupBy({
       by: ['status'],
       where: countWhere,
@@ -217,15 +200,58 @@ export default async function ModerationPage({
     }),
     prisma.report.count({ where }),
     prisma.user.findMany({
-      where: { role: { in: [Role.ADMIN, Role.MODERATOR] } },
+      where: {
+        role: { in: [Role.ADMIN, Role.MODERATOR] },
+        AND: [visibleAccountFilter(new Date())],
+      },
       orderBy: [{ role: 'desc' }, { createdAt: 'asc' }],
       select: { id: true, email: true, handle: true, name: true, role: true },
-      take: 100,
     }),
     prisma.warningAppeal.count({
       where: { status: WarningAppealStatus.PENDING },
     }),
   ]);
+
+  const pagination = clampPage(
+    parsePageNumber(searchParams?.page),
+    filteredCount,
+    50,
+  );
+
+  const reports = await prisma.report.findMany({
+    where,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    skip: pagination.skip,
+    take: pagination.pageSize,
+    include: {
+      reporter: { select: { id: true, email: true, handle: true, name: true } },
+      targetUser: {
+        select: {
+          id: true,
+          email: true,
+          handle: true,
+          name: true,
+          role: true,
+          status: true,
+          restrictionUntil: true,
+          suspendedUntil: true,
+        },
+      },
+      reviewedBy: { select: { id: true, email: true, handle: true, name: true } },
+      assignedTo: { select: { id: true, email: true, handle: true, name: true } },
+      post: {
+        select: {
+          id: true,
+          content: true,
+          imageUrl: true,
+          isHidden: true,
+          hiddenReason: true,
+          deletedAt: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
 
   const countMap = new Map(counts.map((item) => [item.status, item._count._all]));
 
@@ -353,7 +379,12 @@ export default async function ModerationPage({
           </div>
         </div>
         <div className="mt-3 text-xs text-zinc-500">
-          {filteredCount} 件を表示しています。最大100件まで表示します。
+          {filteredCount === 0
+            ? '0件'
+            : `${pagination.skip + 1}〜${Math.min(
+                pagination.skip + reports.length,
+                filteredCount,
+              )}件目`} / {filteredCount}件
         </div>
       </form>
 
@@ -636,6 +667,39 @@ export default async function ModerationPage({
           })
         )}
       </div>
+
+      {filteredCount > 0 && (
+        <div className="mt-4">
+          <PaginationLinks
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            previousHref={
+              pagination.hasPrevious
+                ? moderationHref(
+                    statusFilter,
+                    reasonFilter,
+                    query,
+                    priorityFilter,
+                    assigneeFilter,
+                    pagination.page - 1,
+                  )
+                : null
+            }
+            nextHref={
+              pagination.hasNext
+                ? moderationHref(
+                    statusFilter,
+                    reasonFilter,
+                    query,
+                    priorityFilter,
+                    assigneeFilter,
+                    pagination.page + 1,
+                  )
+                : null
+            }
+          />
+        </div>
+      )}
     </div>
   );
 }
