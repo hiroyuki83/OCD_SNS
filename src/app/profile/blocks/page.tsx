@@ -2,10 +2,16 @@ import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { unblockUser } from '@/app/lib/actions';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
 
-export default async function BlocksPage() {
+export default async function BlocksPage({
+    searchParams,
+}: {
+    searchParams?: { page?: string };
+}) {
     const session = await auth();
     let userId = session?.user?.id ?? null;
     if (!userId && session?.user?.email) {
@@ -24,8 +30,9 @@ export default async function BlocksPage() {
         );
     }
 
-    const [blocks, blockCount] = await Promise.all([
-        prisma.block.findMany({
+    const blockCount = await prisma.block.count({ where: { blockerId: userId } });
+    const pagination = clampPage(parsePageNumber(searchParams?.page), blockCount, 50);
+    const blocks = await prisma.block.findMany({
         where: { blockerId: userId },
         select: {
             id: true,
@@ -40,11 +47,10 @@ export default async function BlocksPage() {
                 },
             },
         },
-        orderBy: { createdAt: 'desc' },
-        take: 200,
-        }),
-        prisma.block.count({ where: { blockerId: userId } }),
-    ]);
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: pagination.skip,
+        take: pagination.pageSize,
+    });
 
     return (
         <div className="min-h-screen border-r border-border">
@@ -55,9 +61,9 @@ export default async function BlocksPage() {
                 </Link>
             </div>
             <div className="flex flex-col">
-                {blockCount > blocks.length && (
+                {blockCount > 0 && (
                     <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
-                        最新200件を表示しています
+                        ブロック {blockCount}件・{pagination.page} / {pagination.totalPages}ページ
                     </div>
                 )}
                 {blocks.map((entry) => (
@@ -102,6 +108,14 @@ export default async function BlocksPage() {
                         </form>
                     </div>
                 ))}
+                {blockCount > 0 && (
+                    <PaginationLinks
+                        page={pagination.page}
+                        totalPages={pagination.totalPages}
+                        previousHref={pagination.hasPrevious ? `/profile/blocks?page=${pagination.page - 1}` : null}
+                        nextHref={pagination.hasNext ? `/profile/blocks?page=${pagination.page + 1}` : null}
+                    />
+                )}
                 {blockCount === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">ブロック中のユーザーがいません</div>
                 )}
