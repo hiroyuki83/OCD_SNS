@@ -114,19 +114,19 @@
 | NEXT-018 | 心理検査データのアクセス権仕様を明文化 | P0 | DONE |
 | NEXT-019 | 心理検査データを管理画面から原則参照不可にする確認 / 修正 | P0 | DONE |
 | NEXT-020 | アカウント削除 | P1 | TODO |
-| NEXT-021 | ユーザーデータエクスポート | P1 | TODO |
+| NEXT-021 | ユーザーデータエクスポート | P1 | DONE |
 | NEXT-022 | メールアドレス変更 | P1 | TODO |
 | NEXT-023 | 通常のパスワード変更 | P1 | DONE |
-| NEXT-024 | 制裁履歴をユーザー単位で統合表示 | P1 | TODO |
+| NEXT-024 | 制裁履歴をユーザー単位で統合表示 | P1 | DONE |
 | NEXT-025 | 警告以外の処分への Appeal model を検討 | P1 | TODO |
 | NEXT-026 | 異議申立て結果通知 | P1 | TODO |
 | NEXT-027 | 通知設定 | P2 | TODO |
 | NEXT-028 | ユーザー / @handle 検索 | P2 | DONE |
 | NEXT-029 | ハッシュタグ検索 | P2 | DONE |
 | NEXT-030 | 画像 alt text | P2 | DONE |
-| NEXT-031 | キーボード / focus / screen reader 監査 | P2 | IN PROGRESS |
-| NEXT-032 | アプリレベルのエラー監視 | P2 | TODO |
-| NEXT-033 | DB / Blob バックアップ・復旧手順の文書化 | P2 | TODO |
+| NEXT-031 | キーボード / focus / screen reader 監査 | P2 | DONE |
+| NEXT-032 | アプリレベルのエラー監視 | P2 | IN PROGRESS |
+| NEXT-033 | DB / Blob バックアップ・復旧手順の文書化 | P2 | DONE |
 
 ## 実装しない機能
 
@@ -191,3 +191,46 @@
 ### バッチ後の検証
 
 GitHub Actions `Security integration CI` run 36334031017 で最終確認済み。Prisma validate / generate / lint / 78 unit tests / TypeScript / Next.js production build はすべて成功。検証 commit: `b9541cd0bdf4b830f678824db16f8a9050da8c5a`。
+
+
+## 2026-09-28 実装バッチ2（30タスク）
+
+| # | 内容 | Status |
+|---:|---|---|
+| 1 | Preview seed安全判定helperを追加 | DONE |
+| 2 | Preview seed安全判定の単体テストを追加 | DONE |
+| 3 | DATABASE_URLとPREVIEW_DATABASE_URL完全一致をseed条件に追加 | DONE |
+| 4 | アカウントexport用filename/header helperを追加 | DONE |
+| 5 | export responseのno-store / attachmentテストを追加 | DONE |
+| 6 | 本人データJSON export APIを追加 | DONE |
+| 7 | 設定画面用データexport UIを追加 | DONE |
+| 8 | 設定ページへデータexportを統合 | DONE |
+| 9 | デスクトップの動作しないプロフィールbuttonを非interactive化 | DONE |
+| 10 | モバイルの動作しないプロフィールbuttonを非interactive化 | DONE |
+| 11 | 未読通知件数をscreen readerへ伝えるaria-labelを追加 | DONE |
+| 12 | pagination linkのkeyboard focus表示を改善 | DONE |
+| 13 | モデレーション統合タイムラインbuilderを追加 | DONE |
+| 14 | モデレーションタイムラインの単体テストを追加 | DONE |
+| 15 | ADMINユーザー詳細へ制裁・モデレーション時系列表示を追加 | DONE |
+| 16 | account exportの秘密情報混入防止テストを追加 | DONE |
+| 17 | account export仕様書を追加 | DONE |
+| 18 | DB / Blobバックアップ・復旧方針を文書化 | DONE |
+| 19 | Previewデプロイ安全チェックリストを追加 | DONE |
+| 20 | Preview公開ページHTTP smoke test scriptを追加 | DONE |
+| 21 | npm smoke:preview scriptを追加 | DONE |
+| 22 | privacy-safe operational error helperを追加 | DONE |
+| 23 | operational errorにPIIが入らない単体テストを追加 | DONE |
+| 24 | account export失敗時にincident IDを返す処理を追加 | DONE |
+| 25 | App Router error boundaryを追加 | DONE |
+| 26 | root global error fallbackを追加 | DONE |
+| 27 | 通知avatarの冗長なscreen reader読み上げを修正 | DONE |
+| 28 | 運用エラーログのプライバシー方針を文書化 | DONE |
+| 29 | Preview要件定義を今回の実装へ同期 | DONE |
+| 30 | Previewロードマップを今回の実装へ同期 | DONE |
+
+### バッチ2で意図的に未実施
+
+- NEXT-006: Vercel Preview最新同期
+- NEXT-007: Preview DB migration / seed / smoke test
+
+今回のschema変更にはReply/Quote削除とPost.imageAlt追加が含まれるため、Preview DBの接続先を安全に特定できるまではmigrationを実行しない。
