@@ -113,6 +113,7 @@ export default function CreatePostForm({
                 <textarea
                     ref={inputRef}
                     name="content"
+                    aria-label="投稿本文"
                     value={content}
                     onChange={(event) => setContent(event.target.value)}
                     onKeyDown={(event) => {
