@@ -3,16 +3,53 @@ import { Role, WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
 import { reviewWarningAppeal } from './actions';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
+
+export const dynamic = 'force-dynamic';
 
 const formatDate = (date: Date) =>
   date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
 
-export default async function AppealListPage() {
+const appealStatuses = [
+  WarningAppealStatus.PENDING,
+  WarningAppealStatus.UPHELD,
+  WarningAppealStatus.OVERTURNED,
+] as const;
+
+function selectedStatus(value?: string) {
+  return appealStatuses.find((status) => status === value) ?? null;
+}
+
+function appealHref(status: WarningAppealStatus | null, page = 1) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (page > 1) params.set('page', String(page));
+  const suffix = params.toString();
+  return suffix ? `/moderation/appeals?${suffix}` : '/moderation/appeals';
+}
+
+export default async function AppealListPage({
+  searchParams,
+}: {
+  searchParams?: { status?: string; page?: string };
+}) {
   const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  const statusFilter = selectedStatus(searchParams?.status);
+  const where = statusFilter ? { status: statusFilter } : undefined;
+
+  const appealCount = await prisma.warningAppeal.count({ where });
+  const pagination = clampPage(
+    parsePageNumber(searchParams?.page),
+    appealCount,
+    50,
+  );
 
   const appeals = await prisma.warningAppeal.findMany({
-    orderBy: { createdAt: 'desc' },
-    take: 100,
+    where,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    skip: pagination.skip,
+    take: pagination.pageSize,
     include: {
       user: {
         select: {
@@ -54,6 +91,42 @@ export default async function AppealListPage() {
         <p className="mt-1 text-sm text-zinc-500">
           警告に対する異議申立てを審査します。
         </p>
+      </div>
+
+      <div className="mb-5 flex flex-wrap gap-2">
+        <Link
+          href={appealHref(null)}
+          className={
+            'rounded-full border px-3 py-1 text-xs font-semibold ' +
+            (!statusFilter
+              ? 'border-black bg-black text-white'
+              : 'border-border text-zinc-600')
+          }
+        >
+          すべて
+        </Link>
+        {appealStatuses.map((status) => (
+          <Link
+            key={status}
+            href={appealHref(status)}
+            className={
+              'rounded-full border px-3 py-1 text-xs font-semibold ' +
+              (statusFilter === status
+                ? 'border-black bg-black text-white'
+                : 'border-border text-zinc-600')
+            }
+          >
+            {status === WarningAppealStatus.PENDING
+              ? '未審査'
+              : status === WarningAppealStatus.UPHELD
+                ? '警告維持'
+                : '警告取消'}
+          </Link>
+        ))}
+      </div>
+
+      <div className="mb-4 text-xs text-zinc-500">
+        {appealCount}件・{pagination.page}/{pagination.totalPages}ページ
       </div>
 
       <div className="flex flex-col gap-3">
@@ -104,19 +177,19 @@ export default async function AppealListPage() {
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span
                     className={
-                      "rounded-full px-2 py-1 text-xs font-semibold " +
+                      'rounded-full px-2 py-1 text-xs font-semibold ' +
                       (appeal.status === WarningAppealStatus.PENDING
-                        ? "bg-zinc-100 text-zinc-700"
+                        ? 'bg-zinc-100 text-zinc-700'
                         : appeal.status === WarningAppealStatus.UPHELD
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-green-100 text-green-800")
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-green-100 text-green-800')
                     }
                   >
                     {appeal.status === WarningAppealStatus.PENDING
-                      ? "未審査"
+                      ? '未審査'
                       : appeal.status === WarningAppealStatus.UPHELD
-                        ? "警告維持"
-                        : "警告取消"}
+                        ? '警告維持'
+                        : '警告取消'}
                   </span>
                   {appeal.reviewedAt && (
                     <span className="text-xs text-zinc-500">
@@ -199,6 +272,25 @@ export default async function AppealListPage() {
           })
         )}
       </div>
+
+      {appealCount > 0 && (
+        <div className="mt-4">
+          <PaginationLinks
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            previousHref={
+              pagination.hasPrevious
+                ? appealHref(statusFilter, pagination.page - 1)
+                : null
+            }
+            nextHref={
+              pagination.hasNext
+                ? appealHref(statusFilter, pagination.page + 1)
+                : null
+            }
+          />
+        </div>
+      )}
     </div>
   );
 }
