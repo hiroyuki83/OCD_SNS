@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import HashtagText from '@/components/shared/HashtagText';
 import { formatPostTime } from '@/lib/formatTime';
+import { normalizeSearchQuery } from '@/lib/searchInput';
+import { parsePageNumber } from '@/lib/pagination';
+import PaginationLinks from '@/components/shared/PaginationLinks';
 
 type SearchPost = {
     id: string;
@@ -19,11 +22,11 @@ type SearchPost = {
 
 export default function ExploreClient() {
     const searchParams = useSearchParams();
-    const query = (searchParams.get('q')?.trim() ?? '').slice(0, 100);
-    const rawPage = searchParams.get('page') ?? '1';
-    const requestedPage = /^\d+$/.test(rawPage) && Number.isSafeInteger(Number(rawPage))
-        ? Math.max(1, Number(rawPage))
-        : 1;
+    const rawQuery = searchParams.get('q') ?? '';
+    const normalizedQuery = normalizeSearchQuery(rawQuery);
+    const query = normalizedQuery.ok ? normalizedQuery.value : '';
+    const queryError = normalizedQuery.ok ? null : normalizedQuery.error;
+    const requestedPage = parsePageNumber(searchParams.get('page'));
     const [result, setResult] = useState<{
         query: string;
         requestedPage: number;
@@ -47,18 +50,16 @@ export default function ExploreClient() {
     });
 
     useEffect(() => {
-        const current = (searchParams.get('q')?.trim() ?? '').slice(0, 100);
-        const currentRawPage = searchParams.get('page') ?? '1';
-        const currentPage =
-            /^\d+$/.test(currentRawPage) && Number.isSafeInteger(Number(currentRawPage))
-                ? Math.max(1, Number(currentRawPage))
-                : 1;
-        if (!current) return;
+        const currentResult = normalizeSearchQuery(searchParams.get('q') ?? '');
+        if (!currentResult.ok || !currentResult.value) return;
+        const current = currentResult.value;
+        const currentPage = parsePageNumber(searchParams.get('page'));
         const controller = new AbortController();
         fetch(
             `/api/search-posts?q=${encodeURIComponent(current)}&page=${currentPage}`,
             {
                 cache: 'no-store',
+                credentials: 'include',
                 signal: controller.signal,
             },
         )
@@ -114,7 +115,7 @@ export default function ExploreClient() {
             <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border px-4 py-3">
                 <div className="flex items-center justify-between">
                     <h1 className="font-bold text-base">検索</h1>
-                    {query && (
+                    {query && !queryError && (
                         <span className="text-xs text-zinc-500">
                             &ldquo;{query}&rdquo; の結果
                         </span>
@@ -122,16 +123,21 @@ export default function ExploreClient() {
                 </div>
                 <form action="/explore" className="mt-3">
                     <input
-                        key={query}
+                        key={rawQuery}
                         type="text"
                         name="q"
-                        defaultValue={query}
+                        defaultValue={rawQuery}
                         maxLength={100}
                         placeholder="検索"
                         className="w-full rounded-full bg-zinc-100 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1d9bf0]"
                     />
                 </form>
-                {query && (
+                {queryError && (
+                    <div role="alert" className="mt-3 text-xs text-red-700">
+                        {queryError}
+                    </div>
+                )}
+                {query && !queryError && (
                     <div className="mt-3 flex gap-3 text-xs text-zinc-500">
                         <span aria-live="polite">
                             投稿 {totalCount}件・{page}/{totalPages}ページ
@@ -140,7 +146,7 @@ export default function ExploreClient() {
                 )}
             </div>
 
-            {!query && (
+            {!query && !queryError && (
                 <div className="p-6 text-sm text-zinc-500">
                     何かを検索してみましょう
                 </div>
@@ -193,35 +199,12 @@ export default function ExploreClient() {
                         </div>
                     ))}
                     {!isLoading && !hasError && totalCount > 0 && (
-                        <div className="flex items-center justify-between pt-2 text-sm">
-                            {hasPrevious ? (
-                                <Link
-                                    href={searchHref(page - 1)}
-                                    className="rounded-full border border-border px-4 py-2"
-                                >
-                                    前へ
-                                </Link>
-                            ) : (
-                                <span className="rounded-full border border-border px-4 py-2 text-zinc-400">
-                                    前へ
-                                </span>
-                            )}
-                            <span className="text-xs text-zinc-500">
-                                {page} / {totalPages}
-                            </span>
-                            {hasNext ? (
-                                <Link
-                                    href={searchHref(page + 1)}
-                                    className="rounded-full border border-border px-4 py-2"
-                                >
-                                    次へ
-                                </Link>
-                            ) : (
-                                <span className="rounded-full border border-border px-4 py-2 text-zinc-400">
-                                    次へ
-                                </span>
-                            )}
-                        </div>
+                        <PaginationLinks
+                            page={page}
+                            totalPages={totalPages}
+                            previousHref={hasPrevious ? searchHref(page - 1) : null}
+                            nextHref={hasNext ? searchHref(page + 1) : null}
+                        />
                     )}
                 </div>
             )}
