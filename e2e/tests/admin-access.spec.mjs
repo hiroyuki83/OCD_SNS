@@ -22,37 +22,34 @@ test('ADMIN can change and restore a user role and account status', async ({ pag
   const roleSelect = section.locator('#admin-user-role');
   const statusSelect = section.locator('#admin-user-status');
 
-  await password.fill(PREVIEW_PASSWORD);
-  await roleSelect.selectOption('MODERATOR');
-  page.once('dialog', (dialog) => dialog.accept());
-  await section.getByRole('button', { name: '権限を更新' }).click();
-  await expect(roleSelect).toHaveValue('MODERATOR');
+  async function saveRole(role) {
+    await password.fill(PREVIEW_PASSWORD);
+    await roleSelect.selectOption(role);
+    page.once('dialog', (dialog) => dialog.accept());
+    await section.getByRole('button', { name: '権限を更新' }).click();
+    await expect(password).toHaveValue('');
+    await page.reload();
+    await expect(roleSelect).toHaveValue(role);
+  }
 
-  await password.fill(PREVIEW_PASSWORD);
-  await roleSelect.selectOption('USER');
-  page.once('dialog', (dialog) => dialog.accept());
-  await section.getByRole('button', { name: '権限を更新' }).click();
-  await expect(roleSelect).toHaveValue('USER');
+  async function saveStatus(status, reason = null) {
+    await password.fill(PREVIEW_PASSWORD);
+    await statusSelect.selectOption(status);
+    if (reason) {
+      page.once('dialog', (dialog) => dialog.accept(reason));
+    }
+    await section.getByRole('button', { name: '状態を更新' }).click();
+    await expect(password).toHaveValue('');
+    await page.reload();
+    await expect(statusSelect).toHaveValue(status);
+  }
 
-  await password.fill(PREVIEW_PASSWORD);
-  await statusSelect.selectOption('POST_RESTRICTED');
-  page.once('dialog', (dialog) => dialog.accept('E2E投稿制限理由です'));
-  await section.getByRole('button', { name: '状態を更新' }).click();
-  await expect(statusSelect).toHaveValue('POST_RESTRICTED');
+  await saveRole('MODERATOR');
+  await saveRole('USER');
 
-  await password.fill(PREVIEW_PASSWORD);
-  await statusSelect.selectOption('ACTIVE');
-  await section.getByRole('button', { name: '状態を更新' }).click();
-  await expect(statusSelect).toHaveValue('ACTIVE');
+  await saveStatus('POST_RESTRICTED', 'E2E投稿制限理由です');
+  await saveStatus('ACTIVE');
 
-  await password.fill(PREVIEW_PASSWORD);
-  await statusSelect.selectOption('SUSPENDED');
-  page.once('dialog', (dialog) => dialog.accept('E2E停止理由です'));
-  await section.getByRole('button', { name: '状態を更新' }).click();
-  await expect(statusSelect).toHaveValue('SUSPENDED');
-
-  await password.fill(PREVIEW_PASSWORD);
-  await statusSelect.selectOption('ACTIVE');
-  await section.getByRole('button', { name: '状態を更新' }).click();
-  await expect(statusSelect).toHaveValue('ACTIVE');
+  await saveStatus('SUSPENDED', 'E2E停止理由です');
+  await saveStatus('ACTIVE');
 });
