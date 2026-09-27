@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { unblockUser } from '@/app/lib/actions';
+import { UnblockForm } from '@/components/profile/ProfileRelationActions';
 import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
 
@@ -101,11 +101,7 @@ export default async function BlocksPage({
                                 </span>
                             </div>
                         </div>
-                        <form action={unblockUser.bind(null, entry.blocked.id)}>
-                            <button type="submit" className="text-xs text-[#1d9bf0] hover:underline">
-                                ブロック解除
-                            </button>
-                        </form>
+                        <UnblockForm targetUserId={entry.blocked.id} />
                     </div>
                 ))}
                 {blockCount > 0 && (
