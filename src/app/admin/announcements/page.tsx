@@ -2,6 +2,10 @@ import { Role } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireRole } from '@/lib/rbac';
 import { createAnnouncement, setAnnouncementActive } from './actions';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
+
+export const dynamic = 'force-dynamic';
 
 const formatDate = (date: Date | null) =>
   date ? date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) : '指定なし';
@@ -19,26 +23,34 @@ function isVisibleNow(announcement: {
   );
 }
 
-export default async function AdminAnnouncementsPage() {
+export default async function AdminAnnouncementsPage({
+  searchParams,
+}: {
+  searchParams?: { page?: string };
+}) {
   await requireRole(Role.ADMIN);
 
-  const [announcements, announcementCount] = await Promise.all([
-    prisma.announcement.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      include: {
-        createdBy: { select: { email: true, name: true } },
-      },
-    }),
-    prisma.announcement.count(),
-  ]);
+  const announcementCount = await prisma.announcement.count();
+  const pagination = clampPage(
+    parsePageNumber(searchParams?.page),
+    announcementCount,
+    50,
+  );
+  const announcements = await prisma.announcement.findMany({
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    skip: pagination.skip,
+    take: pagination.pageSize,
+    include: {
+      createdBy: { select: { email: true, name: true } },
+    },
+  });
 
   return (
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold">お知らせ管理</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          公開中のお知らせはホームのフィード上部に表示されます。
+          公開中のお知らせはホームのフィード上部に表示されます。日時は日本時間（JST）で指定してください。
         </p>
       </div>
 
@@ -80,7 +92,7 @@ export default async function AdminAnnouncementsPage() {
 
         <div className="mb-4 grid gap-3 sm:grid-cols-2">
           <label className="block text-sm font-medium text-zinc-700">
-            開始日時
+            開始日時（JST）
             <input
               name="startsAt"
               type="datetime-local"
@@ -88,7 +100,7 @@ export default async function AdminAnnouncementsPage() {
             />
           </label>
           <label className="block text-sm font-medium text-zinc-700">
-            終了日時
+            終了日時（JST）
             <input
               name="endsAt"
               type="datetime-local"
@@ -108,9 +120,9 @@ export default async function AdminAnnouncementsPage() {
         </div>
       </form>
 
-      {announcementCount > announcements.length && (
+      {announcementCount > 0 && (
         <div className="mb-3 text-xs text-zinc-500">
-          全{announcementCount}件のうち最新50件を表示しています。
+          全{announcementCount}件・{pagination.page}/{pagination.totalPages}ページ
         </div>
       )}
 
@@ -175,6 +187,22 @@ export default async function AdminAnnouncementsPage() {
           })
         )}
       </div>
+      {announcementCount > 0 && (
+        <PaginationLinks
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          previousHref={
+            pagination.hasPrevious
+              ? `/admin/announcements?page=${pagination.page - 1}`
+              : null
+          }
+          nextHref={
+            pagination.hasNext
+              ? `/admin/announcements?page=${pagination.page + 1}`
+              : null
+          }
+        />
+      )}
     </div>
   );
 }
