@@ -3,10 +3,16 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { acceptFollowRequest, rejectFollowRequest, removeFollower } from '@/app/lib/actions';
 import { visibleAccountFilter } from '@/lib/accountStatus';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
 
-export default async function FollowersPage() {
+export default async function FollowersPage({
+    searchParams,
+}: {
+    searchParams?: { page?: string; pendingPage?: string };
+}) {
     const session = await auth();
     let userId = session?.user?.id ?? null;
     if (!userId && session?.user?.email) {
@@ -26,13 +32,36 @@ export default async function FollowersPage() {
     }
 
     const now = new Date();
-    const [followers, pendingRequests, followerCount, pendingRequestCount] = await Promise.all([
+    const acceptedWhere = {
+        followingId: userId,
+        acceptedAt: { not: null },
+        follower: visibleAccountFilter(now),
+    };
+    const pendingWhere = {
+        followingId: userId,
+        acceptedAt: null,
+        follower: visibleAccountFilter(now),
+    };
+
+    const [followerCount, pendingRequestCount] = await Promise.all([
+        prisma.follow.count({ where: acceptedWhere }),
+        prisma.follow.count({ where: pendingWhere }),
+    ]);
+
+    const acceptedPagination = clampPage(
+        parsePageNumber(searchParams?.page),
+        followerCount,
+        50,
+    );
+    const pendingPagination = clampPage(
+        parsePageNumber(searchParams?.pendingPage),
+        pendingRequestCount,
+        50,
+    );
+
+    const [followers, pendingRequests] = await Promise.all([
         prisma.follow.findMany({
-            where: {
-                followingId: userId,
-                acceptedAt: { not: null },
-                follower: visibleAccountFilter(now),
-            },
+            where: acceptedWhere,
             select: {
                 id: true,
                 acceptedAt: true,
@@ -46,15 +75,12 @@ export default async function FollowersPage() {
                     },
                 },
             },
-            orderBy: { createdAt: 'desc' },
-            take: 200,
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            skip: acceptedPagination.skip,
+            take: acceptedPagination.pageSize,
         }),
         prisma.follow.findMany({
-            where: {
-                followingId: userId,
-                acceptedAt: null,
-                follower: visibleAccountFilter(now),
-            },
+            where: pendingWhere,
             select: {
                 id: true,
                 createdAt: true,
@@ -68,22 +94,9 @@ export default async function FollowersPage() {
                     },
                 },
             },
-            orderBy: { createdAt: 'desc' },
-            take: 200,
-        }),
-        prisma.follow.count({
-            where: {
-                followingId: userId,
-                acceptedAt: { not: null },
-                follower: visibleAccountFilter(now),
-            },
-        }),
-        prisma.follow.count({
-            where: {
-                followingId: userId,
-                acceptedAt: null,
-                follower: visibleAccountFilter(now),
-            },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            skip: pendingPagination.skip,
+            take: pendingPagination.pageSize,
         }),
     ]);
 
@@ -102,7 +115,7 @@ export default async function FollowersPage() {
             {pendingRequestCount > 0 && (
                 <section className="border-b border-border">
                     <div className="px-4 py-3 text-sm font-semibold text-zinc-900">
-                        承認待ち {pendingRequestCount}件{pendingRequestCount > pendingRequests.length ? '（最新200件を表示）' : ''}
+                        承認待ち {pendingRequestCount}件・{pendingPagination.page}/{pendingPagination.totalPages}ページ
                     </div>
                     {pendingRequests.map((entry) => (
                         <div key={entry.id} className="p-4 border-t border-border bg-amber-50/40 flex items-center gap-4">
@@ -167,13 +180,27 @@ export default async function FollowersPage() {
                             </div>
                         </div>
                     ))}
+                    <PaginationLinks
+                        page={pendingPagination.page}
+                        totalPages={pendingPagination.totalPages}
+                        previousHref={
+                            pendingPagination.hasPrevious
+                                ? `/profile/followers?page=${acceptedPagination.page}&pendingPage=${pendingPagination.page - 1}`
+                                : null
+                        }
+                        nextHref={
+                            pendingPagination.hasNext
+                                ? `/profile/followers?page=${acceptedPagination.page}&pendingPage=${pendingPagination.page + 1}`
+                                : null
+                        }
+                    />
                 </section>
             )}
 
             <div className="flex flex-col">
                 {followerCount > 0 && (
                     <div className="px-4 py-3 text-sm font-semibold text-zinc-900">
-                        承認済み {followerCount}件{followerCount > followers.length ? '（最新200件を表示）' : ''}
+                        承認済み {followerCount}件・{acceptedPagination.page}/{acceptedPagination.totalPages}ページ
                     </div>
                 )}
                 {followers.map((entry) => (
@@ -227,6 +254,22 @@ export default async function FollowersPage() {
                         </form>
                     </div>
                 ))}
+                {followerCount > 0 && (
+                    <PaginationLinks
+                        page={acceptedPagination.page}
+                        totalPages={acceptedPagination.totalPages}
+                        previousHref={
+                            acceptedPagination.hasPrevious
+                                ? `/profile/followers?page=${acceptedPagination.page - 1}&pendingPage=${pendingPagination.page}`
+                                : null
+                        }
+                        nextHref={
+                            acceptedPagination.hasNext
+                                ? `/profile/followers?page=${acceptedPagination.page + 1}&pendingPage=${pendingPagination.page}`
+                                : null
+                        }
+                    />
+                )}
                 {followerCount === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">
                         {pendingRequestCount > 0 ? '承認済みフォロワーはいません' : 'フォロワーはいません'}
