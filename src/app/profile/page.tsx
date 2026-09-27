@@ -71,6 +71,7 @@ export default async function ProfilePage({
                 id: true,
                 content: true,
                 imageUrl: true,
+                imageAlt: true,
                 createdAt: true,
                 wakaruCount: true,
                 ganbattaCount: true,
@@ -208,7 +209,7 @@ export default async function ProfilePage({
                             {post.imageUrl && (
                                 <img
                                     src={post.imageUrl}
-                                    alt="投稿画像"
+                                    alt={post.imageAlt ?? ''}
                                     className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
                                 />
                             )}
