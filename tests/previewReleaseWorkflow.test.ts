@@ -29,7 +29,7 @@ test('Preview DB workflow is manual-only and requires exact confirmation', () =>
   assert.ok(!source.includes('\n  push:'));
   assert.ok(!source.includes('\n  pull_request:'));
   assert.ok(source.includes("inputs.confirmation == 'MIGRATE_COCO_PREVIEW'"));
-  assert.ok(source.includes("github.ref_name == 'security-integration-final-20260926'"));
+  assert.ok(source.includes("github.ref_name == 'feature/sanction-records-20260928'"));
   assert.ok(source.includes('secrets.PREVIEW_DATABASE_URL'));
 });
 
