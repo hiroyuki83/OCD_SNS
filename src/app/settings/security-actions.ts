@@ -3,7 +3,7 @@
 import bcrypt from 'bcryptjs';
 import { Role } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
-import { auth } from '@/auth';
+import { auth, signOut } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { generateStaffRecoveryCodes, hashRecoveryCode, normalizeRecoveryCode } from '@/lib/recoveryCodes';
@@ -487,4 +487,76 @@ export async function disableStaffTotp(
 
   revalidatePath('/settings');
   return { ok: true, message: '2段階認証を解除しました。' };
+}
+
+
+export type SessionSecurityState =
+  | {
+      ok?: boolean;
+      message?: string;
+    }
+  | undefined;
+
+export async function revokeAllSessions(
+  _prevState: SessionSecurityState,
+  formData: FormData,
+): Promise<SessionSecurityState> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { message: 'ログインしてください。' };
+
+  if (!(await rateLimit(`session-revoke-all:${userId}`, 5, 60 * 60 * 1000))) {
+    return { message: '操作が多すぎます。しばらくしてから再度お試しください。' };
+  }
+
+  const password = formData.get('currentPassword');
+  if (!isValidCurrentPassword(password)) {
+    return { message: '現在のパスワードを入力してください。' };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      password: true,
+      sessionVersion: true,
+    },
+  });
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return { message: '現在のパスワードを確認できませんでした。' };
+  }
+
+  const revokedAt = new Date();
+  const changed = await prisma.$transaction(async (tx) => {
+    const updated = await tx.user.updateMany({
+      where: {
+        id: userId,
+        sessionVersion: user.sessionVersion,
+      },
+      data: {
+        sessionVersion: { increment: 1 },
+      },
+    });
+    if (updated.count !== 1) return false;
+
+    await tx.auditLog.create({
+      data: {
+        action: 'USER_SESSIONS_REVOKED',
+        actorUserId: userId,
+        targetUserId: userId,
+        meta: {
+          revokedAt,
+          previousSessionVersion: user.sessionVersion,
+          sessionsRevoked: true,
+        },
+      },
+    });
+    return true;
+  });
+
+  if (!changed) {
+    return { message: 'セッション状態が変更されました。画面を更新して再度お試しください。' };
+  }
+
+  await signOut({ redirectTo: '/login' });
+  return { ok: true, message: 'すべての端末からログアウトしました。' };
 }
