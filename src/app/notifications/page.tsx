@@ -45,7 +45,7 @@ export default async function NotificationsPage() {
         ],
     };
 
-    const [notifications, warnings] = await Promise.all([
+    const [notifications, warnings, notificationCount, warningCount] = await Promise.all([
         prisma.notification.findMany({
             where: {
                 userId: resolvedUserId,
@@ -106,7 +106,29 @@ export default async function NotificationsPage() {
             },
             take: 50,
         }),
+        prisma.notification.count({
+            where: {
+                userId: resolvedUserId,
+                actor: notificationActorFilter,
+                OR: [
+                    { type: 'FOLLOW' },
+                    {
+                        post: {
+                            is: {
+                                deletedAt: null,
+                                isHidden: false,
+                            },
+                        },
+                    },
+                ],
+            },
+        }),
+        prisma.moderationWarning.count({
+            where: { targetUserId: resolvedUserId },
+        }),
     ]);
+
+    const totalItemCount = notificationCount + warningCount;
 
     const followActorIds = Array.from(
         new Set(
@@ -164,6 +186,13 @@ export default async function NotificationsPage() {
                 <h1 className="font-bold text-base">通知</h1>
             </div>
             <div className="flex flex-col">
+                {totalItemCount > 0 && (
+                    <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
+                        {totalItemCount > items.length
+                            ? `最新${items.length}件を表示しています（全${totalItemCount}件）`
+                            : `全${totalItemCount}件`}
+                    </div>
+                )}
                 {items.map((item) => {
                     const timestamp = item.createdAt.toLocaleString('ja-JP', {
                         timeZone: 'Asia/Tokyo',
