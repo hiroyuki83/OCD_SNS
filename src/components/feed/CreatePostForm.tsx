@@ -5,14 +5,7 @@ import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { createPost, type CreatePostState } from '@/app/lib/actions';
 import { getPostSafetyNotice } from '@/lib/contentSafety';
-
-const MAX_POST_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
-const SUPPORTED_POST_IMAGE_TYPES = new Set([
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'image/gif',
-]);
+import { validateClientImageFile } from '@/lib/clientImageValidation';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -67,19 +60,6 @@ export default function CreatePostForm({
         }
     }, [autoFocus]);
 
-    const validateSelectedImage = (file: File) => {
-        if (!SUPPORTED_POST_IMAGE_TYPES.has(file.type)) {
-            return 'JPEG、PNG、WebP、GIF画像を選択してください。';
-        }
-        if (file.size <= 0) {
-            return '空の画像ファイルは使用できません。';
-        }
-        if (file.size > MAX_POST_IMAGE_SIZE_BYTES) {
-            return '画像は5MB以下にしてください。';
-        }
-        return null;
-    };
-
     const handleClipboardImage = async (event?: React.ClipboardEvent<HTMLTextAreaElement>) => {
         setClipboardMessage(null);
         try {
@@ -93,7 +73,7 @@ export default function CreatePostForm({
                 const file = new File([blob], `clipboard.${item.type.split('/')[1] ?? 'png'}`, {
                     type: item.type,
                 });
-                const validationError = validateSelectedImage(file);
+                const validationError = await validateClientImageFile(file);
                 if (validationError) {
                     setClipboardMessage(validationError);
                     return;
@@ -164,16 +144,17 @@ export default function CreatePostForm({
                             accept="image/jpeg,image/png,image/webp,image/gif"
                             className="hidden"
                             ref={fileInputRef}
-                            onChange={(event) => {
-                                const file = event.currentTarget.files?.[0];
+                            onChange={async (event) => {
+                                const input = event.currentTarget;
+                                const file = input.files?.[0];
                                 setClipboardMessage(null);
                                 if (!file) {
                                     setImageName('');
                                     return;
                                 }
-                                const validationError = validateSelectedImage(file);
+                                const validationError = await validateClientImageFile(file);
                                 if (validationError) {
-                                    event.currentTarget.value = '';
+                                    input.value = '';
                                     setImageName('');
                                     setClipboardMessage(validationError);
                                     return;
