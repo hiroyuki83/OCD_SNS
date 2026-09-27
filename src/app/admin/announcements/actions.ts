@@ -148,3 +148,89 @@ export async function setAnnouncementActive(announcementId: string, isActive: bo
 
   revalidateAnnouncementViews();
 }
+
+
+export async function updateAnnouncement(
+  announcementId: string,
+  expectedUpdatedAtIso: string,
+  formData: FormData,
+) {
+  const actor = await requireRole(Role.ADMIN);
+  const normalizedId = announcementId.trim();
+  if (!normalizedId || normalizedId.length > 128) return;
+  if (!(await rateLimit(`announcement-update:${actor.id}`, 60, 60 * 60 * 1000))) return;
+
+  const expectedUpdatedAt = new Date(expectedUpdatedAtIso);
+  if (Number.isNaN(expectedUpdatedAt.getTime())) return;
+
+  const title = formText(formData, 'title', 80);
+  const body = formText(formData, 'body', 600);
+  if (!title || !body) return;
+
+  const rawHref = formData.get('href');
+  const href = optionalUrl(formData);
+  if (typeof rawHref === 'string' && rawHref.trim() && !href) return;
+
+  const rawStartsAt = formData.get('startsAt');
+  const rawEndsAt = formData.get('endsAt');
+  const startsAt = optionalDate(formData, 'startsAt');
+  const endsAt = optionalDate(formData, 'endsAt');
+  if (typeof rawStartsAt === 'string' && rawStartsAt.trim() && !startsAt) return;
+  if (typeof rawEndsAt === 'string' && rawEndsAt.trim() && !endsAt) return;
+  if (startsAt && endsAt && startsAt >= endsAt) return;
+
+  await prisma.$transaction(async (tx) => {
+    const currentActor = await tx.user.findUnique({
+      where: { id: actor.id },
+      select: { role: true },
+    });
+    if (currentActor?.role !== Role.ADMIN) return;
+
+    const current = await tx.announcement.findUnique({
+      where: { id: normalizedId },
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        href: true,
+        startsAt: true,
+        endsAt: true,
+        updatedAt: true,
+      },
+    });
+    if (!current || current.updatedAt.getTime() !== expectedUpdatedAt.getTime()) return;
+
+    const changed = await tx.announcement.updateMany({
+      where: {
+        id: normalizedId,
+        updatedAt: expectedUpdatedAt,
+      },
+      data: {
+        title,
+        body,
+        href,
+        startsAt,
+        endsAt,
+      },
+    });
+    if (changed.count !== 1) return;
+
+    await tx.auditLog.create({
+      data: {
+        action: 'ANNOUNCEMENT_UPDATE',
+        actorUserId: actor.id,
+        targetUserId: actor.id,
+        meta: {
+          announcementId: normalizedId,
+          fromTitle: current.title,
+          toTitle: title,
+          hrefChanged: current.href !== href,
+          startsAtChanged: current.startsAt?.getTime() !== startsAt?.getTime(),
+          endsAtChanged: current.endsAt?.getTime() !== endsAt?.getTime(),
+        },
+      },
+    });
+  });
+
+  revalidateAnnouncementViews();
+}
