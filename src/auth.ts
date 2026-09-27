@@ -12,6 +12,8 @@ import { hashRecoveryCode, normalizeRecoveryCode } from '@/lib/recoveryCodes';
 import { getNormalizedAccountModerationState } from '@/lib/accountModeration';
 
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+const DUMMY_PASSWORD_HASH =
+    '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.';
 
 async function getUser(email: string) {
     try {
@@ -99,14 +101,16 @@ const nextAuthResult = NextAuth({
                 }
 
                 const user = await getUser(email);
-                if (!user || !user.emailVerifiedAt) return null;
+                const passwordMatches = await bcrypt.compare(
+                    password,
+                    user?.password ?? DUMMY_PASSWORD_HASH,
+                );
+                if (!user || !passwordMatches || !user.emailVerifiedAt) return null;
 
                 const moderationState = await getNormalizedAccountModerationState(user.id);
                 if (!moderationState || moderationState.status === AccountStatus.SUSPENDED) {
                     return null;
                 }
-
-                if (!(await bcrypt.compare(password, user.password))) return null;
 
                 const isStaff =
                     moderationState.role === Role.ADMIN ||
@@ -131,8 +135,29 @@ const nextAuthResult = NextAuth({
                         if (!recovery) return null;
 
                         const consumed = await prisma.$transaction(async (tx) => {
+                            const currentSecurity = await tx.user.findUnique({
+                                where: { id: user.id },
+                                select: {
+                                    role: true,
+                                    staffTotpEnabledAt: true,
+                                },
+                            });
+                            if (
+                                !currentSecurity ||
+                                (currentSecurity.role !== Role.ADMIN &&
+                                    currentSecurity.role !== Role.MODERATOR) ||
+                                currentSecurity.staffTotpEnabledAt?.getTime() !==
+                                    user.staffTotpEnabledAt?.getTime()
+                            ) {
+                                return false;
+                            }
+
                             const updated = await tx.staffRecoveryCode.updateMany({
-                                where: { id: recovery.id, usedAt: null },
+                                where: {
+                                    id: recovery.id,
+                                    userId: user.id,
+                                    usedAt: null,
+                                },
                                 data: { usedAt: new Date() },
                             });
                             if (updated.count !== 1) return false;
@@ -158,6 +183,9 @@ const nextAuthResult = NextAuth({
                         const consumed = await prisma.user.updateMany({
                             where: {
                                 id: user.id,
+                                role: { in: [Role.ADMIN, Role.MODERATOR] },
+                                staffTotpEnabledAt: user.staffTotpEnabledAt,
+                                staffTotpSecretEncrypted: user.staffTotpSecretEncrypted,
                                 OR: [
                                     { staffTotpLastUsedStep: null },
                                     { staffTotpLastUsedStep: { lt: step } },
@@ -169,14 +197,52 @@ const nextAuthResult = NextAuth({
                     }
                 }
 
+                const [finalModerationState, finalSecurity] = await Promise.all([
+                    getNormalizedAccountModerationState(user.id),
+                    prisma.user.findUnique({
+                        where: { id: user.id },
+                        select: {
+                            staffTotpEnabledAt: true,
+                            staffTotpSecretEncrypted: true,
+                        },
+                    }),
+                ]);
+                if (
+                    !finalModerationState ||
+                    !finalSecurity ||
+                    finalModerationState.status === AccountStatus.SUSPENDED
+                ) {
+                    return null;
+                }
+
+                const finalIsStaff =
+                    finalModerationState.role === Role.ADMIN ||
+                    finalModerationState.role === Role.MODERATOR;
+                if (finalIsStaff && !isStaff) return null;
+                if (
+                    finalIsStaff &&
+                    finalSecurity.staffTotpEnabledAt?.getTime() !==
+                        user.staffTotpEnabledAt?.getTime()
+                ) {
+                    return null;
+                }
+                if (
+                    finalIsStaff &&
+                    user.staffTotpEnabledAt &&
+                    finalSecurity.staffTotpSecretEncrypted !==
+                        user.staffTotpSecretEncrypted
+                ) {
+                    return null;
+                }
+
                 return {
                     ...user,
-                    role: moderationState.role,
-                    status: moderationState.status,
-                    suspendedUntil: moderationState.suspendedUntil,
-                    restrictionUntil: moderationState.restrictionUntil,
-                    restrictionReason: moderationState.restrictionReason,
-                    sessionVersion: moderationState.sessionVersion,
+                    role: finalModerationState.role,
+                    status: finalModerationState.status,
+                    suspendedUntil: finalModerationState.suspendedUntil,
+                    restrictionUntil: finalModerationState.restrictionUntil,
+                    restrictionReason: finalModerationState.restrictionReason,
+                    sessionVersion: finalModerationState.sessionVersion,
                 };
             },
         }),
