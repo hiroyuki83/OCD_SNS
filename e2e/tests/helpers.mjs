@@ -156,3 +156,18 @@ export async function reportVisiblePost(page, postContent, {
   await page.getByRole('button', { name: '通報', exact: true }).click();
   await expect.poll(() => promptIndex).toBeGreaterThanOrEqual(2);
 }
+
+
+export async function loginStaffWithRecoveryCode(
+  page,
+  email,
+  recoveryCode,
+  password = PREVIEW_PASSWORD,
+) {
+  await page.goto('/login');
+  await page.getByLabel('メールアドレス').fill(email);
+  await page.getByLabel('パスワード').fill(password);
+  await page.getByLabel('リカバリーコード').fill(recoveryCode);
+  await page.locator('#main-content').getByRole('button', { name: 'ログイン', exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+}
