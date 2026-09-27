@@ -208,15 +208,17 @@ export default async function Sidebar() {
             </div>
           ) : (
             <div className="flex flex-col gap-2 p-2">
-              <Link href="/login">
-                <Button variant="outline" className="w-full rounded-full font-bold">
-                  {LABEL_LOGIN}
-                </Button>
+              <Link
+                href="/login"
+                className="inline-flex h-9 w-full items-center justify-center rounded-full border border-input bg-background px-4 text-sm font-bold shadow-xs hover:bg-accent hover:text-accent-foreground"
+              >
+                {LABEL_LOGIN}
               </Link>
-              <Link href="/register">
-                <Button className="w-full rounded-full font-bold bg-white text-black hover:bg-zinc-200">
-                  {LABEL_REGISTER}
-                </Button>
+              <Link
+                href="/register"
+                className="inline-flex h-9 w-full items-center justify-center rounded-full bg-black px-4 text-sm font-bold text-white hover:bg-zinc-800"
+              >
+                {LABEL_REGISTER}
               </Link>
             </div>
           )}
