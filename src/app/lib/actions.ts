@@ -426,7 +426,17 @@ export async function deletePost(postId: string) {
     if (!userId) return;
     if (!(await rateLimit(`post-delete:${userId}`, 30, 60 * 1000))) return;
 
-    await prisma.$transaction(async (tx) => {
+    const imageUrl = await prisma.$transaction(async (tx) => {
+        const post = await tx.post.findFirst({
+            where: {
+                id: postId,
+                authorId: userId,
+                deletedAt: null,
+            },
+            select: { imageUrl: true },
+        });
+        if (!post) return null;
+
         const deletedAt = new Date();
         const deleted = await tx.post.updateMany({
             where: { id: postId, authorId: userId, deletedAt: null },
@@ -435,7 +445,7 @@ export async function deletePost(postId: string) {
                 deletedById: userId,
             },
         });
-        if (deleted.count !== 1) return;
+        if (deleted.count !== 1) return null;
 
         await tx.notification.deleteMany({ where: { postId } });
         await tx.auditLog.create({
@@ -443,10 +453,19 @@ export async function deletePost(postId: string) {
                 action: 'POST_DELETE_SELF',
                 actorUserId: userId,
                 targetUserId: userId,
-                meta: { postId },
+                meta: {
+                    postId,
+                    imageBlobCleanupRequested: Boolean(post.imageUrl),
+                },
             },
         });
+        return post.imageUrl;
     });
+
+    if (imageUrl) {
+        await deleteManagedBlob(imageUrl);
+    }
+
     revalidatePath('/');
     revalidatePath('/profile');
     revalidatePath('/bookmarks');
@@ -454,7 +473,6 @@ export async function deletePost(postId: string) {
     revalidatePath('/post');
     revalidatePath(`/post/${postId}`);
 }
-
 
 export async function followUser(targetUserId: string) {
     targetUserId = targetUserId.trim();
