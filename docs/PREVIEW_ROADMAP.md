@@ -1,7 +1,8 @@
 # CoCo Preview Roadmap / Progress Tracker
 
 最終更新: 2026-09-28
-対象ブランチ: `security-integration-final-20260926`
+対象基準ブランチ: `main`
+現在の実装ブランチ: `feature/sanction-records-20260928`
 
 この文書を Preview 版の進捗管理表として使用する。
 
