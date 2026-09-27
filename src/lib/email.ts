@@ -1,5 +1,6 @@
 import 'server-only';
 import { appendFile } from 'node:fs/promises';
+import { resolveE2eEmailOutboxPath } from '@/lib/emailDeliveryMode';
 
 type EmailMessage = {
     to: string;
@@ -12,10 +13,7 @@ function emailFrom() {
 }
 
 function e2eOutboxPath() {
-    if (process.env.VERCEL_ENV === 'production') return null;
-    if (process.env.E2E_EMAIL_MODE !== '1') return null;
-    const path = process.env.E2E_EMAIL_OUTBOX_FILE?.trim();
-    return path || null;
+    return resolveE2eEmailOutboxPath(process.env);
 }
 
 export function isEmailDeliveryConfigured() {
