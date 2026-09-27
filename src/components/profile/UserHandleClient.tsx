@@ -84,7 +84,7 @@ export default function UserHandleClient() {
                 if (signal?.aborted) return;
                 setProfile(data);
                 setStatus('idle');
-            } catch (error) {
+            } catch {
                 if (signal?.aborted) return;
                 setStatus('error');
             }
