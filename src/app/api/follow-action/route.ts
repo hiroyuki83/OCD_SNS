@@ -10,10 +10,10 @@ const FOLLOW_ACTIONS = ['follow', 'unfollow'] as const;
 type FollowAction = (typeof FOLLOW_ACTIONS)[number];
 
 export async function POST(request: Request) {
-const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
-if (!parsedRequest.ok) {
-    return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
-}
+    const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+    if (!parsedRequest.ok) {
+        return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
+    }
 
     const body = parsedRequest.data;
     const targetUserId = typeof body?.targetUserId === 'string' ? body.targetUserId.trim() : '';
