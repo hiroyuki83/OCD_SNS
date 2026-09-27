@@ -1,12 +1,14 @@
 name: Security integration CI
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - main
   push:
     branches:
       - main
+      - security-integration-final-20260926
 
 concurrency:
   group: security-integration-${{ github.workflow }}-${{ github.ref }}
