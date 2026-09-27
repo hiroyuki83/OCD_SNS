@@ -14,7 +14,7 @@ function formText(formData: FormData, key: string, maxLength: number) {
     .replace(/\r\n?/g, '\n')
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
     .trim();
-  if (!normalized || normalized.length > maxLength) return null;
+  if (!normalized || Array.from(normalized).length > maxLength) return null;
   return normalized;
 }
 
