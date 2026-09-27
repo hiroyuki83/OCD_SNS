@@ -80,3 +80,10 @@ export function formatTokyoDateTimeLocal(date: Date | null | undefined) {
 
   return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
 }
+
+
+export function startOfTokyoDay(date = new Date()) {
+  const dateKey = formatTokyoDateTimeLocal(date).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return null;
+  return new Date(`${dateKey}T00:00:00${TOKYO_OFFSET}`);
+}
