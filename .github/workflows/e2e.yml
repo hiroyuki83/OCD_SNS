@@ -9,7 +9,7 @@ on:
       - 'docs/**'
   push:
     branches:
-      - security-integration-final-20260926
+      - main
     paths-ignore:
       - 'docs/**'
 
