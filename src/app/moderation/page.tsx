@@ -412,7 +412,12 @@ export default async function ModerationPage({
                 : '投稿本文なし';
 
             return (
-              <div key={report.id} className="rounded-lg border border-border p-4">
+              <div
+                key={report.id}
+                data-report-card
+                data-report-id={report.id}
+                className="rounded-lg border border-border p-4"
+              >
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-zinc-900">
