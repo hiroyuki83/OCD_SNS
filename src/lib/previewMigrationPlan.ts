@@ -34,13 +34,14 @@ export const PREVIEW_HISTORICAL_MIGRATIONS = [
   '20260926123000_add_staff_totp',
   '20260926124500_add_staff_recovery_codes',
   '20260927002000_add_follow_approval',
-] as const;
-
-export const PREVIEW_PENDING_MIGRATIONS = [
   '20260928013000_remove_reply_and_quote_post',
   '20260928014500_add_post_image_alt',
   '20260928023000_add_notification_preferences',
   '20260928031500_add_email_change_pending',
+] as const;
+
+export const PREVIEW_PENDING_MIGRATIONS = [
+  '20260928071000_add_sanction_records',
 ] as const;
 
 export const PREVIEW_EXPECTED_MIGRATIONS = [
