@@ -149,7 +149,6 @@ export async function GET(request: Request) {
     return privateJson({
         viewerId: userId,
         viewerAvatarUrl: viewerProfile?.avatarUrl ?? null,
-        followingIds,
         posts: shuffled.map((post) => {
             const types = new Set(post.reactions.map((reaction) => reaction.type));
             return {
