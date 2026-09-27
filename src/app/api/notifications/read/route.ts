@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { validateJsonMutationRequest } from '@/lib/requestSecurity';
+import { parseJsonMutationRequest } from '@/lib/requestSecurity';
 import { rateLimit } from '@/lib/rateLimit';
 
 export async function POST(request: Request) {
-    const requestCheck = validateJsonMutationRequest(request);
-    if (!requestCheck.ok) {
-        return NextResponse.json({ ok: false, error: requestCheck.error }, { status: requestCheck.status });
+    const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+    if (!parsedRequest.ok) {
+        return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
     }
 
     const session = await auth();
