@@ -13,8 +13,9 @@ export const dynamic = 'force-dynamic';
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams?: { mfa?: string };
+  searchParams?: Promise<{ mfa?: string }>;
 }) {
+  const resolvedSearchParams = await searchParams;
   const session = await auth();
   let userId = session?.user?.id ?? null;
   if (!userId && session?.user?.email) {
@@ -84,7 +85,7 @@ export default async function SettingsPage({
         <h1 className="font-bold text-base">設定</h1>
       </div>
       <div className="p-6">
-        {searchParams?.mfa === 'required' && (
+        {resolvedSearchParams?.mfa === 'required' && (
           <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
             ADMIN / MODERATORとして管理機能を使うには、スタッフ2段階認証の設定が必要です。
           </div>
