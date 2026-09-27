@@ -41,7 +41,7 @@ export default async function ProfilePage({
 
     const now = new Date();
     const postCount = await prisma.post.count({
-        where: { authorId: userId, deletedAt: null },
+        where: { authorId: userId, deletedAt: null, isHidden: false },
     });
     const postPagination = clampPage(
         parsePageNumber(searchParams?.page),
@@ -51,7 +51,7 @@ export default async function ProfilePage({
 
     const [posts, followerCount, followingCount, pendingFollowingCount, pendingFollowRequestCount, blockCount, muteCount] = await Promise.all([
         prisma.post.findMany({
-            where: { authorId: userId, deletedAt: null },
+            where: { authorId: userId, deletedAt: null, isHidden: false },
             orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
             skip: postPagination.skip,
             take: postPagination.pageSize,
