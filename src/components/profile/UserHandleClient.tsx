@@ -6,6 +6,8 @@ import { useParams, useSearchParams } from 'next/navigation';
 import HashtagText from '@/components/shared/HashtagText';
 import { formatPostTime } from '@/lib/formatTime';
 import { promptForReport, submitReport } from '@/lib/reportClient';
+import { parsePageNumber } from '@/lib/pagination';
+import PaginationLinks from '@/components/shared/PaginationLinks';
 
 type ProfilePost = {
     id: string;
@@ -74,11 +76,7 @@ export default function UserHandleClient() {
         const trimmed = rawHandle.trim();
         return trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
     }, [rawHandle]);
-    const rawPage = searchParams.get('page') ?? '1';
-    const requestedPage =
-        /^\d+$/.test(rawPage) && Number.isSafeInteger(Number(rawPage))
-            ? Math.max(1, Number(rawPage))
-            : 1;
+    const requestedPage = parsePageNumber(searchParams.get('page'));
 
     const [profile, setProfile] = useState<ProfileResponse | null>(null);
     const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
@@ -584,35 +582,20 @@ export default function UserHandleClient() {
                     </div>
                 ))}
                 {!localBlocked && !localMuted && !localBlockedBy && canViewPosts && postCount > 0 && (
-                    <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm">
-                        {hasPrevious ? (
-                            <Link
-                                href={`/user/${encodeURIComponent(handle)}?page=${page - 1}`}
-                                className="rounded-full border border-border px-4 py-2 text-zinc-700"
-                            >
-                                前へ
-                            </Link>
-                        ) : (
-                            <span className="rounded-full border border-border px-4 py-2 text-zinc-400">
-                                前へ
-                            </span>
-                        )}
-                        <span className="text-xs text-zinc-500">
-                            {page} / {totalPages}
-                        </span>
-                        {hasNext ? (
-                            <Link
-                                href={`/user/${encodeURIComponent(handle)}?page=${page + 1}`}
-                                className="rounded-full border border-border px-4 py-2 text-zinc-700"
-                            >
-                                次へ
-                            </Link>
-                        ) : (
-                            <span className="rounded-full border border-border px-4 py-2 text-zinc-400">
-                                次へ
-                            </span>
-                        )}
-                    </div>
+                    <PaginationLinks
+                        page={page}
+                        totalPages={totalPages}
+                        previousHref={
+                            hasPrevious
+                                ? `/user/${encodeURIComponent(handle)}?page=${page - 1}`
+                                : null
+                        }
+                        nextHref={
+                            hasNext
+                                ? `/user/${encodeURIComponent(handle)}?page=${page + 1}`
+                                : null
+                        }
+                    />
                 )}
                 {posts.length === 0 && !localBlocked && !localMuted && !localBlockedBy && canViewPosts && (
                     <div className="p-6 text-sm text-zinc-500 text-center">まだ投稿がありません</div>
