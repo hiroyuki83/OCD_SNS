@@ -10,6 +10,7 @@ import { AccountStatus, Role } from '@prisma/client';
 import { decryptTotpSecret, verifyTotpCode } from '@/lib/totp';
 import { hashRecoveryCode, normalizeRecoveryCode } from '@/lib/recoveryCodes';
 import { getNormalizedAccountModerationState } from '@/lib/accountModeration';
+import { logOperationalError } from '@/lib/operationalError';
 
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const DUMMY_PASSWORD_HASH =
@@ -19,7 +20,7 @@ async function getUser(email: string) {
     try {
         return await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     } catch (error) {
-        console.error('Failed to fetch user:', error);
+        logOperationalError('AUTH_USER_LOOKUP_FAILED', error);
         throw new Error('Failed to fetch user.');
     }
 }
