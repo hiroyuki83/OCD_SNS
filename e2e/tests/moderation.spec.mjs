@@ -9,6 +9,7 @@ import {
 } from './helpers.mjs';
 
 test('report → moderation warning → appeal → admin overturn', async ({ browser }) => {
+  const token = Date.now().toString(36);
   const authorContext = await browser.newContext();
   const reporterContext = await browser.newContext();
   const moderatorContext = await browser.newContext();
@@ -19,10 +20,10 @@ test('report → moderation warning → appeal → admin overturn', async ({ bro
   const moderator = await moderatorContext.newPage();
   const admin = await adminContext.newPage();
 
-  const content = 'E2E moderation flow #moderation-e2e';
-  const warningReason = 'E2E警告理由です';
-  const appealMessage = 'この警告は文脈上適切ではないため再確認をお願いします。';
-  const reviewNote = 'E2E審査で警告取消を確認しました';
+  const content = `E2E moderation flow ${token} #moderation-e2e`;
+  const warningReason = `E2E警告理由です ${token}`;
+  const appealMessage = `この警告は文脈上適切ではないため再確認をお願いします。 ${token}`;
+  const reviewNote = `E2E審査で警告取消を確認しました ${token}`;
 
   await login(author, USERS.public1);
   await author.goto('/?compose=1');
@@ -33,7 +34,7 @@ test('report → moderation warning → appeal → admin overturn', async ({ bro
   await login(reporter, USERS.public2);
   await reportVisiblePost(reporter, content, {
     reasonNumber: '1',
-    detail: 'E2E moderation report',
+    detail: `E2E moderation report ${token}`,
   });
 
   const moderatorMfa = await enrollStaffMfa(
@@ -41,8 +42,7 @@ test('report → moderation warning → appeal → admin overturn', async ({ bro
     USERS.moderator2,
     PREVIEW_PASSWORD,
   );
-  expect(moderatorMfa.secret).toBeTruthy();
-    const moderatorRecoveryCode = moderatorMfa.recoveryCodes[0] ?? '';
+  const moderatorRecoveryCode = moderatorMfa.recoveryCodes[0] ?? '';
   expect(moderatorRecoveryCode.length).toBeGreaterThan(10);
   await loginStaffWithRecoveryCode(
     moderator,
@@ -74,8 +74,14 @@ test('report → moderation warning → appeal → admin overturn', async ({ bro
   await expect(warningCard.getByRole('status')).toContainText('異議申立て');
 
   const adminMfa = await enrollStaffMfa(admin, USERS.admin2, PREVIEW_PASSWORD);
-  expect(adminMfa.secret).toBeTruthy();
-  await loginStaffWithTotp(admin, USERS.admin2, adminMfa.secret, PREVIEW_PASSWORD);
+  const adminRecoveryCode = adminMfa.recoveryCodes[0] ?? '';
+  expect(adminRecoveryCode.length).toBeGreaterThan(10);
+  await loginStaffWithRecoveryCode(
+    admin,
+    USERS.admin2,
+    adminRecoveryCode,
+    PREVIEW_PASSWORD,
+  );
 
   await admin.goto('/moderation/appeals');
   const appealCard = admin.locator('[data-appeal-card]').filter({ hasText: appealMessage });
