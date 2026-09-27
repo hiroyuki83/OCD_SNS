@@ -9,9 +9,12 @@ import { rateLimit } from '@/lib/rateLimit';
 function formText(formData: FormData, key: string, maxLength: number) {
   const value = formData.get(key);
   if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed || trimmed.length > maxLength) return null;
-  return trimmed;
+  const normalized = value
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim();
+  if (!normalized || normalized.length > maxLength) return null;
+  return normalized;
 }
 
 function optionalUrl(formData: FormData) {
@@ -63,31 +66,33 @@ export async function createAnnouncement(formData: FormData) {
   if (typeof rawEndsAt === 'string' && rawEndsAt.trim() && !endsAt) return;
   if (startsAt && endsAt && startsAt >= endsAt) return;
 
-  const announcement = await prisma.announcement.create({
-    data: {
-      title,
-      body,
-      href,
-      isActive: formData.get('isActive') === 'on',
-      startsAt,
-      endsAt,
-      createdById: actor.id,
-    },
-    select: { id: true, isActive: true, startsAt: true, endsAt: true },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      action: 'ANNOUNCEMENT_CREATE',
-      actorUserId: actor.id,
-      targetUserId: actor.id,
-      meta: {
-        announcementId: announcement.id,
-        isActive: announcement.isActive,
-        startsAt: announcement.startsAt,
-        endsAt: announcement.endsAt,
+  await prisma.$transaction(async (tx) => {
+    const announcement = await tx.announcement.create({
+      data: {
+        title,
+        body,
+        href,
+        isActive: formData.get('isActive') === 'on',
+        startsAt,
+        endsAt,
+        createdById: actor.id,
       },
-    },
+      select: { id: true, isActive: true, startsAt: true, endsAt: true },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        action: 'ANNOUNCEMENT_CREATE',
+        actorUserId: actor.id,
+        targetUserId: actor.id,
+        meta: {
+          announcementId: announcement.id,
+          isActive: announcement.isActive,
+          startsAt: announcement.startsAt,
+          endsAt: announcement.endsAt,
+        },
+      },
+    });
   });
 
   revalidateAnnouncementViews();
@@ -105,12 +110,17 @@ export async function setAnnouncementActive(announcementId: string, isActive: bo
   });
   if (!announcement || announcement.isActive === isActive) return;
 
-  await prisma.$transaction([
-    prisma.announcement.update({
-      where: { id: announcement.id },
+  await prisma.$transaction(async (tx) => {
+    const changed = await tx.announcement.updateMany({
+      where: {
+        id: announcement.id,
+        isActive: announcement.isActive,
+      },
       data: { isActive },
-    }),
-    prisma.auditLog.create({
+    });
+    if (changed.count !== 1) return;
+
+    await tx.auditLog.create({
       data: {
         action: 'ANNOUNCEMENT_STATUS',
         actorUserId: actor.id,
@@ -121,8 +131,8 @@ export async function setAnnouncementActive(announcementId: string, isActive: bo
           toActive: isActive,
         },
       },
-    }),
-  ]);
+    });
+  });
 
   revalidateAnnouncementViews();
 }
