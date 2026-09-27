@@ -100,6 +100,7 @@ export async function GET(request: Request) {
     const isBlocked = Boolean(blockedRow);
     const isMuted = Boolean(mutedRow);
     const isBlockedBy = Boolean(blockedByRow);
+    const isBlockRestricted = isBlocked || isBlockedBy;
 
     const isFollowing = Boolean(followRelation?.acceptedAt);
     const isFollowPending = Boolean(followRelation && !followRelation.acceptedAt);
@@ -183,12 +184,12 @@ export async function GET(request: Request) {
             id: user.id,
             name: user.name,
             handle: user.handle,
-            bio: user.bio,
+            bio: isBlockRestricted ? null : user.bio,
             avatarUrl: user.avatarUrl,
-            headerUrl: user.headerUrl,
+            headerUrl: isBlockRestricted ? null : user.headerUrl,
             isPrivate: user.isPrivate,
-            followerCount,
-            followingCount,
+            followerCount: isBlockRestricted ? 0 : followerCount,
+            followingCount: isBlockRestricted ? 0 : followingCount,
         },
         viewerId,
         isFollowing,
