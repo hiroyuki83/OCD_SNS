@@ -2,7 +2,6 @@
 
 import bcrypt from 'bcryptjs';
 import { Role } from '@prisma/client';
-import { revalidatePath } from 'next/cache';
 import { auth, signOut } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
@@ -118,7 +117,6 @@ export async function startStaffTotpSetup(
     throw error;
   }
 
-  revalidatePath('/settings');
   return {
     ok: true,
     message: '認証アプリに登録し、表示された6桁コードで有効化してください。',
@@ -208,7 +206,6 @@ export async function enableStaffTotp(
     throw error;
   }
 
-  revalidatePath('/settings');
   return {
     ok: true,
     message: '2段階認証を有効にしました。リカバリーコードを安全な場所に保存してください。',
@@ -290,7 +287,6 @@ export async function regenerateStaffRecoveryCodes(
     throw error;
   }
 
-  revalidatePath('/settings');
   return {
     ok: true,
     message: 'リカバリーコードを再発行しました。古いコードはすべて無効です。',
@@ -403,7 +399,6 @@ export async function recoverStaffTotpWithRecoveryCode(
     throw error;
   }
 
-  revalidatePath('/settings');
   return {
     ok: true,
     message: '新しい認証アプリを登録し、6桁コードで再有効化してください。',
@@ -485,8 +480,8 @@ export async function disableStaffTotp(
     throw error;
   }
 
-  revalidatePath('/settings');
-  return { ok: true, message: '2段階認証を解除しました。' };
+  await signOut({ redirectTo: '/login' });
+  return { ok: true, message: '2段階認証を解除し、既存セッションを無効にしました。' };
 }
 
 
