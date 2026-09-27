@@ -146,9 +146,19 @@ export default async function NotificationsPage() {
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
         .slice(0, 50);
 
+    const renderedNotificationIds = items
+        .filter((item) => item.kind === 'notification')
+        .map((item) => item.notification.id);
+    const renderedWarningIds = items
+        .filter((item) => item.kind === 'warning')
+        .map((item) => item.warning.id);
+
     return (
         <>
-            <NotificationsReadMarker />
+            <NotificationsReadMarker
+                notificationIds={renderedNotificationIds}
+                warningIds={renderedWarningIds}
+            />
             <div className="min-h-screen border-r border-border">
             <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center px-4">
                 <h1 className="font-bold text-base">通知</h1>
