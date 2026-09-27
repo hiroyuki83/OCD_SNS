@@ -7,6 +7,7 @@ import AdminNotesPanel from "../AdminNotesPanel";
 import UserAccessPanel from "../UserAccessPanel";
 import UserPasswordResetForm from "../UserPasswordResetForm";
 import { visibleAccountFilter } from "@/lib/accountStatus";
+import { buildModerationTimeline } from "@/lib/moderationTimeline";
 
 export const dynamic = "force-dynamic";
 
@@ -193,6 +194,27 @@ export default async function AdminUserDetailPage({
       prisma.auditLog.count({ where: { targetUserId: userId } }),
     ]);
   const totalPostCount = visiblePostCount + hiddenPostCount + deletedPostCount;
+  const moderationTimeline = buildModerationTimeline({
+    warnings: warnings.map((warning) => ({
+      id: warning.id,
+      createdAt: warning.createdAt,
+      revokedAt: warning.revokedAt,
+      reason: warning.reason,
+    })),
+    reports: reportsTargetingUser.map((report) => ({
+      id: report.id,
+      createdAt: report.createdAt,
+      reason: report.reason,
+      status: report.status,
+      detail: report.detail,
+    })),
+    auditLogs: auditLogs.map((log) => ({
+      id: log.id,
+      createdAt: log.createdAt,
+      action: log.action,
+      meta: log.meta,
+    })),
+  }).slice(0, 30);
 
   const identity = user.email ?? user.name ?? user.id;
   const stats = [
@@ -264,6 +286,38 @@ export default async function AdminUserDetailPage({
           authorLabel: note.author.email ?? note.author.name ?? note.author.id,
         }))}
       />
+
+      <section className="mb-6 rounded-lg border border-border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-zinc-900">モデレーション・制裁タイムライン</h2>
+          <span className="text-xs text-zinc-500">最新{moderationTimeline.length}件</span>
+        </div>
+        <p className="mt-1 text-xs text-zinc-500">
+          このユーザーへの通報、警告、主要な制裁操作を時系列でまとめています。詳細は下の各履歴と監査ログで確認できます。
+        </p>
+        <div className="mt-3 flex flex-col gap-2">
+          {moderationTimeline.length === 0 ? (
+            <div className="text-sm text-zinc-500">モデレーション履歴はありません。</div>
+          ) : (
+            moderationTimeline.map((item) => (
+              <div key={item.id} className="rounded-md border border-border p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-semibold text-zinc-900">{item.title}</div>
+                  <div className="text-xs text-zinc-500">{formatDate(item.createdAt)}</div>
+                </div>
+                {item.status && (
+                  <div className="mt-1 text-xs font-medium text-zinc-500">状態: {item.status}</div>
+                )}
+                {item.detail && (
+                  <div className="mt-2 whitespace-pre-wrap break-words text-xs text-zinc-700">
+                    {shortText(item.detail, 220)}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </section>
 
       <section className="mb-6 rounded-lg border border-border p-4">
         <h2 className="text-base font-semibold text-zinc-900">警告履歴</h2>
