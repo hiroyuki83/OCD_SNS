@@ -202,16 +202,35 @@ export default function UserHandleClient() {
         const reasonGuide = REPORT_REASONS.map((reason, index) => `${index + 1}. ${reason.label}`).join('\n');
         const selected = window.prompt(`通報理由を番号で選んでください。\n${reasonGuide}`);
         if (selected === null) return;
-        const selectedIndex = Number.parseInt(selected, 10) - 1;
+        const normalizedSelection = selected.trim();
+        if (!/^\d+$/.test(normalizedSelection)) {
+            alert('通報理由の番号が正しくありません。');
+            return;
+        }
+        const selectedIndex = Number(normalizedSelection) - 1;
         const selectedReason = REPORT_REASONS[selectedIndex];
         if (!selectedReason) {
             alert('通報理由の番号が正しくありません。');
             return;
         }
         const reason: ReportReasonValue = selectedReason.value;
-        const detail = window.prompt('通報理由を入力してください。空欄でも送信できます。');
+        const detail = window.prompt(
+            reason === 'OTHER'
+                ? '「その他」の場合は、通報理由を10〜500文字で入力してください。'
+                : '必要であれば詳細を入力してください（500文字以内・空欄可）。',
+        );
         if (detail === null) return;
-        const boundedDetail = detail.trim().slice(0, 500);
+        const normalizedDetail = detail.trim();
+        const detailLength = Array.from(normalizedDetail).length;
+        if (detailLength > 500) {
+            alert('通報理由は500文字以内で入力してください。');
+            return;
+        }
+        if (reason === 'OTHER' && detailLength < 10) {
+            alert('「その他」の場合は、通報理由を10文字以上入力してください。');
+            return;
+        }
+        const boundedDetail = normalizedDetail;
 
         setReportingUser(true);
         try {
@@ -232,6 +251,8 @@ export default function UserHandleClient() {
                 return;
             }
             alert('通報を受け付けました。');
+        } catch {
+            alert('通信エラーのため通報を送信できませんでした。');
         } finally {
             setReportingUser(false);
         }
@@ -372,6 +393,7 @@ export default function UserHandleClient() {
                                     onClick={toggleFollow}
                                     className="text-xs text-[#1d9bf0] hover:underline disabled:opacity-50"
                                     disabled={pendingRelationAction !== null}
+                                    aria-pressed={localFollowing || localFollowPending}
                                 >
                                     {localFollowing
                                         ? 'フォロー中'
@@ -385,6 +407,7 @@ export default function UserHandleClient() {
                                 onClick={toggleMute}
                                 className={`text-xs ${localMuted ? 'text-zinc-500' : 'text-[#1d9bf0]'} hover:underline`}
                                 disabled={localBlockedBy || pendingRelationAction !== null}
+                                aria-pressed={localMuted}
                             >
                                 {localMuted ? 'ミュート解除' : 'ミュート'}
                             </button>
@@ -393,6 +416,7 @@ export default function UserHandleClient() {
                                 onClick={toggleBlock}
                                 className={`text-xs ${localBlocked ? 'text-red-500' : 'text-[#1d9bf0]'} hover:underline disabled:opacity-50`}
                                 disabled={pendingRelationAction !== null}
+                                aria-pressed={localBlocked}
                             >
                                 {localBlocked ? 'ブロック解除' : 'ブロック'}
                             </button>
@@ -436,27 +460,7 @@ export default function UserHandleClient() {
                     <div
                         key={post.id}
                         className="p-4 border-b border-border hover:bg-zinc-50 transition-colors flex gap-4 relative"
-                        role="button"
-                        tabIndex={0}
-                        onClick={(event) => {
-                            const target = event.target as HTMLElement;
-                            if (target.closest('button') || target.closest('a') || target.closest('[data-action-area]')) {
-                                return;
-                            }
-                            router.push(`/post?id=${post.id}`);
-                        }}
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                router.push(`/post?id=${post.id}`);
-                            }
-                        }}
                     >
-                        <Link
-                            href={`/post?id=${post.id}`}
-                            className="absolute inset-0 z-0 pointer-events-none"
-                            aria-label="投稿を開く"
-                        />
                         {user.avatarUrl ? (
                             <img
                                 src={user.avatarUrl}
@@ -543,6 +547,12 @@ export default function UserHandleClient() {
                                 ) : (
                                     <div className="text-xs">ブックマーク {post.bookmarkCount}</div>
                                 )}
+                                <Link
+                                    href={`/post?id=${encodeURIComponent(post.id)}`}
+                                    className="text-xs text-[#1d9bf0] hover:underline"
+                                >
+                                    投稿を開く
+                                </Link>
                             </div>
                         </div>
                     </div>
