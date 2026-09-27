@@ -206,15 +206,19 @@ export default function MobileMenu({
                                 </div>
                             ) : (
                                 <div className="flex flex-col gap-2 p-2">
-                                    <Link href="/login" onClick={close}>
-                                        <Button variant="outline" className="w-full rounded-full font-bold">
-                                            {labels.login}
-                                        </Button>
+                                    <Link
+                                        href="/login"
+                                        onClick={close}
+                                        className="inline-flex h-9 w-full items-center justify-center rounded-full border border-input bg-background px-4 text-sm font-bold shadow-xs hover:bg-accent hover:text-accent-foreground"
+                                    >
+                                        {labels.login}
                                     </Link>
-                                    <Link href="/register" onClick={close}>
-                                        <Button className="w-full rounded-full font-bold bg-white text-black hover:bg-zinc-200">
-                                            {labels.register}
-                                        </Button>
+                                    <Link
+                                        href="/register"
+                                        onClick={close}
+                                        className="inline-flex h-9 w-full items-center justify-center rounded-full bg-black px-4 text-sm font-bold text-white hover:bg-zinc-800"
+                                    >
+                                        {labels.register}
                                     </Link>
                                 </div>
                             )}
