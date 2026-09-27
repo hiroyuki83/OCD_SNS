@@ -106,6 +106,9 @@ export async function PATCH(
         suspendedUntil,
         restrictionUntil,
         restrictionReason: nextStatus === AccountStatus.ACTIVE ? null : reason,
+        ...(nextStatus === AccountStatus.SUSPENDED
+          ? { sessionVersion: { increment: 1 } }
+          : {}),
       },
     });
     if (updated.count !== 1) {
@@ -123,6 +126,7 @@ export async function PATCH(
           suspendedUntil,
           restrictionUntil,
           reason,
+          sessionsRevoked: nextStatus === AccountStatus.SUSPENDED,
         },
       },
     });
