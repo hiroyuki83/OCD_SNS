@@ -4,16 +4,10 @@ import { useActionState, useEffect, useMemo, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { updateProfile, type ProfileState } from '@/app/lib/actions';
 import Cropper, { type Area } from 'react-easy-crop';
+import { validateClientImageFile } from '@/lib/clientImageValidation';
 
 const AVATAR_ASPECT = 1;
 const HEADER_ASPECT = 3;
-const MAX_PROFILE_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
-const SUPPORTED_PROFILE_IMAGE_TYPES = new Set([
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'image/gif',
-]);
 
 async function getCroppedBlob(imageSrc: string, crop: Area) {
     const image = new Image();
@@ -222,22 +216,14 @@ export default function ProfileEditForm({
                             name="avatar"
                             accept="image/jpeg,image/png,image/webp,image/gif"
                             className="hidden"
-                            onChange={(event) => {
-                                const file = event.target.files?.[0];
+                            onChange={async (event) => {
+                                const input = event.currentTarget;
+                                const file = input.files?.[0];
                                 if (file) {
-                                    if (!SUPPORTED_PROFILE_IMAGE_TYPES.has(file.type)) {
-                                        alert('JPEG、PNG、WebP、GIF画像を選択してください。');
-                                        event.currentTarget.value = '';
-                                        return;
-                                    }
-                                    if (file.size === 0) {
-                                        alert('空の画像ファイルは使用できません。');
-                                        event.currentTarget.value = '';
-                                        return;
-                                    }
-                                    if (file.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
-                                        alert('画像は5MB以下にしてください。');
-                                        event.currentTarget.value = '';
+                                    const validationError = await validateClientImageFile(file);
+                                    if (validationError) {
+                                        alert(validationError);
+                                        input.value = '';
                                         return;
                                     }
                                     openCropper(file, 'avatar');
@@ -271,22 +257,14 @@ export default function ProfileEditForm({
                             name="header"
                             accept="image/jpeg,image/png,image/webp,image/gif"
                             className="hidden"
-                            onChange={(event) => {
-                                const file = event.target.files?.[0];
+                            onChange={async (event) => {
+                                const input = event.currentTarget;
+                                const file = input.files?.[0];
                                 if (file) {
-                                    if (!SUPPORTED_PROFILE_IMAGE_TYPES.has(file.type)) {
-                                        alert('JPEG、PNG、WebP、GIF画像を選択してください。');
-                                        event.currentTarget.value = '';
-                                        return;
-                                    }
-                                    if (file.size === 0) {
-                                        alert('空の画像ファイルは使用できません。');
-                                        event.currentTarget.value = '';
-                                        return;
-                                    }
-                                    if (file.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
-                                        alert('画像は5MB以下にしてください。');
-                                        event.currentTarget.value = '';
+                                    const validationError = await validateClientImageFile(file);
+                                    if (validationError) {
+                                        alert(validationError);
+                                        input.value = '';
                                         return;
                                     }
                                     openCropper(file, 'header');
