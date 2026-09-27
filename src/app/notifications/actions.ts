@@ -7,13 +7,20 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 
+function normalizeAppealText(value: string) {
+  return value
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim();
+}
+
 const AppealSchema = z.object({
   warningId: z.string().trim().min(1).max(128),
   message: z
     .string()
-    .trim()
-    .min(10, '異議申立ての理由を10文字以上で入力してください。')
-    .max(1000, '異議申立ては1000文字以内です。'),
+    .transform(normalizeAppealText)
+    .refine((value) => Array.from(value).length >= 10, '異議申立ての理由を10文字以上で入力してください。')
+    .refine((value) => Array.from(value).length <= 1000, '異議申立ては1000文字以内です。'),
 });
 
 export async function submitWarningAppeal(formData: FormData) {
