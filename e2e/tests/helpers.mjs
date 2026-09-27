@@ -16,7 +16,7 @@ export async function login(page, email, password = PREVIEW_PASSWORD) {
   await page.goto('/login');
   await page.getByLabel('メールアドレス').fill(email);
   await page.getByLabel('パスワード').fill(password);
-  await page.getByRole('button', { name: 'ログイン', exact: true }).click();
+  await page.locator('#main-content').getByRole('button', { name: 'ログイン', exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
 }
 
