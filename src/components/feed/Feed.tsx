@@ -33,7 +33,6 @@ type FeedPost = {
 
 type FeedResponse = {
     posts: FeedPost[];
-    followingIds: string[];
     viewerId: string | null;
     viewerAvatarUrl: string | null;
 };
@@ -62,7 +61,6 @@ export default function Feed({
     const [tab, setTab] = useState<'for-you' | 'following'>(initialTab);
     const [data, setData] = useState<FeedResponse>({
         posts: [],
-        followingIds: [],
         viewerId: initialViewerId,
         viewerAvatarUrl: initialViewerAvatarUrl,
     });
@@ -84,7 +82,6 @@ export default function Feed({
             setStatus('loading');
             setData((prev) => ({
                 posts: [],
-                followingIds: prev.followingIds,
                 viewerId: prev.viewerId,
                 viewerAvatarUrl: prev.viewerAvatarUrl,
             }));
@@ -101,7 +98,6 @@ export default function Feed({
                 const rawPosts = Array.isArray(payload?.posts) ? payload.posts : [];
                 setData({
                     posts: rawPosts,
-                    followingIds: Array.isArray(payload?.followingIds) ? payload.followingIds : [],
                     viewerId,
                     viewerAvatarUrl: payload?.viewerAvatarUrl ?? null,
                 });
@@ -109,7 +105,7 @@ export default function Feed({
                 setHasLoaded(true);
             } catch {
                 if (signal?.aborted) return;
-                setData({ posts: [], followingIds: [], viewerId: null, viewerAvatarUrl: null });
+                setData({ posts: [], viewerId: null, viewerAvatarUrl: null });
                 setStatus('error');
                 setHasLoaded(true);
             }
