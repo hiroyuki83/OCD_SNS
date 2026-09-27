@@ -8,10 +8,10 @@ const BLOCK_ACTIONS = ['block', 'unblock'] as const;
 type BlockAction = (typeof BLOCK_ACTIONS)[number];
 
 export async function POST(request: Request) {
-const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
-if (!parsedRequest.ok) {
-    return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
-}
+    const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+    if (!parsedRequest.ok) {
+        return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
+    }
 
     const body = parsedRequest.data;
     const targetUserId = typeof body?.targetUserId === 'string' ? body.targetUserId.trim() : '';
