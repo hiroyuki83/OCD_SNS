@@ -455,9 +455,8 @@ model PasswordResetToken {
   createdAt DateTime  @default(now())
   expiresAt DateTime
   usedAt    DateTime?
-  tokenHash    String    @unique
-  pendingEmail String?
-  userId       String
+  tokenHash String    @unique
+  userId    String
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -466,12 +465,13 @@ model PasswordResetToken {
 }
 
 model EmailVerificationToken {
-  id        String    @id @default(cuid())
-  createdAt DateTime  @default(now())
-  expiresAt DateTime
-  usedAt    DateTime?
-  tokenHash String    @unique
-  userId    String
+  id           String    @id @default(cuid())
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+  usedAt       DateTime?
+  tokenHash    String    @unique
+  pendingEmail String?
+  userId       String
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
