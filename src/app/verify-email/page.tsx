@@ -1,5 +1,12 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ConfirmEmailForm, ResendEmailForm } from '@/app/verify-email/VerifyEmailForms';
+
+export const dynamic = 'force-dynamic';
+export const metadata: Metadata = {
+    robots: { index: false, follow: false },
+    referrer: 'no-referrer',
+};
 
 export default async function VerifyEmailPage({
     searchParams,
