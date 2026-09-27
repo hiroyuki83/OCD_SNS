@@ -3,9 +3,8 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
 import type { Prisma } from '@prisma/client';
-import { isSuspensionActive } from '@/lib/accountStatus';
 import HashtagText from '@/components/shared/HashtagText';
-import { getAccessiblePostForViewer } from '@/lib/postAccess';
+import { accessiblePostWhere } from '@/lib/postAccess';
 import ProfilePostActionForm from '@/components/profile/ProfilePostActionForm';
 import { DeletePostForm } from '@/components/profile/ProfileDangerActions';
 import ReportPostButton from '@/components/report/ReportPostButton';
@@ -35,8 +34,6 @@ export default async function PostPage({
                     name: true;
                     handle: true;
                     avatarUrl: true;
-                    status: true;
-                    suspendedUntil: true;
                 };
             };
             likes: {
@@ -78,12 +75,8 @@ export default async function PostPage({
             });
             userId = viewer?.id;
         }
-        const accessiblePost = await getAccessiblePostForViewer(userId ?? null, postId);
-        if (!accessiblePost) {
-            post = null;
-        } else {
-        post = await prisma.post.findUnique({
-            where: { id: postId },
+        post = await prisma.post.findFirst({
+            where: accessiblePostWhere(userId ?? null, postId),
             include: {
                 author: {
                     select: {
@@ -91,8 +84,6 @@ export default async function PostPage({
                         name: true,
                         handle: true,
                         avatarUrl: true,
-                        status: true,
-                        suspendedUntil: true,
                     },
                 },
                 likes: userId ? { where: { userId }, select: { id: true, userId: true } } : { take: 0 },
@@ -101,7 +92,6 @@ export default async function PostPage({
                 _count: { select: { likes: true, bookmarks: true } },
             },
         });
-        }
     } catch (error) {
         console.error('Failed to load post detail:', error);
         loadError = 'failed';
@@ -115,7 +105,7 @@ export default async function PostPage({
         );
     }
 
-    if (!post || post.deletedAt || post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) {
+    if (!post) {
         return (
             <div className="p-6 text-sm text-zinc-500">
                 投稿が見つかりませんでした。
