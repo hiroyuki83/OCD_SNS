@@ -1,3 +1,5 @@
+import { PREVIEW_GIT_REF } from './previewMigrationSafety';
+
 export type PreviewSeedSafetyInput = {
   vercelEnv?: string;
   gitRef?: string;
@@ -21,10 +23,10 @@ export function validatePreviewSeedSafety(
   if (normalized(input.vercelEnv) !== 'preview') {
     return { ok: false, error: 'Preview test users can only be seeded when VERCEL_ENV=preview.' };
   }
-  if (normalized(input.gitRef) !== 'security-integration-final-20260926') {
+  if (normalized(input.gitRef) !== PREVIEW_GIT_REF) {
     return {
       ok: false,
-      error: 'Preview test users can only be seeded on security-integration-final-20260926.',
+      error: `Preview test users can only be seeded on ${PREVIEW_GIT_REF}.`,
     };
   }
   if (normalized(input.seedUsers) !== '1') {
