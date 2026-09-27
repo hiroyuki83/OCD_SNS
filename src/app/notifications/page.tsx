@@ -103,6 +103,8 @@ export default async function NotificationsPage({
         50,
     );
 
+    const allTake = pagination.skip + pagination.pageSize;
+
     const notificationQuery = prisma.notification.findMany({
         where: notificationWhere,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -128,7 +130,7 @@ export default async function NotificationsPage({
         },
         ...(filter === 'social'
             ? { skip: pagination.skip, take: pagination.pageSize }
-            : { take: 50 }),
+            : { take: allTake }),
     });
     const warningQuery = prisma.moderationWarning.findMany({
         where: warningWhere,
@@ -151,7 +153,7 @@ export default async function NotificationsPage({
         },
         ...(filter === 'warnings'
             ? { skip: pagination.skip, take: pagination.pageSize }
-            : { take: 50 }),
+            : { take: allTake }),
     });
 
     const [notifications, warnings] = await Promise.all([
@@ -203,7 +205,10 @@ export default async function NotificationsPage({
 
     const items =
         filter === 'all'
-            ? mergedItems.slice(0, 50)
+            ? mergedItems.slice(
+                  pagination.skip,
+                  pagination.skip + pagination.pageSize,
+              )
             : mergedItems;
 
     const renderedNotificationIds = items
@@ -246,11 +251,7 @@ export default async function NotificationsPage({
                 </div>
                 {filteredCount > 0 && (
                     <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
-                        {filter === 'all'
-                            ? (totalItemCount > items.length
-                                ? `最新${items.length}件を表示しています（全${totalItemCount}件）`
-                                : `全${totalItemCount}件`)
-                            : `全${filteredCount}件・${pagination.page}/${pagination.totalPages}ページ`}
+                        全{filteredCount}件・{pagination.page}/{pagination.totalPages}ページ
                     </div>
                 )}
                 {items.map((item) => {
@@ -435,7 +436,7 @@ export default async function NotificationsPage({
                         {filter === 'warnings' ? '運営警告はありません' : filter === 'social' ? '通常通知はありません' : '通知はまだありません'}
                     </div>
                 )}
-                {filter !== 'all' && filteredCount > 0 && (
+                {filteredCount > 0 && (
                     <PaginationLinks
                         page={pagination.page}
                         totalPages={pagination.totalPages}
