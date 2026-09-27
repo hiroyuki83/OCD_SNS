@@ -1,34 +1,24 @@
 import bcrypt from 'bcryptjs';
 import { AccountStatus, PrismaClient, Role } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { validatePreviewSeedSafety } from '../src/lib/previewSafety';
 
-const previewDatabaseUrl = process.env.PREVIEW_DATABASE_URL?.trim();
-const password = process.env.PREVIEW_TEST_PASSWORD ?? '';
+const safety = validatePreviewSeedSafety({
+  vercelEnv: process.env.VERCEL_ENV,
+  gitRef: process.env.VERCEL_GIT_COMMIT_REF,
+  seedUsers: process.env.PREVIEW_SEED_USERS,
+  databaseUrl: process.env.DATABASE_URL,
+  previewDatabaseUrl: process.env.PREVIEW_DATABASE_URL,
+  testPassword: process.env.PREVIEW_TEST_PASSWORD,
+});
 
-if (process.env.VERCEL_ENV !== 'preview') {
-  console.error('Preview test users can only be seeded when VERCEL_ENV=preview.');
+if (!safety.ok) {
+  console.error(safety.error);
   process.exit(1);
 }
 
-if (process.env.VERCEL_GIT_COMMIT_REF !== 'security-integration-final-20260926') {
-  console.error('Preview test users can only be seeded on security-integration-final-20260926.');
-  process.exit(1);
-}
-
-if (process.env.PREVIEW_SEED_USERS !== '1') {
-  console.error('PREVIEW_SEED_USERS=1 is required to seed preview test users.');
-  process.exit(1);
-}
-
-if (!previewDatabaseUrl) {
-  console.error('PREVIEW_DATABASE_URL is required.');
-  process.exit(1);
-}
-
-if (password.length < 10 || password.length > 128) {
-  console.error('PREVIEW_TEST_PASSWORD must be 10-128 characters.');
-  process.exit(1);
-}
+const previewDatabaseUrl = safety.previewDatabaseUrl;
+const password = safety.testPassword;
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: previewDatabaseUrl }),
