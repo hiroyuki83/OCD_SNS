@@ -38,6 +38,7 @@ export default async function AdminUsersPage({
       OR: [
         { id: { contains: query } },
         { email: { contains: query, mode: "insensitive" } },
+        { handle: { contains: query.replace(/^@/, ""), mode: "insensitive" } },
         { name: { contains: query, mode: "insensitive" } },
       ],
     });
@@ -67,6 +68,7 @@ export default async function AdminUsersPage({
     select: {
       id: true,
       name: true,
+      handle: true,
       email: true,
       role: true,
       status: true,
@@ -81,6 +83,7 @@ export default async function AdminUsersPage({
   const viewUsers = users.map((user) => ({
     id: user.id,
     name: user.name,
+    handle: user.handle,
     email: user.email,
     role: user.role,
     status: user.status,
@@ -114,7 +117,7 @@ export default async function AdminUsersPage({
               defaultValue={query}
               maxLength={100}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-              placeholder="名前、メール、ユーザーID"
+              placeholder="名前、@handle、メール、ユーザーID"
             />
           </label>
           <label className="block text-sm font-medium text-zinc-700 xl:col-span-2">
