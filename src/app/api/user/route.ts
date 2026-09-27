@@ -1,7 +1,7 @@
-import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { isSuspensionActive } from '@/lib/accountStatus';
+import { privateJson } from '@/lib/apiResponse';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id')?.trim();
     if (!id || id.length > 128) {
-        return NextResponse.json({ user: null }, { status: 400 });
+        return privateJson({ user: null }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
         },
     });
     if (!user || isSuspensionActive(user.status, user.suspendedUntil)) {
-        return NextResponse.json({ user: null }, { status: 404 });
+        return privateJson({ user: null }, { status: 404 });
     }
 
     const session = await auth();
@@ -96,7 +96,7 @@ export async function GET(request: Request) {
         }),
     ]);
 
-    return NextResponse.json({
+    return privateJson({
         user: {
             id: user.id,
             name: user.name,
