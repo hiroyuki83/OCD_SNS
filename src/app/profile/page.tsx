@@ -2,12 +2,12 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
-import { addGanbatta, addWakaru, toggleBookmark, toggleLike } from '@/app/lib/actions';
 import HashtagText from '@/components/shared/HashtagText';
 import { visibleAccountFilter } from '@/lib/accountStatus';
 import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
 import { DeletePostForm, PrivacyToggleForm } from '@/components/profile/ProfileDangerActions';
+import ProfilePostActionForm from '@/components/profile/ProfilePostActionForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -201,51 +201,30 @@ export default async function ProfilePage({
                                 />
                             )}
                             <div className="flex items-center gap-3 text-zinc-500 flex-wrap relative z-30 feed-action-area">
-                                <form action={toggleLike.bind(null, post.id)}>
-                                    <button
-                                        type="submit"
-                                        aria-pressed={liked}
-                                        className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors ${
-                                            liked ? 'text-red-500' : 'hover:text-red-500'
-                                        }`}
-                                    >
-                                        いいね
-                                        <span>{likeCount}</span>
-                                    </button>
-                                </form>
-                                <form action={addWakaru.bind(null, post.id)}>
-                                    <button
-                                        type="submit"
-                                        aria-pressed={wakaruReacted}
-                                        className={`text-xs rounded-full px-3 py-1 transition-colors ${
-                                            wakaruReacted ? 'text-yellow-400' : 'hover:text-yellow-400'
-                                        }`}
-                                    >
-                                        わかる <span>{post.wakaruCount}</span>
-                                    </button>
-                                </form>
-                                <form action={addGanbatta.bind(null, post.id)}>
-                                    <button
-                                        type="submit"
-                                        aria-pressed={ganbattaReacted}
-                                        className={`text-xs rounded-full px-3 py-1 transition-colors ${
-                                            ganbattaReacted ? 'text-green-400' : 'hover:text-green-400'
-                                        }`}
-                                    >
-                                        頑張った！ <span>{post.ganbattaCount}</span>
-                                    </button>
-                                </form>
-                                <form action={toggleBookmark.bind(null, post.id)}>
-                                    <button
-                                        type="submit"
-                                        aria-pressed={bookmarked}
-                                        className={`text-xs rounded-full px-3 py-1 transition-colors ${
-                                            bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
-                                        }`}
-                                    >
-                                        ブックマーク <span>{post._count.bookmarks}</span>
-                                    </button>
-                                </form>
+                                <ProfilePostActionForm
+                                    postId={post.id}
+                                    action="like"
+                                    active={liked}
+                                    count={likeCount}
+                                />
+                                <ProfilePostActionForm
+                                    postId={post.id}
+                                    action="wakaru"
+                                    active={wakaruReacted}
+                                    count={post.wakaruCount}
+                                />
+                                <ProfilePostActionForm
+                                    postId={post.id}
+                                    action="ganbatta"
+                                    active={ganbattaReacted}
+                                    count={post.ganbattaCount}
+                                />
+                                <ProfilePostActionForm
+                                    postId={post.id}
+                                    action="bookmark"
+                                    active={bookmarked}
+                                    count={post._count.bookmarks}
+                                />
                                 <Link
                                     href={`/post?id=${encodeURIComponent(post.id)}`}
                                     className="text-xs text-[#1d9bf0] hover:underline"
