@@ -60,6 +60,8 @@ function isStaff(role: Role) {
   return role === Role.ADMIN || role === Role.MODERATOR;
 }
 
+class TotpStateChangedError extends Error {}
+
 export async function startStaffTotpSetup(
   _prevState: TotpSetupState,
   formData: FormData,
@@ -83,24 +85,38 @@ export async function startStaffTotpSetup(
   const encrypted = encryptTotpSecret(secret);
   const uri = buildTotpUri({ secret, accountName: user.email });
 
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: user.id },
-      data: {
-        staffTotpSecretEncrypted: encrypted,
-        staffTotpEnabledAt: null,
-        staffTotpLastUsedStep: null,
-      },
-    }),
-    prisma.auditLog.create({
-      data: {
-        action: 'STAFF_TOTP_SETUP_STARTED',
-        actorUserId: user.id,
-        targetUserId: user.id,
-        meta: {},
-      },
-    }),
-  ]);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.user.updateMany({
+        where: {
+          id: user.id,
+          role: { in: [Role.ADMIN, Role.MODERATOR] },
+          staffTotpEnabledAt: null,
+          staffTotpSecretEncrypted: user.staffTotpSecretEncrypted,
+        },
+        data: {
+          staffTotpSecretEncrypted: encrypted,
+          staffTotpEnabledAt: null,
+          staffTotpLastUsedStep: null,
+        },
+      });
+      if (changed.count !== 1) throw new TotpStateChangedError();
+
+      await tx.auditLog.create({
+        data: {
+          action: 'STAFF_TOTP_SETUP_STARTED',
+          actorUserId: user.id,
+          targetUserId: user.id,
+          meta: {},
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof TotpStateChangedError) {
+      return { message: '2段階認証の状態が変更されました。画面を更新して再度お試しください。' };
+    }
+    throw error;
+  }
 
   revalidatePath('/settings');
   return {
@@ -140,38 +156,57 @@ export async function enableStaffTotp(
   const enabledAt = new Date();
   const recoveryCodes = generateStaffRecoveryCodes();
 
-  await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: user.id },
-      data: {
-        staffTotpEnabledAt: enabledAt,
-        staffTotpLastUsedStep: step,
-      },
-    });
-
-    await tx.staffRecoveryCode.deleteMany({
-      where: { userId: user.id },
-    });
-
-    await tx.staffRecoveryCode.createMany({
-      data: recoveryCodes.map((recoveryCode) => ({
-        userId: user.id,
-        codeHash: hashRecoveryCode(recoveryCode),
-      })),
-    });
-
-    await tx.auditLog.create({
-      data: {
-        action: 'STAFF_TOTP_ENABLED',
-        actorUserId: user.id,
-        targetUserId: user.id,
-        meta: {
-          enabledAt,
-          recoveryCodeCount: recoveryCodes.length,
+  try {
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.user.updateMany({
+        where: {
+          id: user.id,
+          role: { in: [Role.ADMIN, Role.MODERATOR] },
+          staffTotpSecretEncrypted: user.staffTotpSecretEncrypted,
+          staffTotpEnabledAt: null,
+          OR: [
+            { staffTotpLastUsedStep: null },
+            { staffTotpLastUsedStep: { lt: step } },
+          ],
         },
-      },
+        data: {
+          staffTotpEnabledAt: enabledAt,
+          staffTotpLastUsedStep: step,
+          sessionVersion: { increment: 1 },
+        },
+      });
+      if (changed.count !== 1) throw new TotpStateChangedError();
+
+      await tx.staffRecoveryCode.deleteMany({
+        where: { userId: user.id },
+      });
+
+      await tx.staffRecoveryCode.createMany({
+        data: recoveryCodes.map((recoveryCode) => ({
+          userId: user.id,
+          codeHash: hashRecoveryCode(recoveryCode),
+        })),
+      });
+
+      await tx.auditLog.create({
+        data: {
+          action: 'STAFF_TOTP_ENABLED',
+          actorUserId: user.id,
+          targetUserId: user.id,
+          meta: {
+            enabledAt,
+            recoveryCodeCount: recoveryCodes.length,
+            sessionsRevoked: true,
+          },
+        },
+      });
     });
-  });
+  } catch (error) {
+    if (error instanceof TotpStateChangedError) {
+      return { message: '認証コードが既に使用されたか、2段階認証の状態が変更されました。' };
+    }
+    throw error;
+  }
 
   revalidatePath('/settings');
   return {
@@ -211,32 +246,49 @@ export async function regenerateStaffRecoveryCodes(
 
   const recoveryCodes = generateStaffRecoveryCodes();
 
-  await prisma.$transaction(async (tx) => {
-    await tx.user.update({
-      where: { id: user.id },
-      data: { staffTotpLastUsedStep: step },
-    });
+  try {
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.user.updateMany({
+        where: {
+          id: user.id,
+          role: { in: [Role.ADMIN, Role.MODERATOR] },
+          staffTotpSecretEncrypted: user.staffTotpSecretEncrypted,
+          staffTotpEnabledAt: user.staffTotpEnabledAt,
+          OR: [
+            { staffTotpLastUsedStep: null },
+            { staffTotpLastUsedStep: { lt: step } },
+          ],
+        },
+        data: { staffTotpLastUsedStep: step },
+      });
+      if (changed.count !== 1) throw new TotpStateChangedError();
 
-    await tx.staffRecoveryCode.deleteMany({
-      where: { userId: user.id },
-    });
+      await tx.staffRecoveryCode.deleteMany({
+        where: { userId: user.id },
+      });
 
-    await tx.staffRecoveryCode.createMany({
-      data: recoveryCodes.map((recoveryCode) => ({
-        userId: user.id,
-        codeHash: hashRecoveryCode(recoveryCode),
-      })),
-    });
+      await tx.staffRecoveryCode.createMany({
+        data: recoveryCodes.map((recoveryCode) => ({
+          userId: user.id,
+          codeHash: hashRecoveryCode(recoveryCode),
+        })),
+      });
 
-    await tx.auditLog.create({
-      data: {
-        action: 'STAFF_RECOVERY_CODES_REGENERATED',
-        actorUserId: user.id,
-        targetUserId: user.id,
-        meta: { recoveryCodeCount: recoveryCodes.length },
-      },
+      await tx.auditLog.create({
+        data: {
+          action: 'STAFF_RECOVERY_CODES_REGENERATED',
+          actorUserId: user.id,
+          targetUserId: user.id,
+          meta: { recoveryCodeCount: recoveryCodes.length },
+        },
+      });
     });
-  });
+  } catch (error) {
+    if (error instanceof TotpStateChangedError) {
+      return { message: 'この認証コードは既に使用されたか、2段階認証の状態が変更されました。' };
+    }
+    throw error;
+  }
 
   revalidatePath('/settings');
   return {
@@ -307,14 +359,21 @@ export async function recoverStaffTotpWithRecoveryCode(
         throw new RecoveryCodeConsumedError();
       }
 
-      await tx.user.update({
-        where: { id: user.id },
+      const changed = await tx.user.updateMany({
+        where: {
+          id: user.id,
+          role: { in: [Role.ADMIN, Role.MODERATOR] },
+          staffTotpEnabledAt: user.staffTotpEnabledAt,
+          staffTotpSecretEncrypted: user.staffTotpSecretEncrypted,
+        },
         data: {
           staffTotpSecretEncrypted: encrypted,
           staffTotpEnabledAt: null,
           staffTotpLastUsedStep: null,
+          sessionVersion: { increment: 1 },
         },
       });
+      if (changed.count !== 1) throw new TotpStateChangedError();
 
       await tx.staffRecoveryCode.deleteMany({
         where: { userId: user.id },
@@ -329,6 +388,7 @@ export async function recoverStaffTotpWithRecoveryCode(
             recoveryCodeId: recovery.id,
             resetAt,
             previousRecoveryCodesRevoked: true,
+            sessionsRevoked: true,
           },
         },
       });
@@ -336,6 +396,9 @@ export async function recoverStaffTotpWithRecoveryCode(
   } catch (error) {
     if (error instanceof RecoveryCodeConsumedError) {
       return { message: 'このリカバリーコードは既に使用されています。' };
+    }
+    if (error instanceof TotpStateChangedError) {
+      return { message: '2段階認証の状態が変更されました。画面を更新して再度お試しください。' };
     }
     throw error;
   }
@@ -377,27 +440,50 @@ export async function disableStaffTotp(
     return { message: 'この認証コードは既に使用されています。次のコードを待ってください。' };
   }
 
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: user.id },
-      data: {
-        staffTotpSecretEncrypted: null,
-        staffTotpEnabledAt: null,
-        staffTotpLastUsedStep: null,
-      },
-    }),
-    prisma.staffRecoveryCode.deleteMany({
-      where: { userId: user.id },
-    }),
-    prisma.auditLog.create({
-      data: {
-        action: 'STAFF_TOTP_DISABLED',
-        actorUserId: user.id,
-        targetUserId: user.id,
-        meta: { recoveryCodesRevoked: true },
-      },
-    }),
-  ]);
+  try {
+    await prisma.$transaction(async (tx) => {
+      const changed = await tx.user.updateMany({
+        where: {
+          id: user.id,
+          role: { in: [Role.ADMIN, Role.MODERATOR] },
+          staffTotpSecretEncrypted: user.staffTotpSecretEncrypted,
+          staffTotpEnabledAt: user.staffTotpEnabledAt,
+          OR: [
+            { staffTotpLastUsedStep: null },
+            { staffTotpLastUsedStep: { lt: step } },
+          ],
+        },
+        data: {
+          staffTotpSecretEncrypted: null,
+          staffTotpEnabledAt: null,
+          staffTotpLastUsedStep: null,
+          sessionVersion: { increment: 1 },
+        },
+      });
+      if (changed.count !== 1) throw new TotpStateChangedError();
+
+      await tx.staffRecoveryCode.deleteMany({
+        where: { userId: user.id },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          action: 'STAFF_TOTP_DISABLED',
+          actorUserId: user.id,
+          targetUserId: user.id,
+          meta: {
+            recoveryCodesRevoked: true,
+            sessionsRevoked: true,
+          },
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof TotpStateChangedError) {
+      return { message: 'この認証コードは既に使用されたか、2段階認証の状態が変更されました。' };
+    }
+    throw error;
+  }
 
   revalidatePath('/settings');
   return { ok: true, message: '2段階認証を解除しました。' };
