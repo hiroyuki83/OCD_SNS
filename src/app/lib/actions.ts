@@ -622,21 +622,32 @@ export async function acceptFollowRequest(followerId: string) {
     if (!userId || userId === followerId) return;
     if (!(await rateLimit(`follow-review:${userId}`, 100, 60 * 60 * 1000))) return;
 
-    if (await usersAreBlocked(userId, followerId)) return;
+    await prisma.$transaction(async (tx) => {
+        const follower = await tx.user.findUnique({
+            where: { id: followerId },
+            select: { status: true, suspendedUntil: true },
+        });
+        if (!follower || isSuspensionActive(follower.status, follower.suspendedUntil)) return;
 
-    const follower = await prisma.user.findUnique({
-        where: { id: followerId },
-        select: { status: true, suspendedUntil: true },
-    });
-    if (!follower || isSuspensionActive(follower.status, follower.suspendedUntil)) return;
+        const blocked = await tx.block.findFirst({
+            where: {
+                OR: [
+                    { blockerId: userId, blockedId: followerId },
+                    { blockerId: followerId, blockedId: userId },
+                ],
+            },
+            select: { id: true },
+        });
+        if (blocked) return;
 
-    await prisma.follow.updateMany({
-        where: {
-            followerId,
-            followingId: userId,
-            acceptedAt: null,
-        },
-        data: { acceptedAt: new Date() },
+        await tx.follow.updateMany({
+            where: {
+                followerId,
+                followingId: userId,
+                acceptedAt: null,
+            },
+            data: { acceptedAt: new Date() },
+        });
     });
 
     revalidatePath('/');
