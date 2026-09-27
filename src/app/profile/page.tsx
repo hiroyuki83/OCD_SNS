@@ -39,6 +39,18 @@ export default async function ProfilePage({
         select: { name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true },
     });
 
+    if (!user) {
+        return (
+            <div className="p-6 text-sm text-zinc-500">
+                アカウント情報を取得できませんでした。{' '}
+                <Link href="/login" className="text-[#1d9bf0] hover:underline">
+                    ログインし直す
+                </Link>
+                ことをお試しください。
+            </div>
+        );
+    }
+
     const now = new Date();
     const postCount = await prisma.post.count({
         where: { authorId: userId, deletedAt: null, isHidden: false },
@@ -111,13 +123,13 @@ export default async function ProfilePage({
             </div>
             <div className="border-b border-border">
                 <div className="h-32 bg-zinc-900">
-                    {user?.headerUrl && (
+                    {user.headerUrl && (
                         <img src={user.headerUrl} alt="ヘッダー画像" className="h-32 w-full object-cover" />
                     )}
                 </div>
                 <div className="p-4 flex items-start justify-between gap-4">
                     <div className="-mt-10">
-                        {user?.avatarUrl ? (
+                        {user.avatarUrl ? (
                             <img
                                 src={user.avatarUrl}
                                 alt="プロフィール画像"
@@ -128,9 +140,9 @@ export default async function ProfilePage({
                         )}
                     </div>
                     <div className="flex flex-col gap-1">
-                        <span className="text-lg font-bold">{user?.name ?? 'ユーザー'}</span>
-                        <span className="text-sm text-zinc-500">@{user?.handle}</span>
-                        {user?.bio && <p className="text-sm text-zinc-600">{user.bio}</p>}
+                        <span className="text-lg font-bold">{user.name ?? 'ユーザー'}</span>
+                        <span className="text-sm text-zinc-500">@{user.handle}</span>
+                        {user.bio && <p className="text-sm text-zinc-600">{user.bio}</p>}
                         <div className="flex gap-4 text-sm text-zinc-400 mt-2" />
                     </div>
                     <div className="ml-auto flex flex-col items-end gap-2">
@@ -176,7 +188,7 @@ export default async function ProfilePage({
                             className="p-4 border-b border-border hover:bg-zinc-50 transition-colors flex gap-4 relative"
                         >
 
-                            {user?.avatarUrl ? (
+                            {user.avatarUrl ? (
                                 <img
                                     src={user.avatarUrl}
                                     alt="プロフィール画像"
@@ -187,8 +199,8 @@ export default async function ProfilePage({
                             )}
                             <div className="flex-1 flex flex-col gap-2 relative z-10">
                             <div className="flex items-center gap-2 text-sm">
-                                <span className="font-bold">{user?.name ?? 'ユーザー'}</span>
-                                <span className="text-zinc-500">@{user?.handle}</span>
+                                <span className="font-bold">{user.name ?? 'ユーザー'}</span>
+                                <span className="text-zinc-500">@{user.handle}</span>
                                 <span className="text-zinc-500">・</span>
                                 <span className="text-zinc-500">{formatPostTime(post.createdAt)}</span>
                             </div>
