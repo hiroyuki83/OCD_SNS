@@ -7,11 +7,6 @@ on:
         description: 'Type MIGRATE_COCO_PREVIEW to authorize Preview DB migration'
         required: true
         type: string
-      allow_baseline:
-        description: 'Allow baselining existing historical schema when _prisma_migrations is absent'
-        required: true
-        default: false
-        type: boolean
 
 concurrency:
   group: coco-preview-db-release
@@ -30,7 +25,7 @@ jobs:
       VERCEL_ENV: preview
       VERCEL_GIT_COMMIT_REF: ${{ github.ref_name }}
       PREVIEW_MIGRATION_CONFIRM: ${{ inputs.confirmation }}
-      PREVIEW_ALLOW_BASELINE: ${{ inputs.allow_baseline && '1' || '0' }}
+      PREVIEW_ALLOW_BASELINE: '0'
       PREVIEW_SEED_USERS: '1'
       DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
       PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
