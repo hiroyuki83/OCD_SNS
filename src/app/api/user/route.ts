@@ -41,6 +41,7 @@ export async function GET(request: Request) {
     }
 
     let canViewPosts = true;
+    let isBlockRestricted = false;
     if (viewerId) {
         const [blocked, muted] = await Promise.all([
             prisma.block.findFirst({
@@ -57,6 +58,7 @@ export async function GET(request: Request) {
                 select: { id: true },
             }),
         ]);
+        isBlockRestricted = Boolean(blocked);
         if (blocked || muted) canViewPosts = false;
     }
     if (user.isPrivate && viewerId !== user.id) {
@@ -101,12 +103,12 @@ export async function GET(request: Request) {
             id: user.id,
             name: user.name,
             handle: user.handle,
-            bio: user.bio,
+            bio: isBlockRestricted ? null : user.bio,
             avatarUrl: user.avatarUrl,
-            headerUrl: user.headerUrl,
+            headerUrl: isBlockRestricted ? null : user.headerUrl,
             isPrivate: user.isPrivate,
-            followerCount,
-            followingCount,
+            followerCount: isBlockRestricted ? 0 : followerCount,
+            followingCount: isBlockRestricted ? 0 : followingCount,
             canViewPosts,
             posts,
         },
