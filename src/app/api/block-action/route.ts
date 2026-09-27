@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
+import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { mutateBlockRelation } from '@/lib/userPrivacyRelations';
 import { parseJsonMutationRequest } from '@/lib/requestSecurity';
@@ -44,7 +45,14 @@ export async function POST(request: Request) {
     if (!result.ok) {
         return NextResponse.json(
             { ok: false },
-            { status: result.reason === 'NOT_FOUND' ? 404 : 400 },
+            {
+                status:
+                    result.reason === 'NOT_FOUND'
+                        ? 404
+                        : result.reason === 'CONFLICT'
+                          ? 409
+                          : 400,
+            },
         );
     }
 
