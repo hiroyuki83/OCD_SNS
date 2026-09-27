@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { headers } from 'next/headers';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
@@ -11,26 +10,13 @@ import ProfilePostActionForm from '@/components/profile/ProfilePostActionForm';
 import { DeletePostForm } from '@/components/profile/ProfileDangerActions';
 import ReportPostButton from '@/components/report/ReportPostButton';
 
-export default async function PostPage({ params }: { params?: { id?: string } }) {
-    let postId = params?.id;
-    if (!postId) {
-        const headerList = await headers();
-        const rawUrl =
-            headerList.get('x-url') ??
-            headerList.get('x-original-url') ??
-            headerList.get('referer') ??
-            '';
-        if (rawUrl) {
-            try {
-                const parsed = new URL(rawUrl);
-                const match = parsed.pathname.match(/^\/post\/([^/?#]+)/);
-                postId = match?.[1] ? decodeURIComponent(match[1]) : undefined;
-            } catch {
-                // ignore
-            }
-        }
-    }
-    postId = postId?.trim();
+export default async function PostPage({
+    params,
+}: {
+    params: Promise<{ id?: string }>;
+}) {
+    const resolvedParams = await params;
+    let postId = resolvedParams.id?.trim();
     if (!postId || postId.length > 128) {
         return (
             <div className="p-6 text-sm text-zinc-500">
