@@ -1,6 +1,7 @@
 import 'server-only';
 import crypto from 'crypto';
 import { prisma } from '@/lib/db';
+import { logOperationalError } from '@/lib/operationalError';
 
 type RateLimitResult = { count: number };
 
@@ -17,7 +18,7 @@ async function maybeCleanupExpiredBuckets() {
             where: { resetAt: { lte: new Date() } },
         });
     } catch (error) {
-        console.error('Rate limit cleanup failed:', error);
+        logOperationalError('RATE_LIMIT_CLEANUP_FAILED', error);
     }
 }
 
@@ -47,7 +48,7 @@ export async function rateLimit(key: string, limit: number, windowMs: number) {
         await maybeCleanupExpiredBuckets();
         return (rows[0]?.count ?? limit + 1) <= limit;
     } catch (error) {
-        console.error('Rate limit check failed:', error);
+        logOperationalError('RATE_LIMIT_CHECK_FAILED', error);
         return false;
     }
 }
