@@ -87,9 +87,10 @@ export default async function AdminAuditPage({
   const query = normalizedQuery.ok ? normalizedQuery.value : "";
   const actionFilter = selectedAction(searchParams?.action);
   const rawPage = searchParams?.page ?? "1";
-  const page = /^\d+$/.test(rawPage) ? Math.max(1, Number(rawPage)) : 1;
+  const parsedPage = /^\d+$/.test(rawPage) ? Number(rawPage) : 1;
+  const requestedPage =
+    Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   const pageSize = 100;
-  const skip = (page - 1) * pageSize;
   const filters: Prisma.AuditLogWhereInput[] = [];
 
   if (actionFilter) {
@@ -133,6 +134,10 @@ export default async function AdminAuditPage({
     prisma.auditLog.count({ where }),
   ]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredCount / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+  const skip = (page - 1) * pageSize;
+
   const logs = await prisma.auditLog.findMany({
     orderBy: { createdAt: "desc" },
     skip,
@@ -144,7 +149,6 @@ export default async function AdminAuditPage({
     },
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredCount / pageSize));
   const hasPrevious = page > 1;
   const hasNext = page < totalPages;
 
