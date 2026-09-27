@@ -113,19 +113,19 @@
 | NEXT-017 | session revoke E2E | P0 | DONE |
 | NEXT-018 | 心理検査データのアクセス権仕様を明文化 | P0 | DONE |
 | NEXT-019 | 心理検査データを管理画面から原則参照不可にする確認 / 修正 | P0 | DONE |
-| NEXT-020 | アカウント削除 | P1 | TODO |
+| NEXT-020 | アカウント削除 | P1 | DONE |
 | NEXT-021 | ユーザーデータエクスポート | P1 | DONE |
-| NEXT-022 | メールアドレス変更 | P1 | TODO |
+| NEXT-022 | メールアドレス変更 | P1 | DONE |
 | NEXT-023 | 通常のパスワード変更 | P1 | DONE |
 | NEXT-024 | 制裁履歴をユーザー単位で統合表示 | P1 | DONE |
-| NEXT-025 | 警告以外の処分への Appeal model を検討 | P1 | TODO |
-| NEXT-026 | 異議申立て結果通知 | P1 | TODO |
+| NEXT-025 | 警告以外の処分への Appeal model を検討 | P1 | DONE |
+| NEXT-026 | 異議申立て結果通知 | P1 | DONE |
 | NEXT-027 | 通知設定 | P2 | DONE |
 | NEXT-028 | ユーザー / @handle 検索 | P2 | DONE |
 | NEXT-029 | ハッシュタグ検索 | P2 | DONE |
 | NEXT-030 | 画像 alt text | P2 | DONE |
 | NEXT-031 | キーボード / focus / screen reader 監査 | P2 | DONE |
-| NEXT-032 | アプリレベルのエラー監視 | P2 | IN PROGRESS |
+| NEXT-032 | アプリレベルのエラー監視 | P2 | DONE |
 | NEXT-033 | DB / Blob バックアップ・復旧手順の文書化 | P2 | DONE |
 
 ## 実装しない機能
@@ -292,3 +292,64 @@ GitHub Actions `Security integration CI` run 36334031017 で最終確認済み�
   - account export / accessibility
 
 以上をもって NEXT-008〜017 を DONE とする。
+
+
+## 2026-09-28 実装バッチ4（30タスク）
+
+| # | 内容 | Status |
+|---:|---|---|
+| 1 | アカウント削除確認入力parserを追加 | DONE |
+| 2 | アカウント削除入力parserの単体テストを追加 | DONE |
+| 3 | 本人によるアカウント削除Server Actionを追加 | DONE |
+| 4 | ADMIN / MODERATORの自己削除を禁止 | DONE |
+| 5 | 削除時に認証情報・プロフィールを匿名化しsessionを失効 | DONE |
+| 6 | 削除時に投稿本文・画像URL・画像altを消去 | DONE |
+| 7 | 削除時にlike / bookmark / reaction / follow / block / mute / notificationを削除 | DONE |
+| 8 | 削除時にY-BOCS / IES-R / ITQ / LSASと認証tokenを削除 | DONE |
+| 9 | 削除ユーザー自身の通報詳細・異議申立て本文を消去 | DONE |
+| 10 | DB確定後に管理対象Blobをbest-effort削除 | DONE |
+| 11 | 設定画面にアカウント削除UIを追加 | DONE |
+| 12 | 削除完了メッセージとログイン不能化を追加 | DONE |
+| 13 | アカウント削除のprivacy回帰テストを追加 | DONE |
+| 14 | EmailVerificationTokenへpendingEmail schemaを追加 | DONE |
+| 15 | pendingEmail migrationを追加 | DONE |
+| 16 | メール変更入力validationを追加 | DONE |
+| 17 | メール変更validationの単体テストを追加 | DONE |
+| 18 | 新メール宛て変更確認メール送信を追加 | DONE |
+| 19 | 現在パスワード確認付きメール変更申請Actionを追加 | DONE |
+| 20 | 確認リンクでメール変更確定＋全session失効を実装 | DONE |
+| 21 | 設定画面へメール変更UIを追加 | DONE |
+| 22 | メール変更schema / session revoke回帰テストを追加 | DONE |
+| 23 | メール変更→旧メール無効→新メールログイン→削除のE2Eを追加 | DONE |
+| 24 | 警告以外のAppeal拡張をSanction + Appeal方針として設計 | DONE |
+| 25 | 異議申立て審査結果を警告再未読化で通知する回帰テストを追加 | DONE |
+| 26 | 異議申立て結果が通知バッジへ戻るE2Eを追加 | DONE |
+| 27 | operational error loggerをruntime-neutral化 | DONE |
+| 28 | Next.js onRequestError instrumentationを追加 | DONE |
+| 29 | auth / Blob / email / RateLimitの生エラーログをprivacy-safe化 | DONE |
+| 30 | アカウント・Appeal・監視・Preview migration要件を文書同期 | DONE |
+
+### バッチ4検証
+
+コード検証commit: `85a840478f491a48a74df2d5c279d82e111cd72b`
+
+- Security integration CI run `36342472584`: SUCCESS
+  - Prisma validate / generate: SUCCESS
+  - lint: SUCCESS
+  - unit tests: 123 / 123 PASS
+  - TypeScript: SUCCESS
+  - Next.js production build: SUCCESS
+- CoCo E2E run `36342472742`: SUCCESS
+  - isolated PostgreSQLへの全migration適用: SUCCESS
+  - Preview seed: SUCCESS
+  - Playwright: 15 / 15 PASS
+  - 新規追加のメール変更 / アカウント削除ライフサイクルを含む
+
+追加の安全修正:
+- `pendingEmail` のPrisma fieldを誤って PasswordResetToken に置かない回帰テストを追加
+- メール確認・メール変更の競合時はtoken消費だけをcommitせずtransaction全体をrollback
+- アカウント削除の競合時は部分削除をcommitせずtransaction全体をrollback
+- RateLimit keyはSHA-256化済みであることを再確認し、DBエラーの生ログもprivacy-safe loggerへ統一
+
+以上をもって NEXT-020 / NEXT-022 / NEXT-025 / NEXT-026 / NEXT-032 を DONE とする。
+NEXT-006 / NEXT-007 は Preview DB 接続先を安全に識別できるまで TODO のままとする。
