@@ -143,6 +143,7 @@ export async function reportVisiblePost(page, postContent, {
   await resultCard.getByRole('link', { name: '投稿を開く' }).click();
 
   let promptIndex = 0;
+  let reportResultMessage = '';
   page.on('dialog', async (dialog) => {
     if (dialog.type() === 'prompt') {
       const value = promptIndex === 0 ? reasonNumber : detail;
@@ -150,11 +151,17 @@ export async function reportVisiblePost(page, postContent, {
       await dialog.accept(value);
       return;
     }
+    if (dialog.type() === 'alert') {
+      reportResultMessage = dialog.message();
+    }
     await dialog.accept();
   });
 
   await page.getByRole('button', { name: '通報', exact: true }).click();
   await expect.poll(() => promptIndex).toBeGreaterThanOrEqual(2);
+  await expect
+    .poll(() => reportResultMessage, { timeout: 15_000 })
+    .toMatch(/通報を受け付けました|未解決の通報は既に送信済み/);
 }
 
 
