@@ -32,3 +32,15 @@ test('Preview DB workflow is manual-only and requires exact confirmation', () =>
   assert.ok(source.includes("github.ref_name == 'security-integration-final-20260926'"));
   assert.ok(source.includes('secrets.PREVIEW_DATABASE_URL'));
 });
+
+
+test('guarded migration runner always performs preflight and post-migration verification', () => {
+  const source = readFileSync('scripts/migrate-preview.ts', 'utf8');
+  const preflight = source.indexOf("scripts/preview-db-preflight.ts");
+  const deploy = source.indexOf("runPrisma(['migrate', 'deploy'])");
+  const verify = source.indexOf("scripts/preview-db-verify.ts");
+
+  assert.ok(preflight >= 0, 'migration runner must invoke Preview DB preflight');
+  assert.ok(deploy > preflight, 'migration deploy must happen after preflight');
+  assert.ok(verify > deploy, 'schema verification must happen after migration deploy');
+});
