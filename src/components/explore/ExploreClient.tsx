@@ -53,21 +53,7 @@ export default function ExploreClient() {
             /^\d+$/.test(currentRawPage) && Number.isSafeInteger(Number(currentRawPage))
                 ? Math.max(1, Number(currentRawPage))
                 : 1;
-        if (!current) {
-            setResult((prev) => ({
-                ...prev,
-                query: '',
-                requestedPage: 1,
-                posts: [],
-                totalCount: 0,
-                page: 1,
-                totalPages: 1,
-                hasPrevious: false,
-                hasNext: false,
-                error: false,
-            }));
-            return;
-        }
+        if (!current) return;
         const controller = new AbortController();
         fetch(
             `/api/search-posts?q=${encodeURIComponent(current)}&page=${currentPage}`,
