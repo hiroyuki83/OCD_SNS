@@ -185,6 +185,15 @@ export default async function AdminUserDetailPage({
 
   if (!user) notFound();
 
+  const [reportsTargetingCount, warningHistoryCount, adminNoteCount, auditLogCount] =
+    await Promise.all([
+      prisma.report.count({ where: { targetUserId: userId } }),
+      prisma.moderationWarning.count({ where: { targetUserId: userId } }),
+      prisma.adminNote.count({ where: { targetUserId: userId } }),
+      prisma.auditLog.count({ where: { targetUserId: userId } }),
+    ]);
+  const totalPostCount = visiblePostCount + hiddenPostCount + deletedPostCount;
+
   const identity = user.email ?? user.name ?? user.id;
   const stats = [
     { label: "公開投稿", value: visiblePostCount, helper: "表示中の投稿" },
@@ -247,6 +256,7 @@ export default async function AdminUserDetailPage({
 
       <AdminNotesPanel
         userId={user.id}
+        totalCount={adminNoteCount}
         notes={adminNotes.map((note) => ({
           id: note.id,
           body: note.body,
@@ -259,6 +269,11 @@ export default async function AdminUserDetailPage({
         <h2 className="text-base font-semibold text-zinc-900">警告履歴</h2>
         <p className="mt-1 text-xs text-zinc-500">
           通報対応で発行された警告です。警告の発行は監査ログにも記録されます。
+          {warningHistoryCount > warnings.length
+            ? ` 最新${warnings.length}件 / 全${warningHistoryCount}件を表示しています。`
+            : warningHistoryCount > 0
+              ? ` 全${warningHistoryCount}件です。`
+              : ''}
         </p>
         <div className="mt-3 flex flex-col gap-3">
           {warnings.length === 0 ? (
@@ -336,7 +351,14 @@ export default async function AdminUserDetailPage({
       </div>
 
       <div className="mb-6">
-        <h2 className="mb-3 text-base font-semibold text-zinc-900">最近の投稿</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-zinc-900">最近の投稿</h2>
+          <span className="text-xs text-zinc-500">
+            {totalPostCount > recentPosts.length
+              ? `最新${recentPosts.length}件 / 全${totalPostCount}件`
+              : `全${totalPostCount}件`}
+          </span>
+        </div>
         <div className="flex flex-col gap-3">
           {recentPosts.length === 0 ? (
             <div className="rounded-lg border border-border p-4 text-sm text-zinc-500">投稿はありません。</div>
@@ -372,7 +394,14 @@ export default async function AdminUserDetailPage({
 
       <div className="mb-6 grid gap-6 xl:grid-cols-2">
         <section>
-          <h2 className="mb-3 text-base font-semibold text-zinc-900">このユーザーへの通報</h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold text-zinc-900">このユーザーへの通報</h2>
+            <span className="text-xs text-zinc-500">
+              {reportsTargetingCount > reportsTargetingUser.length
+                ? `最新${reportsTargetingUser.length}件 / 全${reportsTargetingCount}件`
+                : `全${reportsTargetingCount}件`}
+            </span>
+          </div>
           <div className="flex flex-col gap-3">
             {reportsTargetingUser.length === 0 ? (
               <div className="rounded-lg border border-border p-4 text-sm text-zinc-500">通報はありません。</div>
@@ -405,7 +434,14 @@ export default async function AdminUserDetailPage({
         </section>
 
         <section>
-          <h2 className="mb-3 text-base font-semibold text-zinc-900">このユーザーが送った通報</h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold text-zinc-900">このユーザーが送った通報</h2>
+            <span className="text-xs text-zinc-500">
+              {reportsMadeCount > reportsMade.length
+                ? `最新${reportsMade.length}件 / 全${reportsMadeCount}件`
+                : `全${reportsMadeCount}件`}
+            </span>
+          </div>
           <div className="flex flex-col gap-3">
             {reportsMade.length === 0 ? (
               <div className="rounded-lg border border-border p-4 text-sm text-zinc-500">通報はありません。</div>
@@ -432,7 +468,22 @@ export default async function AdminUserDetailPage({
       </div>
 
       <div>
-        <h2 className="mb-3 text-base font-semibold text-zinc-900">監査ログ</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-zinc-900">監査ログ</h2>
+          <div className="flex items-center gap-3 text-xs text-zinc-500">
+            <span>
+              {auditLogCount > auditLogs.length
+                ? `最新${auditLogs.length}件 / 全${auditLogCount}件`
+                : `全${auditLogCount}件`}
+            </span>
+            <Link
+              href={`/admin/audit?q=${encodeURIComponent(user.id)}`}
+              className="font-semibold text-[#1d9bf0] hover:underline"
+            >
+              監査ログで開く
+            </Link>
+          </div>
+        </div>
         <div className="rounded-lg border border-border">
           {auditLogs.length === 0 ? (
             <div className="p-4 text-sm text-zinc-500">監査ログはありません。</div>
