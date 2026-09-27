@@ -57,6 +57,10 @@ export default function StaffTotpSetting({
     recoveryState?.recoveryCodes ?? enableState?.recoveryCodes;
   const enrollmentSecret = recoveryResetState?.secret ?? setupState?.secret;
   const enrollmentUri = recoveryResetState?.uri ?? setupState?.uri;
+  const effectiveEnabled =
+    recoveryResetState?.secret ? false : enabled || Boolean(enableState?.ok);
+  const effectiveRecoveryCodeCount =
+    displayedRecoveryCodes?.length ?? unusedRecoveryCodeCount;
 
   return (
     <section className="mt-6 rounded-lg border border-border p-4">
@@ -71,19 +75,19 @@ export default function StaffTotpSetting({
           <span
             className={
               'rounded-full px-3 py-1 text-xs font-semibold ' +
-              (enabled ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800')
+              (effectiveEnabled ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800')
             }
           >
-            {enabled ? '有効' : '未設定'}
+            {effectiveEnabled ? '有効' : '未設定'}
           </span>
-          {enabled && (
+          {effectiveEnabled && (
             <span
               className={
                 'text-xs font-semibold ' +
-                (unusedRecoveryCodeCount <= 2 ? 'text-red-700' : 'text-zinc-500')
+                (effectiveRecoveryCodeCount <= 2 ? 'text-red-700' : 'text-zinc-500')
               }
             >
-              未使用リカバリーコード: {unusedRecoveryCodeCount} / 10
+              未使用リカバリーコード: {effectiveRecoveryCodeCount} / 10
             </span>
           )}
         </div>
@@ -113,7 +117,7 @@ export default function StaffTotpSetting({
         </div>
       )}
 
-      {!enabled && (
+      {!effectiveEnabled && (
         <>
           <form action={setupAction} className="mt-4 rounded-md bg-zinc-50 p-3">
             <label className="block text-sm font-medium text-zinc-700">
@@ -193,6 +197,11 @@ export default function StaffTotpSetting({
                     {enablePending ? '確認中…' : 'コードを確認して有効化'}
                   </button>
                   <Message state={enableState} />
+                  {enableState?.ok && (
+                    <p className="mt-2 text-xs font-semibold text-amber-800">
+                      既存のログイン状態は無効になりました。リカバリーコードを保存してから再ログインしてください。
+                    </p>
+                  )}
                 </div>
               </form>
             </div>
@@ -200,7 +209,7 @@ export default function StaffTotpSetting({
         </>
       )}
 
-      {enabled && (
+      {effectiveEnabled && (
         <>
           <form
             action={recoveryResetAction}
