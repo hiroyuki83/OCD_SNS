@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useState } from 'react';
 import {
   disableStaffTotp,
   enableStaffTotp,
@@ -33,57 +33,65 @@ export default function StaffTotpSetting({
   enabled: boolean;
   unusedRecoveryCodeCount: number;
 }) {
+  const [phase, setPhase] = useState<'initial' | 'enrolling' | 'recovering' | 'enabled'>('initial');
+  const [displayedRecoveryCodes, setDisplayedRecoveryCodes] = useState<string[] | null>(null);
+
+  async function runSetup(previousState: TotpSetupState, formData: FormData) {
+    const nextState = await startStaffTotpSetup(previousState, formData);
+    if (nextState?.secret) {
+      setPhase('enrolling');
+      setDisplayedRecoveryCodes(null);
+    }
+    return nextState;
+  }
+
+  async function runEnable(previousState: TotpSetupState, formData: FormData) {
+    const nextState = await enableStaffTotp(previousState, formData);
+    if (nextState?.ok && nextState.recoveryCodes?.length) {
+      setPhase('enabled');
+      setDisplayedRecoveryCodes(nextState.recoveryCodes);
+    }
+    return nextState;
+  }
+
+  async function runRecoveryCodes(previousState: TotpSetupState, formData: FormData) {
+    const nextState = await regenerateStaffRecoveryCodes(previousState, formData);
+    if (nextState?.ok && nextState.recoveryCodes?.length) {
+      setPhase('enabled');
+      setDisplayedRecoveryCodes(nextState.recoveryCodes);
+    }
+    return nextState;
+  }
+
+  async function runRecoveryReset(previousState: TotpSetupState, formData: FormData) {
+    const nextState = await recoverStaffTotpWithRecoveryCode(previousState, formData);
+    if (nextState?.secret) {
+      setPhase('recovering');
+      setDisplayedRecoveryCodes(null);
+    }
+    return nextState;
+  }
+
   const [setupState, setupAction, setupPending] = useActionState<TotpSetupState, FormData>(
-    startStaffTotpSetup,
+    runSetup,
     undefined,
   );
   const [enableState, enableAction, enablePending] = useActionState<TotpSetupState, FormData>(
-    enableStaffTotp,
+    runEnable,
     undefined,
   );
   const [recoveryState, recoveryAction, recoveryPending] = useActionState<TotpSetupState, FormData>(
-    regenerateStaffRecoveryCodes,
+    runRecoveryCodes,
     undefined,
   );
   const [recoveryResetState, recoveryResetAction, recoveryResetPending] = useActionState<TotpSetupState, FormData>(
-    recoverStaffTotpWithRecoveryCode,
+    runRecoveryReset,
     undefined,
   );
   const [disableState, disableAction, disablePending] = useActionState<TotpSetupState, FormData>(
     disableStaffTotp,
     undefined,
   );
-  const [phase, setPhase] = useState<'initial' | 'enrolling' | 'recovering' | 'enabled'>('initial');
-  const [displayedRecoveryCodes, setDisplayedRecoveryCodes] = useState<string[] | null>(null);
-
-  useEffect(() => {
-    if (setupState?.secret) {
-      setPhase('enrolling');
-      setDisplayedRecoveryCodes(null);
-    }
-  }, [setupState]);
-
-  useEffect(() => {
-    if (recoveryResetState?.secret) {
-      setPhase('recovering');
-      setDisplayedRecoveryCodes(null);
-    }
-  }, [recoveryResetState]);
-
-  useEffect(() => {
-    if (enableState?.ok && enableState.recoveryCodes?.length) {
-      setPhase('enabled');
-      setDisplayedRecoveryCodes(enableState.recoveryCodes);
-    }
-  }, [enableState]);
-
-  useEffect(() => {
-    if (recoveryState?.ok && recoveryState.recoveryCodes?.length) {
-      setPhase('enabled');
-      setDisplayedRecoveryCodes(recoveryState.recoveryCodes);
-    }
-  }, [recoveryState]);
-
   const enrollmentSecret =
     phase === 'recovering'
       ? recoveryResetState?.secret
