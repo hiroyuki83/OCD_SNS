@@ -23,6 +23,7 @@ import { parseBoundedInteger, parseBoundedStringList, parseItqTiming } from '@/l
 import { togglePostInteraction } from '@/lib/postInteractions';
 import { mutateBlockRelation, mutateMuteRelation } from '@/lib/userPrivacyRelations';
 import { getNormalizedAccountModerationState } from '@/lib/accountModeration';
+import { normalizeImageAlt } from '@/lib/postImageAlt';
 
 const RegisterSchema = z.object({
     name: z.string().trim().min(1, '名前は必須です').max(50, '名前は50文字以内です'),
@@ -233,6 +234,9 @@ export async function createPost(
     const rawContent = formData.get('content');
     const content = typeof rawContent === 'string' ? rawContent.trim() : '';
     const image = formData.get('image');
+    const imageAltResult = normalizeImageAlt(formData.get('imageAlt'));
+    if (!imageAltResult.ok) return { message: imageAltResult.error };
+    const imageAlt = imageAltResult.value;
 
     let autoHashtag: string | null = null;
     if (userId) {
@@ -294,6 +298,7 @@ export async function createPost(
                 data: {
                     content: finalContent || '',
                     imageUrl,
+                    imageAlt: imageUrl ? imageAlt : null,
                     authorId: userId,
                 },
                 select: { id: true },
