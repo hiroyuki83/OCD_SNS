@@ -25,6 +25,7 @@ Preview環境では vercel-build が自動で prisma migrate deploy を実行し
 - 20260928013000_remove_reply_and_quote_post
 - 20260928014500_add_post_image_alt
 - 20260928023000_add_notification_preferences
+- 20260928031500_add_email_change_pending
 
 Production DBへこの手順を流用しない。
 
@@ -47,6 +48,8 @@ npm run smoke:preview -- https://<preview-url> で公開ページのHTTPスモ�
 - self-test privacy
 - account export
 - notification preferences
+- email change (専用の使い捨てテストユーザー)
+- account deletion (専用の使い捨てテストユーザーのみ)
 
 ## 停止条件
 
