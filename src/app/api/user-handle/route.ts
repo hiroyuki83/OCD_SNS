@@ -1,15 +1,17 @@
-import { NextResponse } from 'next/server';
 import type { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { isSuspensionActive, visibleAccountFilter } from '@/lib/accountStatus';
+import { privateJson } from '@/lib/apiResponse';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const rawHandle = searchParams.get('handle')?.trim() ?? '';
     const handle = rawHandle.startsWith('@') ? rawHandle.slice(1) : rawHandle;
     if (!handle || handle.length > 64) {
-        return NextResponse.json({ user: null }, { status: 400 });
+        return privateJson({ user: null }, { status: 400 });
     }
 
     const session = await auth();
@@ -27,7 +29,7 @@ export async function GET(request: Request) {
         select: { id: true, name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true, status: true, suspendedUntil: true },
     });
     if (!user || isSuspensionActive(user.status, user.suspendedUntil)) {
-        return NextResponse.json({ user: null }, { status: 404 });
+        return privateJson({ user: null }, { status: 404 });
     }
 
     const [
@@ -176,7 +178,7 @@ export async function GET(request: Request) {
               },
           });
 
-    return NextResponse.json({
+    return privateJson({
         user: {
             id: user.id,
             name: user.name,
