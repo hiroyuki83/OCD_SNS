@@ -7,7 +7,7 @@ import { useSearchParams } from 'next/navigation';
 import CreatePostForm from '@/components/feed/CreatePostForm';
 import HashtagText from '@/components/shared/HashtagText';
 import { formatPostTime } from '@/lib/formatTime';
-import { REPORT_REASONS, type ReportReasonValue } from '@/lib/reportReasons';
+import { promptForReport, submitReport } from '@/lib/reportClient';
 import { DeletePostForm } from '@/components/profile/ProfileDangerActions';
 import PaginationLinks from '@/components/shared/PaginationLinks';
 
@@ -284,52 +284,14 @@ export default function Feed({
     ) => {
         event.stopPropagation();
         if (!data.viewerId || reportingPostId || !postId || postId.length > 128) return;
-        const reasonGuide = REPORT_REASONS.map((reason, index) => `${index + 1}. ${reason.label}`).join('\n');
-        const selected = window.prompt(`通報理由を番号で選んでください。\n${reasonGuide}`);
-        if (selected === null) return;
-        const normalizedSelection = selected.trim();
-        if (!/^\d+$/.test(normalizedSelection)) {
-            alert('通報理由の番号が正しくありません。');
-            return;
-        }
-        const selectedIndex = Number(normalizedSelection) - 1;
-        const selectedReason = REPORT_REASONS[selectedIndex];
-        if (!selectedReason) {
-            alert('通報理由の番号が正しくありません。');
-            return;
-        }
-        const reason: ReportReasonValue = selectedReason.value;
-        const detailPrompt =
-            reason === 'OTHER'
-                ? '「その他」の具体的な理由を10文字以上で入力してください。'
-                : '通報理由の補足があれば入力してください。空欄でも送信できます。';
-        const detail = window.prompt(detailPrompt);
-        if (detail === null) return;
-        const boundedDetail = Array.from(detail.trim()).slice(0, 500).join('');
-        if (reason === 'OTHER' && Array.from(boundedDetail).length < 10) {
-            alert('「その他」を選んだ場合は、詳細を10文字以上入力してください。');
-            return;
-        }
+
+        const report = promptForReport();
+        if (!report) return;
 
         setReportingPostId(postId);
         try {
-            const res = await fetch('/api/report', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ postId, reason, detail: boundedDetail }),
-            });
-            if (!res.ok) {
-                let message = '通報に失敗しました。';
-                try {
-                    const payload = await res.json();
-                    if (payload?.error) message = payload.error;
-                } catch {
-                    // ignore
-                }
-                alert(message);
-                return;
-            }
-            alert('通報を受け付けました。');
+            const result = await submitReport({ postId }, report);
+            window.alert(result.message);
         } finally {
             setReportingPostId(null);
         }
