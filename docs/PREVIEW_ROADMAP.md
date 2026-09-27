@@ -98,7 +98,7 @@
 | NEXT-002 | Quote post fields / relation を Prisma schema から削除 | P0 | DONE |
 | NEXT-003 | Reply / Quote の残存コードを全検索して削除 | P0 | DONE |
 | NEXT-004 | Reply / Quote 削除 migration を作成 | P0 | DONE |
-| NEXT-005 | Reply / Quote 削除後に validate / lint / test / typecheck / build | P0 | IN PROGRESS |
+| NEXT-005 | Reply / Quote 削除後に validate / lint / test / typecheck / build | P0 | DONE |
 | NEXT-006 | 最新 Preview branch を Vercel Preview に同期 | P0 | TODO |
 | NEXT-007 | Preview DB migration / seed / smoke test | P0 | TODO |
 | NEXT-008 | Playwright E2E 基盤導入 | P0 | TODO |
@@ -190,4 +190,4 @@
 
 ### バッチ後の検証
 
-GitHub Actions の最新 `Security integration CI` で Prisma validate / generate / lint / unit tests / typecheck / build を最終確認する。
+GitHub Actions `Security integration CI` run 36334031017 で最終確認済み。Prisma validate / generate / lint / 78 unit tests / TypeScript / Next.js production build はすべて成功。検証 commit: `b9541cd0bdf4b830f678824db16f8a9050da8c5a`。
