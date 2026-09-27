@@ -102,6 +102,11 @@ test('report → moderation warning → appeal → admin overturn', async ({ bro
   // Wait for the review mutation to persist before reading the result as the user.
   await expect(overturnButton).toHaveCount(0);
 
+  await author.goto('/');
+  await expect(
+    author.getByRole('link', { name: /通知、未読\d+件/ }).first(),
+  ).toBeVisible();
+
   await author.goto('/notifications?filter=warnings');
   const resolvedWarning = author.locator('[data-warning-card]').filter({ hasText: warningReason });
   await expect(resolvedWarning.getByText('運営からの警告（取消済み）')).toBeVisible();
