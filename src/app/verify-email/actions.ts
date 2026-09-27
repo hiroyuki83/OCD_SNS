@@ -11,6 +11,8 @@ import { logOperationalError } from '@/lib/operationalError';
 const tokenSchema = z.string().min(32).max(256);
 const emailSchema = z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます。').email('正しいメールアドレスを入力してください。');
 
+class EmailVerificationConflictError extends Error {}
+
 export type VerifyEmailState =
     | { ok?: boolean; message?: string; errors?: { email?: string[] } }
     | undefined;
@@ -52,13 +54,13 @@ export async function verifyEmail(
                     },
                     data: { usedAt: verifiedAt },
                 });
-                if (consumed.count !== 1) return false;
+                if (consumed.count !== 1) throw new EmailVerificationConflictError();
 
                 const existing = await tx.user.findUnique({
                     where: { email: pendingEmail },
                     select: { id: true },
                 });
-                if (existing && existing.id !== record.userId) return false;
+                if (existing && existing.id !== record.userId) throw new EmailVerificationConflictError();
 
                 const updated = await tx.user.updateMany({
                     where: { id: record.userId },
@@ -68,7 +70,7 @@ export async function verifyEmail(
                         sessionVersion: { increment: 1 },
                     },
                 });
-                if (updated.count !== 1) return false;
+                if (updated.count !== 1) throw new EmailVerificationConflictError();
 
                 await tx.emailVerificationToken.updateMany({
                     where: {
@@ -92,9 +94,6 @@ export async function verifyEmail(
                 return true;
             });
 
-            if (!changed) {
-                return { message: 'このメールアドレスは利用できないか、確認リンクが既に使用されています。' };
-            }
             return {
                 ok: true,
                 message: 'メールアドレスを変更しました。新しいメールアドレスでログインしてください。',
@@ -106,11 +105,15 @@ export async function verifyEmail(
             ) {
                 return { message: 'このメールアドレスは利用できません。' };
             }
+            if (error instanceof EmailVerificationConflictError) {
+                return { message: 'このメールアドレスは利用できないか、確認リンクが既に使用されています。' };
+            }
             throw error;
         }
     }
 
-    const completed = await prisma.$transaction(async (tx) => {
+    try {
+        await prisma.$transaction(async (tx) => {
         const consumed = await tx.emailVerificationToken.updateMany({
             where: {
                 id: record.id,
@@ -121,7 +124,7 @@ export async function verifyEmail(
             },
             data: { usedAt: verifiedAt },
         });
-        if (consumed.count !== 1) return false;
+        if (consumed.count !== 1) throw new EmailVerificationConflictError();
 
         const verified = await tx.user.updateMany({
             where: {
@@ -130,7 +133,7 @@ export async function verifyEmail(
             },
             data: { emailVerifiedAt: verifiedAt },
         });
-        if (verified.count !== 1) return false;
+        if (verified.count !== 1) throw new EmailVerificationConflictError();
 
         await tx.emailVerificationToken.updateMany({
             where: {
@@ -151,9 +154,11 @@ export async function verifyEmail(
 
         return true;
     });
-
-    if (!completed) {
-        return { message: '確認リンクは無効または既に使用されています。再送をお試しください。' };
+    } catch (error) {
+        if (error instanceof EmailVerificationConflictError) {
+            return { message: '確認リンクは無効または既に使用されています。再送をお試しください。' };
+        }
+        throw error;
     }
 
     return { ok: true, message: 'メールアドレスを確認しました。ログインできます。' };
