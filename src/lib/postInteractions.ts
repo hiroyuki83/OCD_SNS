@@ -131,11 +131,14 @@ async function toggleBookmark(
     data: [{ userId, postId }],
     skipDuplicates: true,
   });
-  const currentBookmark = await tx.bookmark.findUnique({
-    where: { userId_postId: { userId, postId } },
-    select: { id: true },
-  });
-  return { ok: true, active: Boolean(currentBookmark) };
+  const [currentBookmark, count] = await Promise.all([
+    tx.bookmark.findUnique({
+      where: { userId_postId: { userId, postId } },
+      select: { id: true },
+    }),
+    tx.bookmark.count({ where: { postId } }),
+  ]);
+  return { ok: true, active: Boolean(currentBookmark), count };
 }
 
 async function toggleReaction(
