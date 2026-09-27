@@ -22,6 +22,7 @@ import { mutateFollowRelation } from '@/lib/userRelations';
 import { parseBoundedInteger, parseBoundedStringList, parseItqTiming } from '@/lib/selfTestInput';
 import { togglePostInteraction } from '@/lib/postInteractions';
 import { mutateBlockRelation, mutateMuteRelation } from '@/lib/userPrivacyRelations';
+import { getNormalizedAccountModerationState } from '@/lib/accountModeration';
 
 const RegisterSchema = z.object({
     name: z.string().trim().min(1, '名前は必須です').max(50, '名前は50文字以内です'),
@@ -184,49 +185,28 @@ export async function createPost(
     if (!userId) {
         return { message: 'ログインしてください。' };
     }
-    const moderationState = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-            status: true,
-            suspendedUntil: true,
-            restrictionUntil: true,
-            restrictionReason: true,
-        },
-    });
-    const now = new Date();
-    if (moderationState?.status === AccountStatus.SUSPENDED) {
-        if (!moderationState.suspendedUntil || moderationState.suspendedUntil > now) {
-            return { message: moderationState.restrictionReason ?? 'アカウントが停止中のため投稿できません。' };
-        }
-        await prisma.user.update({
-            where: { id: userId },
-            data: {
-                status: AccountStatus.ACTIVE,
-                suspendedUntil: null,
-                restrictionUntil: null,
-                restrictionReason: null,
-            },
-        });
+    const moderationState = await getNormalizedAccountModerationState(userId);
+    if (!moderationState) {
+        return { message: 'ユーザーが見つかりません。' };
     }
-    if (moderationState?.status === AccountStatus.POST_RESTRICTED) {
-        if (moderationState.restrictionUntil && moderationState.restrictionUntil <= now) {
-            await prisma.user.update({
-                where: { id: userId },
-                data: {
-                    status: AccountStatus.ACTIVE,
-                    restrictionUntil: null,
-                    restrictionReason: null,
-                },
-            });
-        } else {
-            const untilLabel = moderationState.restrictionUntil
-                ? moderationState.restrictionUntil.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
-                : null;
-            const baseMessage = moderationState.restrictionReason ?? '投稿が制限されています。';
-            return {
-                message: untilLabel ? `${baseMessage}（${untilLabel}まで）` : baseMessage,
-            };
-        }
+    if (moderationState.status === AccountStatus.SUSPENDED) {
+        return {
+            message:
+                moderationState.restrictionReason ??
+                'アカウントが停止中のため投稿できません。',
+        };
+    }
+    if (moderationState.status === AccountStatus.POST_RESTRICTED) {
+        const untilLabel = moderationState.restrictionUntil
+            ? moderationState.restrictionUntil.toLocaleString('ja-JP', {
+                  timeZone: 'Asia/Tokyo',
+              })
+            : null;
+        const baseMessage =
+            moderationState.restrictionReason ?? '投稿が制限されています。';
+        return {
+            message: untilLabel ? `${baseMessage}（${untilLabel}まで）` : baseMessage,
+        };
     }
     if (!(await rateLimit(`create-post:${userId}`, 20, 60 * 1000))) {
         return { message: '投稿が多すぎます。少し待ってから再度お試しください。' };
