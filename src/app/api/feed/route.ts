@@ -2,12 +2,15 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { visibleAccountFilter } from '@/lib/accountStatus';
 import { privateJson } from '@/lib/apiResponse';
+import type { Prisma } from '@prisma/client';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const tab = searchParams.get('tab') === 'following' ? 'following' : 'for-you';
+    const requestedPage = parsePageNumber(searchParams.get('page'));
     const session = await auth();
     let userId = session?.user?.id ?? null;
     if (!userId && session?.user?.email) {
@@ -63,20 +66,28 @@ export async function GET(request: Request) {
 
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
+    const followingWhere: Prisma.PostWhereInput = {
+        isHidden: false,
+        deletedAt: null,
+        authorId: {
+            in: followingIds,
+            ...(excludedAuthorIds.length > 0 ? { notIn: excludedAuthorIds } : {}),
+        },
+        author: visibleAccountFilter(now),
+    };
+
+    const followingTotalCount =
+        tab === 'following' && followingIds.length > 0
+            ? await prisma.post.count({ where: followingWhere })
+            : 0;
+    const followingPagination = clampPage(requestedPage, followingTotalCount, 50);
+
     const posts =
         tab === 'following'
             ? followingIds.length > 0
                 ? await prisma.post.findMany({
-                      where: {
-                          isHidden: false,
-                          deletedAt: null,
-                          authorId: {
-                              in: followingIds,
-                              ...(excludedAuthorIds.length > 0 ? { notIn: excludedAuthorIds } : {}),
-                          },
-                          author: visibleAccountFilter(now),
-                      },
-                  include: {
+                      where: followingWhere,
+                      include: {
                           author: {
                               select: { id: true, name: true, handle: true, avatarUrl: true, isPrivate: true },
                           },
@@ -85,7 +96,8 @@ export async function GET(request: Request) {
                           reactions: userId ? { where: { userId }, select: { type: true } } : { take: 0 },
                           _count: { select: { likes: true, bookmarks: true } },
                       },
-                      take: 100,
+                      skip: followingPagination.skip,
+                      take: followingPagination.pageSize,
                       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
                   })
                 : []
@@ -149,6 +161,11 @@ export async function GET(request: Request) {
     return privateJson({
         viewerId: userId,
         viewerAvatarUrl: viewerProfile?.avatarUrl ?? null,
+        totalCount: tab === 'following' ? followingTotalCount : shuffled.length,
+        page: tab === 'following' ? followingPagination.page : 1,
+        totalPages: tab === 'following' ? followingPagination.totalPages : 1,
+        hasPrevious: tab === 'following' ? followingPagination.hasPrevious : false,
+        hasNext: tab === 'following' ? followingPagination.hasNext : false,
         posts: shuffled.map((post) => {
             const types = new Set(post.reactions.map((reaction) => reaction.type));
             return {
