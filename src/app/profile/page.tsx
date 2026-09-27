@@ -4,6 +4,9 @@ import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
 import { addGanbatta, addWakaru, deletePost, toggleBookmark, toggleLike, togglePrivateAccount } from '@/app/lib/actions';
 import HashtagText from '@/components/shared/HashtagText';
+import { visibleAccountFilter } from '@/lib/accountStatus';
+
+export const dynamic = 'force-dynamic';
 
 export default async function ProfilePage() {
     const session = await auth();
@@ -29,6 +32,7 @@ export default async function ProfilePage() {
         select: { name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true },
     });
 
+    const now = new Date();
     const [posts, postCount, followerCount, followingCount, pendingFollowingCount, pendingFollowRequestCount, blockCount, muteCount] = await Promise.all([
         prisma.post.findMany({
             where: { authorId: userId, deletedAt: null },
@@ -54,24 +58,28 @@ export default async function ProfilePage() {
             where: {
                 followingId: userId,
                 acceptedAt: { not: null },
+                follower: visibleAccountFilter(now),
             },
         }),
         prisma.follow.count({
             where: {
                 followerId: userId,
                 acceptedAt: { not: null },
+                following: visibleAccountFilter(now),
             },
         }),
         prisma.follow.count({
             where: {
                 followerId: userId,
                 acceptedAt: null,
+                following: visibleAccountFilter(now),
             },
         }),
         prisma.follow.count({
             where: {
                 followingId: userId,
                 acceptedAt: null,
+                follower: visibleAccountFilter(now),
             },
         }),
         prisma.block.count({
