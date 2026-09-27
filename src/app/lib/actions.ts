@@ -21,6 +21,7 @@ import { normalizeAutoHashtag, normalizeProfileBio, normalizeProfileName } from 
 import { deleteManagedBlob, deleteManagedBlobs } from '@/lib/blobCleanup';
 import { mutateFollowRelation } from '@/lib/userRelations';
 import { parseBoundedInteger, parseBoundedStringList, parseItqTiming } from '@/lib/selfTestInput';
+import { togglePostInteraction } from '@/lib/postInteractions';
 
 const RegisterSchema = z.object({
     name: z.string().trim().min(1, '名前は必須です').max(50, '名前は50文字以内です'),
@@ -333,6 +334,9 @@ export async function createPost(
 
 
 export async function toggleLike(postId: string) {
+    postId = postId.trim();
+    if (!postId || postId.length > 128) return;
+
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -345,45 +349,20 @@ export async function toggleLike(postId: string) {
     if (!userId) return;
     if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) return;
 
-    const post = await getAccessiblePostForViewer(userId, postId);
-    if (!post) return;
-
-    const removedLike = await prisma.like.deleteMany({
-        where: { userId, postId },
-    });
-
-    if (removedLike.count > 0) {
-        if (post?.authorId) {
-            await prisma.notification.deleteMany({
-                where: {
-                    type: 'LIKE',
-                    userId: post.authorId,
-                    actorId: userId,
-                    postId,
-                },
-            });
-        }
-    } else {
-        const createdLike = await prisma.like.createMany({
-            data: [{ userId, postId }],
-            skipDuplicates: true,
-        });
-        if (createdLike.count === 1 && post.authorId && post.authorId !== userId) {
-            await prisma.notification.create({
-                data: {
-                    type: 'LIKE',
-                    userId: post.authorId,
-                    actorId: userId,
-                    postId,
-                },
-            });
-        }
-    }
+    const result = await togglePostInteraction(userId, postId, 'like');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/post');
+    revalidatePath(`/post/${postId}`);
+    revalidatePath('/notifications');
 }
 
 export async function addWakaru(postId: string) {
+    postId = postId.trim();
+    if (!postId || postId.length > 128) return;
+
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -395,60 +374,21 @@ export async function addWakaru(postId: string) {
     }
     if (!userId) return;
     if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) return;
-    if (!(await getAccessiblePostForViewer(userId, postId))) return;
 
-    await prisma.$transaction(async (tx) => {
-        const removedReaction = await tx.reaction.deleteMany({
-            where: { userId, postId, type: 'WAKARU' },
-        });
-        const post = await tx.post.findUnique({
-            where: { id: postId },
-            select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true, suspendedUntil: true } } },
-        });
-        if (!post || post.deletedAt || post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) return;
-        if (removedReaction.count > 0) {
-            await tx.post.updateMany({
-                where: { id: postId, wakaruCount: { gt: 0 } },
-                data: { wakaruCount: { decrement: 1 } },
-            });
-            if (post?.authorId) {
-                await tx.notification.deleteMany({
-                    where: {
-                        type: 'WAKARU',
-                        userId: post.authorId,
-                        actorId: userId,
-                        postId,
-                    },
-                });
-            }
-        } else {
-            const createdReaction = await tx.reaction.createMany({
-                data: [{ userId, postId, type: 'WAKARU' }],
-                skipDuplicates: true,
-            });
-            if (createdReaction.count === 1) {
-                await tx.post.update({
-                    where: { id: postId },
-                    data: { wakaruCount: { increment: 1 } },
-                });
-            }
-            if (createdReaction.count === 1 && post.authorId && post.authorId !== userId) {
-                await tx.notification.create({
-                    data: {
-                        type: 'WAKARU',
-                        userId: post.authorId,
-                        actorId: userId,
-                        postId,
-                    },
-                });
-            }
-        }
-    });
+    const result = await togglePostInteraction(userId, postId, 'wakaru');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/post');
+    revalidatePath(`/post/${postId}`);
+    revalidatePath('/notifications');
 }
 
 export async function addGanbatta(postId: string) {
+    postId = postId.trim();
+    if (!postId || postId.length > 128) return;
+
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -460,57 +400,15 @@ export async function addGanbatta(postId: string) {
     }
     if (!userId) return;
     if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) return;
-    if (!(await getAccessiblePostForViewer(userId, postId))) return;
 
-    await prisma.$transaction(async (tx) => {
-        const removedReaction = await tx.reaction.deleteMany({
-            where: { userId, postId, type: 'GANBATTA' },
-        });
-        const post = await tx.post.findUnique({
-            where: { id: postId },
-            select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true, suspendedUntil: true } } },
-        });
-        if (!post || post.deletedAt || post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) return;
-        if (removedReaction.count > 0) {
-            await tx.post.updateMany({
-                where: { id: postId, ganbattaCount: { gt: 0 } },
-                data: { ganbattaCount: { decrement: 1 } },
-            });
-            if (post?.authorId) {
-                await tx.notification.deleteMany({
-                    where: {
-                        type: 'GANBATTA',
-                        userId: post.authorId,
-                        actorId: userId,
-                        postId,
-                    },
-                });
-            }
-        } else {
-            const createdReaction = await tx.reaction.createMany({
-                data: [{ userId, postId, type: 'GANBATTA' }],
-                skipDuplicates: true,
-            });
-            if (createdReaction.count === 1) {
-                await tx.post.update({
-                    where: { id: postId },
-                    data: { ganbattaCount: { increment: 1 } },
-                });
-            }
-            if (createdReaction.count === 1 && post.authorId && post.authorId !== userId) {
-                await tx.notification.create({
-                    data: {
-                        type: 'GANBATTA',
-                        userId: post.authorId,
-                        actorId: userId,
-                        postId,
-                    },
-                });
-            }
-        }
-    });
+    const result = await togglePostInteraction(userId, postId, 'ganbatta');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/post');
+    revalidatePath(`/post/${postId}`);
+    revalidatePath('/notifications');
 }
 
 export async function deletePost(postId: string) {
@@ -1091,6 +989,9 @@ export async function togglePrivateAccount() {
 }
 
 export async function toggleBookmark(postId: string) {
+    postId = postId.trim();
+    if (!postId || postId.length > 128) return;
+
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -1103,22 +1004,13 @@ export async function toggleBookmark(postId: string) {
     if (!userId) return;
     if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) return;
 
-    const post = await getAccessiblePostForViewer(userId, postId);
-    if (!post) return;
-
-    const removedBookmark = await prisma.bookmark.deleteMany({
-        where: { userId, postId },
-    });
-
-    if (removedBookmark.count > 0) {
-    } else {
-        await prisma.bookmark.createMany({
-            data: [{ userId, postId }],
-            skipDuplicates: true,
-        });
-    }
+    const result = await togglePostInteraction(userId, postId, 'bookmark');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/post');
+    revalidatePath(`/post/${postId}`);
     revalidatePath('/bookmarks');
 }
 
