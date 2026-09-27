@@ -404,6 +404,10 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
       });
       if (hidden.count !== 1) throw new ModerationConflictError();
 
+      await tx.notification.deleteMany({
+        where: { postId },
+      });
+
       await tx.auditLog.create({
         data: {
           action: 'POST_HIDE',
