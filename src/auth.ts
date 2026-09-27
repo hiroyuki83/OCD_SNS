@@ -129,6 +129,7 @@ const nextAuthResult = NextAuth({
                         data: {
                             status: AccountStatus.ACTIVE,
                             suspendedUntil: null,
+                            restrictionUntil: null,
                             restrictionReason: null,
                         },
                     });
