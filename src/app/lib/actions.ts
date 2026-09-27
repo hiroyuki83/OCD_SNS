@@ -938,6 +938,16 @@ export async function updateProfile(
         return { message: profile.error.issues[0]?.message ?? 'プロフィールの入力内容が不正です。' };
     }
 
+    const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+            handle: true,
+            avatarUrl: true,
+            headerUrl: true,
+        },
+    });
+    if (!currentUser) return { message: 'ユーザーが見つかりません。' };
+
     const { name, bio, autoHashtag } = profile.data;
     const avatar = formData.get('avatar');
     const header = formData.get('header');
@@ -953,23 +963,45 @@ export async function updateProfile(
 
     if (header instanceof File && header.size > 0) {
         const upload = await uploadImage(header, `profiles/${userId}/header`);
-        if ('error' in upload) return { message: upload.error ?? '画像のアップロードに失敗しました。' };
+        if ('error' in upload) {
+            if (avatarUrl) await deleteManagedBlob(avatarUrl);
+            return { message: upload.error ?? '画像のアップロードに失敗しました。' };
+        }
         headerUrl = upload.url;
     }
 
-    const updatedUser = await prisma.user.update({
-        where: { id: userId },
-        data: {
-            name,
-            bio,
-            autoHashtag,
-            avatarUrl,
-            headerUrl,
-        },
-        select: { handle: true },
-    });
+    let updatedUser: { handle: string };
+    try {
+        updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                name,
+                bio,
+                autoHashtag,
+                avatarUrl,
+                headerUrl,
+            },
+            select: { handle: true },
+        });
+    } catch (error) {
+        await deleteManagedBlobs([avatarUrl, headerUrl]);
+        console.error('Failed to update profile:', error);
+        return { message: 'プロフィールの更新に失敗しました。' };
+    }
 
+    const replacedUrls = [
+        avatarUrl && currentUser.avatarUrl && currentUser.avatarUrl !== avatarUrl
+            ? currentUser.avatarUrl
+            : null,
+        headerUrl && currentUser.headerUrl && currentUser.headerUrl !== headerUrl
+            ? currentUser.headerUrl
+            : null,
+    ];
+    await deleteManagedBlobs(replacedUrls);
+
+    revalidatePath('/');
     revalidatePath('/profile');
+    revalidatePath('/settings');
     revalidatePath(`/user/${encodeURIComponent(updatedUser.handle)}`);
     return { message: 'プロフィールを更新しました。' };
 }
@@ -987,34 +1019,63 @@ export async function togglePrivateAccount() {
     if (!userId) return;
     if (!(await rateLimit(`privacy-toggle:${userId}`, 10, 60 * 60 * 1000))) return;
 
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { isPrivate: true },
-    });
-    const nextValue = !(user?.isPrivate ?? false);
-
-    await prisma.$transaction(async (tx) => {
-        await tx.user.update({
+    const result = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.findUnique({
             where: { id: userId },
+            select: { isPrivate: true, handle: true },
+        });
+        if (!user) return null;
+
+        const nextValue = !user.isPrivate;
+        const changed = await tx.user.updateMany({
+            where: {
+                id: userId,
+                isPrivate: user.isPrivate,
+            },
             data: { isPrivate: nextValue },
         });
+        if (changed.count !== 1) return null;
 
+        let acceptedPendingCount = 0;
         if (!nextValue) {
-            await tx.follow.updateMany({
+            const accepted = await tx.follow.updateMany({
                 where: {
                     followingId: userId,
                     acceptedAt: null,
                 },
                 data: { acceptedAt: new Date() },
             });
+            acceptedPendingCount = accepted.count;
         }
+
+        await tx.auditLog.create({
+            data: {
+                action: 'ACCOUNT_PRIVACY_CHANGE',
+                actorUserId: userId,
+                targetUserId: userId,
+                meta: {
+                    fromPrivate: user.isPrivate,
+                    toPrivate: nextValue,
+                    acceptedPendingCount,
+                },
+            },
+        });
+
+        return {
+            handle: user.handle,
+            isPrivate: nextValue,
+        };
     });
+
+    if (!result) return;
 
     revalidatePath('/');
     revalidatePath('/profile');
     revalidatePath('/profile/following');
     revalidatePath('/profile/followers');
     revalidatePath('/notifications');
+    revalidatePath('/admin/audit');
+    revalidatePath(`/user/${encodeURIComponent(result.handle)}`);
 }
 
 export async function toggleBookmark(postId: string) {
