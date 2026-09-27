@@ -138,6 +138,8 @@
 | NEXT-038 | integration branch終了・不要な一時Neon branch整理 | P1 | IN PROGRESS |
 | NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | HOLD |
 | NEXT-040 | Productionへ明示release・post-deploy smoke / error scan | P0 | HOLD |
+| NEXT-041 | 投稿制限・停止を第一級 Sanction レコードとして永続化 | P1 | IN PROGRESS |
+| NEXT-042 | Sanction を対象にした共通 Appeal を実装 | P1 | TODO |
 
 ## リリース進行フェーズ
 
@@ -570,3 +572,44 @@ Post-merge validation:
 
 現在は **PHASE-G / NEXT-038**。
 Production releaseは引き続き `NEXT-039 / NEXT-040` としてHOLDする。
+
+
+## 2026-09-28 実装バッチ6: Sanction永続化
+
+対象branch: `feature/sanction-records-20260928`
+
+| # | 内容 | Status |
+|---:|---|---|
+| 1 | main統合後の最新状態を再確認 | DONE |
+| 2 | 制裁タイムラインの `USER_STATUS_CHANGE` / `USER_STATUS_CHANGED` 不整合を特定 | DONE |
+| 3 | `SanctionType` enumを追加 | DONE |
+| 4 | `SanctionStatus` enumを追加 | DONE |
+| 5 | `Sanction` modelを追加 | DONE |
+| 6 | UserへSanction target/actor relationを追加 | DONE |
+| 7 | ReportへSanction relationを追加 | DONE |
+| 8 | Sanction用DB indexを追加 | DONE |
+| 9 | Sanction migrationを追加 | DONE |
+| 10 | 投稿制限時にSanctionを永続化 | DONE |
+| 11 | アカウント停止時にSanctionを永続化 | DONE |
+| 12 | 新処分前に期限切れSanctionをEXPIREDへ整理 | DONE |
+| 13 | 新処分で置換される有効SanctionをREVOKEDへ変更 | DONE |
+| 14 | Audit LogへsanctionIdを記録 | DONE |
+| 15 | モデレーションタイムラインへSanctionを統合 | DONE |
+| 16 | 実際のAudit action名 `USER_STATUS_CHANGE` をタイムライン対象へ修正 | DONE |
+| 17 | 期限超過ACTIVE Sanctionを表示上EXPIREDとして扱う | DONE |
+| 18 | ADMINユーザー詳細でSanction履歴を取得 | DONE |
+| 19 | ADMINユーザー詳細へ処分履歴UIを追加 | DONE |
+| 20 | Preview migration planを39件baseline + 新migration pendingへ更新 | DONE |
+| 21 | migration plan回帰テストを更新 | DONE |
+| 22 | sanction timeline単体テストを追加 | DONE |
+| 23 | Audit action名不整合の回帰テストを追加 | DONE |
+| 24 | sanction schema回帰テストを追加 | DONE |
+| 25 | sanction persistence回帰テストを追加 | DONE |
+| 26 | sanction履歴UI回帰テストを追加 | DONE |
+| 27 | Appeal設計文書を段階導入状態へ更新 | DONE |
+| 28 | Preview要件定義へSanction永続化を反映 | DONE |
+| 29 | NEXT-041 / NEXT-042をロードマップへ追加 | DONE |
+| 30 | PR CI / E2Eで検証 | IN PROGRESS |
+
+NEXT-041 はコード実装完了、CI / E2E確認後に DONE とする。
+NEXT-042 は Sanction 永続化の検証後に着手する。
