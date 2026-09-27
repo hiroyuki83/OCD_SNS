@@ -5,6 +5,7 @@ import ProfileEditForm from '@/components/profile/ProfileEditForm';
 import FontSizeSetting from '@/components/settings/FontSizeSetting';
 import StaffTotpSetting from '@/components/settings/StaffTotpSetting';
 import SessionSecuritySetting from '@/components/settings/SessionSecuritySetting';
+import PasswordChangeSetting from '@/components/settings/PasswordChangeSetting';
 import { Role } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -90,6 +91,7 @@ export default async function SettingsPage({
         )}
         <FontSizeSetting />
         <SessionSecuritySetting />
+        <PasswordChangeSetting />
         <ProfileEditForm name={user.name} bio={user.bio} autoHashtag={user.autoHashtag} />
         {isStaff && (
           <StaffTotpSetting
