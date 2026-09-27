@@ -38,7 +38,8 @@ export async function verifyEmail(
 
     const verifiedAt = new Date();
 
-    if (record.pendingEmail) {
+    const pendingEmail = record.pendingEmail;
+    if (pendingEmail) {
         try {
             const changed = await prisma.$transaction(async (tx) => {
                 const consumed = await tx.emailVerificationToken.updateMany({
@@ -47,14 +48,14 @@ export async function verifyEmail(
                         userId: record.userId,
                         usedAt: null,
                         expiresAt: { gt: verifiedAt },
-                        pendingEmail: record.pendingEmail,
+                        pendingEmail: pendingEmail,
                     },
                     data: { usedAt: verifiedAt },
                 });
                 if (consumed.count !== 1) return false;
 
                 const existing = await tx.user.findUnique({
-                    where: { email: record.pendingEmail },
+                    where: { email: pendingEmail },
                     select: { id: true },
                 });
                 if (existing && existing.id !== record.userId) return false;
@@ -62,7 +63,7 @@ export async function verifyEmail(
                 const updated = await tx.user.updateMany({
                     where: { id: record.userId },
                     data: {
-                        email: record.pendingEmail,
+                        email: pendingEmail,
                         emailVerifiedAt: verifiedAt,
                         sessionVersion: { increment: 1 },
                     },
