@@ -21,6 +21,7 @@ import { deleteManagedBlob, deleteManagedBlobs } from '@/lib/blobCleanup';
 import { mutateFollowRelation } from '@/lib/userRelations';
 import { parseBoundedInteger, parseBoundedStringList, parseItqTiming } from '@/lib/selfTestInput';
 import { togglePostInteraction } from '@/lib/postInteractions';
+import { mutateBlockRelation, mutateMuteRelation } from '@/lib/userPrivacyRelations';
 
 const RegisterSchema = z.object({
     name: z.string().trim().min(1, '名前は必須です').max(50, '名前は50文字以内です'),
@@ -650,43 +651,9 @@ export async function blockUser(targetUserId: string) {
     }
     if (!userId || userId === targetUserId) return;
     if (!(await rateLimit(`block-action:${userId}`, 60, 60 * 1000))) return;
-    const targetUser = await prisma.user.findUnique({
-        where: { id: targetUserId },
-        select: { id: true },
-    });
-    if (!targetUser) return;
 
-    await prisma.$transaction([
-        prisma.block.upsert({
-            where: {
-                blockerId_blockedId: {
-                    blockerId: userId,
-                    blockedId: targetUserId,
-                },
-            },
-            update: {},
-            create: {
-                blockerId: userId,
-                blockedId: targetUserId,
-            },
-        }),
-        prisma.follow.deleteMany({
-            where: {
-                OR: [
-                    { followerId: userId, followingId: targetUserId },
-                    { followerId: targetUserId, followingId: userId },
-                ],
-            },
-        }),
-        prisma.notification.deleteMany({
-            where: {
-                OR: [
-                    { userId: targetUserId, actorId: userId },
-                    { userId, actorId: targetUserId },
-                ],
-            },
-        }),
-    ]);
+    const result = await mutateBlockRelation(userId, targetUserId, 'block');
+    if (!result.ok) return;
 
     revalidatePath('/');
     revalidatePath('/profile');
@@ -711,9 +678,8 @@ export async function unblockUser(targetUserId: string) {
     if (!userId || userId === targetUserId) return;
     if (!(await rateLimit(`block-action:${userId}`, 60, 60 * 1000))) return;
 
-    await prisma.block.deleteMany({
-        where: { blockerId: userId, blockedId: targetUserId },
-    });
+    const result = await mutateBlockRelation(userId, targetUserId, 'unblock');
+    if (!result.ok) return;
 
     revalidatePath('/');
     revalidatePath('/profile');
@@ -734,33 +700,9 @@ export async function muteUser(targetUserId: string) {
     }
     if (!userId || userId === targetUserId) return;
     if (!(await rateLimit(`mute-action:${userId}`, 60, 60 * 1000))) return;
-    const targetUser = await prisma.user.findUnique({
-        where: { id: targetUserId },
-        select: { id: true },
-    });
-    if (!targetUser) return;
 
-    await prisma.$transaction([
-        prisma.mute.upsert({
-            where: {
-                muterId_mutedId: {
-                    muterId: userId,
-                    mutedId: targetUserId,
-                },
-            },
-            update: {},
-            create: {
-                muterId: userId,
-                mutedId: targetUserId,
-            },
-        }),
-        prisma.notification.deleteMany({
-            where: {
-                userId,
-                actorId: targetUserId,
-            },
-        }),
-    ]);
+    const result = await mutateMuteRelation(userId, targetUserId, 'mute');
+    if (!result.ok) return;
 
     revalidatePath('/');
     revalidatePath('/profile');
@@ -783,26 +725,13 @@ export async function unmuteUser(targetUserId: string) {
     if (!userId || userId === targetUserId) return;
     if (!(await rateLimit(`mute-action:${userId}`, 60, 60 * 1000))) return;
 
-    await prisma.mute.deleteMany({
-        where: { muterId: userId, mutedId: targetUserId },
-    });
+    const result = await mutateMuteRelation(userId, targetUserId, 'unmute');
+    if (!result.ok) return;
 
     revalidatePath('/');
     revalidatePath('/profile');
     revalidatePath('/profile/mutes');
 }
-
-export type ProfileState =
-    | {
-          message: string;
-      }
-    | undefined;
-
-const ProfileSchema = z.object({
-    name: z.string().max(50, '名前は50文字以内です。').nullable(),
-    bio: z.string().max(500, '自己紹介は500文字以内です。').nullable(),
-    autoHashtag: z.string().max(100, '自動ハッシュタグは100文字以内です。').nullable(),
-});
 
 export async function updateProfile(
     _prevState: ProfileState,
