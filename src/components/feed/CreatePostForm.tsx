@@ -169,6 +169,25 @@ export default function CreatePostForm({
                     <span>{imageName ? `画像: ${imageName}` : '画像なし'}</span>
                     <span aria-live="polite">{content.length}/1000</span>
                 </div>
+                {imageName && (
+                    <div>
+                        <label htmlFor="post-image-alt" className="mb-1 block text-xs font-medium text-zinc-600">
+                            画像の説明（任意）
+                        </label>
+                        <input
+                            id="post-image-alt"
+                            name="imageAlt"
+                            type="text"
+                            maxLength={300}
+                            placeholder="例: 青空の下で咲いている白い花"
+                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#1d9bf0]"
+                            aria-describedby="post-image-alt-help"
+                        />
+                        <p id="post-image-alt-help" className="mt-1 text-xs text-zinc-400">
+                            画像を見にくい人にも内容が伝わるよう、必要に応じて説明を入力できます。
+                        </p>
+                    </div>
+                )}
                 {clipboardMessage && (
                     <p className="text-sm text-zinc-400" aria-live="polite">{clipboardMessage}</p>
                 )}
