@@ -21,6 +21,9 @@ test('ADMIN can change and restore a user role and account status', async ({ pag
   const password = section.locator('#admin-current-password');
   const roleSelect = section.locator('#admin-user-role');
   const statusSelect = section.locator('#admin-user-status');
+  const sanctionSection = page.locator('section').filter({
+    has: page.getByRole('heading', { name: '処分履歴' }),
+  });
 
   async function saveRole(role) {
     await password.fill(PREVIEW_PASSWORD);
@@ -47,9 +50,25 @@ test('ADMIN can change and restore a user role and account status', async ({ pag
   await saveRole('MODERATOR');
   await saveRole('USER');
 
-  await saveStatus('POST_RESTRICTED', 'E2E投稿制限理由です');
-  await saveStatus('ACTIVE');
+  const restrictionReason = 'E2E投稿制限理由です';
+  await saveStatus('POST_RESTRICTED', restrictionReason);
+  const restrictionCard = sanctionSection.locator('div.rounded-md').filter({
+    hasText: restrictionReason,
+  });
+  await expect(restrictionCard).toContainText('投稿制限');
+  await expect(restrictionCard).toContainText('状態: 有効');
 
-  await saveStatus('SUSPENDED', 'E2E停止理由です');
   await saveStatus('ACTIVE');
+  await expect(restrictionCard).toContainText('状態: 解除済み');
+
+  const suspensionReason = 'E2E停止理由です';
+  await saveStatus('SUSPENDED', suspensionReason);
+  const suspensionCard = sanctionSection.locator('div.rounded-md').filter({
+    hasText: suspensionReason,
+  });
+  await expect(suspensionCard).toContainText('アカウント停止');
+  await expect(suspensionCard).toContainText('状態: 有効');
+
+  await saveStatus('ACTIVE');
+  await expect(suspensionCard).toContainText('状態: 解除済み');
 });
