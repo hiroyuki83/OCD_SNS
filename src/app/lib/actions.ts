@@ -112,12 +112,17 @@ export async function register(
     return { ok: true, message: '確認メールを送信しました。メール内のリンクから登録を完了してください。' };
 }
 
-const AuthenticateSchema = z.object({
-    email: z.string().trim().toLowerCase().max(254).email(),
-    password: z.string().min(6).max(128),
-    totpCode: z.string().trim().regex(/^\d{6}$/).optional().or(z.literal('')),
-    recoveryCode: z.string().trim().max(64).optional().or(z.literal('')),
-});
+const AuthenticateSchema = z
+    .object({
+        email: z.string().trim().toLowerCase().max(254).email(),
+        password: z.string().min(6).max(128),
+        totpCode: z.string().trim().regex(/^\d{6}$/).optional().or(z.literal('')),
+        recoveryCode: z.string().trim().max(64).optional().or(z.literal('')),
+    })
+    .refine((data) => !(data.totpCode && data.recoveryCode), {
+        path: ['recoveryCode'],
+        message: '6桁コードとリカバリーコードはどちらか一方だけ入力してください。',
+    });
 
 export async function authenticate(
     _prevState: string | undefined,
@@ -129,7 +134,9 @@ export async function authenticate(
         totpCode: formData.get('totpCode') ?? '',
         recoveryCode: formData.get('recoveryCode') ?? '',
     });
-    if (!parsed.success) return '入力内容を確認してください。';
+    if (!parsed.success) {
+        return parsed.error.issues[0]?.message ?? '入力内容を確認してください。';
+    }
 
     try {
         await signIn('credentials', {
@@ -143,7 +150,7 @@ export async function authenticate(
         if (error instanceof AuthError) {
             switch (error.type) {
                 case 'CredentialsSignin':
-                    return 'メールアドレスまたはパスワードが正しくありません。';
+                    return 'メールアドレス、パスワード、または必要な2段階認証を確認してください。';
                 default:
                     return 'エラーが発生しました。';
             }
