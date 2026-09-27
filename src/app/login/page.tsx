@@ -5,6 +5,7 @@ import { authenticate } from '@/app/lib/actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useFormStatus } from 'react-dom';
+import { useSearchParams } from 'next/navigation';
 
 function SubmitButton() {
     const { pending } = useFormStatus();
@@ -17,7 +18,9 @@ function SubmitButton() {
 }
 
 export default function LoginPage() {
+    const searchParams = useSearchParams();
     const [errorMessage, dispatch] = useActionState(authenticate, undefined);
+    const accountDeleted = searchParams.get('account') === 'deleted';
 
     return (
         <div className="flex min-h-screen justify-center items-center bg-white text-black">
@@ -28,6 +31,11 @@ export default function LoginPage() {
                     </g>
                 </svg>
                 <h1 className="text-3xl font-bold text-center">CoCoにログイン</h1>
+                {accountDeleted && (
+                    <p role="status" className="rounded-md bg-green-50 px-3 py-2 text-center text-sm text-green-700">
+                        アカウントを削除しました。
+                    </p>
+                )}
                 <form action={dispatch} className="space-y-4">
                     <div>
                         <label htmlFor="login-email" className="sr-only">メールアドレス</label>
