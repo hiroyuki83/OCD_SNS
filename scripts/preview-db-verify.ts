@@ -3,12 +3,9 @@ import {
   validatePreviewMigrationSafety,
 } from '../src/lib/previewMigrationSafety';
 
-const EXPECTED_MIGRATIONS = [
-  '20260928013000_remove_reply_and_quote_post',
-  '20260928014500_add_post_image_alt',
-  '20260928023000_add_notification_preferences',
-  '20260928031500_add_email_change_pending',
-] as const;
+import { PREVIEW_PENDING_MIGRATIONS } from '../src/lib/previewMigrationPlan';
+
+
 
 const safety = validatePreviewMigrationSafety({
   vercelEnv: process.env.VERCEL_ENV,
@@ -81,7 +78,7 @@ try {
     `SELECT migration_name, finished_at, rolled_back_at
      FROM "_prisma_migrations"
      WHERE migration_name = ANY($1::text[])`,
-    [EXPECTED_MIGRATIONS],
+    [PREVIEW_PENDING_MIGRATIONS],
   );
 
   const applied = new Set(
@@ -89,7 +86,7 @@ try {
       .filter((row) => row.finished_at && !row.rolled_back_at)
       .map((row) => row.migration_name),
   );
-  const missingMigrations = EXPECTED_MIGRATIONS.filter((name) => !applied.has(name));
+  const missingMigrations = PREVIEW_PENDING_MIGRATIONS.filter((name) => !applied.has(name));
   if (missingMigrations.length) {
     throw new Error(`Expected Preview migrations are not recorded as applied: ${missingMigrations.join(', ')}`);
   }
