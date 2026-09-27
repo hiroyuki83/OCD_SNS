@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
+import { mutateBlockRelation } from '@/lib/userPrivacyRelations';
 import { parseJsonMutationRequest } from '@/lib/requestSecurity';
 
 const BLOCK_ACTIONS = ['block', 'unblock'] as const;
@@ -36,52 +36,17 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, error: '自分自身はブロックできません。' }, { status: 400 });
     }
 
-    const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } });
-    if (!targetUser) {
-        return NextResponse.json({ ok: false }, { status: 404 });
-    }
     if (!(await rateLimit(`block-action:${userId}`, 60, 60 * 1000))) {
         return NextResponse.json({ ok: false }, { status: 429 });
     }
 
-    if (action === 'unblock') {
-        await prisma.block.deleteMany({
-            where: { blockerId: userId, blockedId: targetUserId },
-        });
-        return NextResponse.json({ ok: true });
+    const result = await mutateBlockRelation(userId, targetUserId, action as BlockAction);
+    if (!result.ok) {
+        return NextResponse.json(
+            { ok: false },
+            { status: result.reason === 'NOT_FOUND' ? 404 : 400 },
+        );
     }
 
-    await prisma.$transaction([
-        prisma.block.upsert({
-            where: {
-                blockerId_blockedId: {
-                    blockerId: userId,
-                    blockedId: targetUserId,
-                },
-            },
-            update: {},
-            create: {
-                blockerId: userId,
-                blockedId: targetUserId,
-            },
-        }),
-        prisma.follow.deleteMany({
-            where: {
-                OR: [
-                    { followerId: userId, followingId: targetUserId },
-                    { followerId: targetUserId, followingId: userId },
-                ],
-            },
-        }),
-        prisma.notification.deleteMany({
-            where: {
-                OR: [
-                    { userId: targetUserId, actorId: userId },
-                    { userId, actorId: targetUserId },
-                ],
-            },
-        }),
-    ]);
-
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, active: result.active });
 }
