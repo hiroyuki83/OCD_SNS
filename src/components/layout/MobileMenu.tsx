@@ -79,6 +79,7 @@ export default function MobileMenu({
                     className="flex items-center gap-2"
                     aria-expanded={open}
                     aria-controls="mobile-nav-panel"
+                    aria-label={open ? "メニューを閉じる" : "メニューを開く"}
                 >
                     <Image
                         src="/icon/logo.png"
@@ -97,7 +98,7 @@ export default function MobileMenu({
                         type="button"
                         onClick={close}
                         className="absolute inset-0 bg-black/30"
-                        aria-label="Close menu"
+                        aria-label="メニューを閉じる"
                     />
                     <div
                         id="mobile-nav-panel"
@@ -118,7 +119,7 @@ export default function MobileMenu({
                                     priority
                                 />
                             </Link>
-                            <nav className="flex flex-col gap-1">
+                            <nav aria-label="主要ナビゲーション" className="flex flex-col gap-1">
                                 {navItems.map((item) => {
                                     const Icon = iconMap[item.iconKey];
                                     return (
