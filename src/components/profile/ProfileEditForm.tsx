@@ -42,9 +42,13 @@ async function getCroppedBlob(imageSrc: string, crop: Area) {
         crop.height,
     );
 
-    return new Promise<Blob>((resolve) => {
+    return new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((blob) => {
-            resolve(blob ?? new Blob());
+            if (!blob || blob.size <= 0) {
+                reject(new Error('画像の切り抜きに失敗しました。'));
+                return;
+            }
+            resolve(blob);
         }, 'image/jpeg', 0.92);
     });
 }
@@ -86,6 +90,7 @@ export default function ProfileEditForm({
     const [zoom, setZoom] = useState(1);
     const [croppedArea, setCroppedArea] = useState<Area | null>(null);
     const [pendingFileName, setPendingFileName] = useState('');
+    const [cropError, setCropError] = useState<string | null>(null);
 
     const aspect = cropTarget === 'avatar' ? AVATAR_ASPECT : HEADER_ASPECT;
 
@@ -128,22 +133,44 @@ export default function ProfileEditForm({
         reader.readAsDataURL(file);
     };
 
+    useEffect(() => {
+        if (!cropOpen) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setCropOpen(false);
+                setCropSrc(null);
+                setCropError(null);
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [cropOpen]);
+
     const applyCrop = async () => {
-        if (!cropSrc || !croppedArea) return;
-        const blob = await getCroppedBlob(cropSrc, croppedArea);
-        const file = new File([blob], pendingFileName || 'crop.jpg', { type: 'image/jpeg' });
-        const preview = URL.createObjectURL(file);
-        if (cropTarget === 'avatar') {
-            setAvatarFile(file);
-            setAvatarPreview(preview);
-            setAvatarName(file.name);
-        } else {
-            setHeaderFile(file);
-            setHeaderPreview(preview);
-            setHeaderName(file.name);
+        if (!cropSrc || !croppedArea || croppedArea.width <= 0 || croppedArea.height <= 0) return;
+        setCropError(null);
+        try {
+            const blob = await getCroppedBlob(cropSrc, croppedArea);
+            if (blob.size > MAX_PROFILE_IMAGE_SIZE_BYTES) {
+                setCropError('切り抜き後の画像は5MB以下にしてください。');
+                return;
+            }
+            const file = new File([blob], pendingFileName || 'crop.jpg', { type: 'image/jpeg' });
+            const preview = URL.createObjectURL(file);
+            if (cropTarget === 'avatar') {
+                setAvatarFile(file);
+                setAvatarPreview(preview);
+                setAvatarName(file.name);
+            } else {
+                setHeaderFile(file);
+                setHeaderPreview(preview);
+                setHeaderName(file.name);
+            }
+            setCropOpen(false);
+            setCropSrc(null);
+        } catch {
+            setCropError('画像の切り抜きに失敗しました。別の画像をお試しください。');
         }
-        setCropOpen(false);
-        setCropSrc(null);
     };
 
     return (
@@ -276,20 +303,26 @@ export default function ProfileEditForm({
                     </span>
                 </div>
             </div>
-            {state?.message && <div className="text-sm text-zinc-400">{state.message}</div>}
+            {state?.message && <div className="text-sm text-zinc-400" aria-live="polite">{state.message}</div>}
             <SubmitButton />
 
             {cropOpen && cropSrc && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-                    <div className="w-full max-w-lg rounded-2xl bg-white p-4">
+                    <div
+                        className="w-full max-w-lg rounded-2xl bg-white p-4"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="profile-crop-title"
+                    >
                         <div className="flex items-center justify-between mb-2">
-                            <div className="text-sm font-bold">画像を調整</div>
+                            <div id="profile-crop-title" className="text-sm font-bold">画像を調整</div>
                             <button
                                 type="button"
                                 className="text-xs text-zinc-500 hover:underline"
                                 onClick={() => {
                                     setCropOpen(false);
                                     setCropSrc(null);
+                                    setCropError(null);
                                 }}
                             >
                                 閉じる
@@ -306,6 +339,9 @@ export default function ProfileEditForm({
                                 onCropComplete={(_, area) => setCroppedArea(area)}
                             />
                         </div>
+                        {cropError && (
+                            <div className="mt-3 text-xs text-red-600" aria-live="polite">{cropError}</div>
+                        )}
                         <div className="mt-3 flex items-center gap-3">
                             <input
                                 type="range"
@@ -319,7 +355,8 @@ export default function ProfileEditForm({
                             <button
                                 type="button"
                                 onClick={applyCrop}
-                                className="bg-[#1d9bf0] text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-[#1a8cd8]"
+                                disabled={!croppedArea}
+                                className="bg-[#1d9bf0] text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-[#1a8cd8] disabled:opacity-50"
                             >
                                 適用
                             </button>
