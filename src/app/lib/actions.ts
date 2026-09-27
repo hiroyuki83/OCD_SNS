@@ -20,6 +20,7 @@ import { isSuspensionActive } from '@/lib/accountStatus';
 import { normalizeAutoHashtag, normalizeProfileBio, normalizeProfileName } from '@/lib/profileInput';
 import { deleteManagedBlob, deleteManagedBlobs } from '@/lib/blobCleanup';
 import { mutateFollowRelation } from '@/lib/userRelations';
+import { parseBoundedInteger, parseBoundedStringList, parseItqTiming } from '@/lib/selfTestInput';
 
 const RegisterSchema = z.object({
     name: z.string().trim().min(1, '名前は必須です').max(50, '名前は50文字以内です'),
@@ -1125,6 +1126,8 @@ export async function deleteSelfTestResult(
     testType: 'ybocs' | 'iesr' | 'itq' | 'lsas',
     resultId: string,
 ) {
+    resultId = resultId.trim();
+    if (!['ybocs', 'iesr', 'itq', 'lsas'].includes(testType) || !resultId || resultId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -1134,7 +1137,7 @@ export async function deleteSelfTestResult(
         });
         userId = user?.id;
     }
-    if (!userId || !resultId) return;
+    if (!userId) return;
     if (!(await rateLimit(`test-result-delete:${userId}`, 60, 60 * 60 * 1000))) return;
 
     if (testType === 'ybocs') {
@@ -1156,13 +1159,6 @@ export type YbocsState =
       }
     | undefined;
 
-function parseScore(value: FormDataEntryValue | null) {
-    if (typeof value !== 'string') return null;
-    const parsed = Number.parseInt(value, 10);
-    if (Number.isNaN(parsed)) return null;
-    return parsed;
-}
-
 export async function submitYbocs(
     _prevState: YbocsState,
     formData: FormData,
@@ -1179,15 +1175,18 @@ export async function submitYbocs(
     if (!userId) {
         return { message: 'ログインしてください。' };
     }
+    if (!(await rateLimit(`self-test-submit:ybocs:${userId}`, 30, 60 * 60 * 1000))) {
+        return { message: '保存回数が多すぎます。しばらくしてから再度お試しください。' };
+    }
 
-    const parsedScores = Array.from({ length: 10 }, (_, i) => parseScore(formData.get(`q${i + 1}`)));
+    const parsedScores = Array.from({ length: 10 }, (_, i) => parseBoundedInteger(formData.get(`q${i + 1}`), 0, 5));
     if (parsedScores.some((score) => score === null || score < 0 || score > 5)) {
         return { message: 'すべての設問に0〜5で回答してください。' };
     }
 
     const scores = parsedScores as number[];
-    const cgiI = parseScore(formData.get('cgiI'));
-    const cgiS = parseScore(formData.get('cgiS'));
+    const cgiI = parseBoundedInteger(formData.get('cgiI'), 1, 7);
+    const cgiS = parseBoundedInteger(formData.get('cgiS'), 1, 7);
     if ((cgiI !== null && (cgiI < 1 || cgiI > 7)) || (cgiS !== null && (cgiS < 1 || cgiS > 7))) {
         return { message: 'CGIは1〜7で回答してください。' };
     }
@@ -1195,8 +1194,11 @@ export async function submitYbocs(
     const compulsionsScore = scores.slice(5).reduce((sum, val) => sum + (val ?? 0), 0);
     const totalScore = obsessionsScore + compulsionsScore;
 
-    const symptomsCurrent = formData.getAll('symptom_current').filter((v) => typeof v === 'string') as string[];
-    const symptomsPast = formData.getAll('symptom_past').filter((v) => typeof v === 'string') as string[];
+    const symptomsCurrent = parseBoundedStringList(formData.getAll('symptom_current'), 200, 200);
+    const symptomsPast = parseBoundedStringList(formData.getAll('symptom_past'), 200, 200);
+    if (!symptomsCurrent || !symptomsPast) {
+        return { message: '症状リストの入力内容が不正です。' };
+    }
 
     try {
         await prisma.ybocsResult.create({
@@ -1260,8 +1262,11 @@ export async function submitIesr(
     if (!userId) {
         return { message: 'ログインしてください。' };
     }
+    if (!(await rateLimit(`self-test-submit:iesr:${userId}`, 30, 60 * 60 * 1000))) {
+        return { message: '保存回数が多すぎます。しばらくしてから再度お試しください。' };
+    }
 
-    const parsedScores = Array.from({ length: 22 }, (_, i) => parseScore(formData.get(`q${i + 1}`)));
+    const parsedScores = Array.from({ length: 22 }, (_, i) => parseBoundedInteger(formData.get(`q${i + 1}`), 0, 4));
     if (parsedScores.some((score) => score === null || score < 0 || score > 4)) {
         return { message: 'すべての設問に0〜4で回答してください。' };
     }
@@ -1337,15 +1342,17 @@ export async function submitItq(
     if (!userId) {
         return { message: 'ログインしてください。' };
     }
+    if (!(await rateLimit(`self-test-submit:itq:${userId}`, 30, 60 * 60 * 1000))) {
+        return { message: '保存回数が多すぎます。しばらくしてから再度お試しください。' };
+    }
 
-    const eventTiming =
-        typeof formData.get('eventTiming') === 'string' ? String(formData.get('eventTiming')) : '';
+    const eventTiming = parseItqTiming(formData.get('eventTiming'));
     if (!eventTiming) {
         return { message: '経験の時期を選択してください。' };
     }
 
-    const pScores = Array.from({ length: 9 }, (_, i) => parseScore(formData.get(`p${i + 1}`)));
-    const cScores = Array.from({ length: 9 }, (_, i) => parseScore(formData.get(`c${i + 1}`)));
+    const pScores = Array.from({ length: 9 }, (_, i) => parseBoundedInteger(formData.get(`p${i + 1}`), 0, 4));
+    const cScores = Array.from({ length: 9 }, (_, i) => parseBoundedInteger(formData.get(`c${i + 1}`), 0, 4));
 
     if (
         pScores.some((score) => score === null || score < 0 || score > 4) ||
@@ -1464,9 +1471,12 @@ export async function submitLsas(
     if (!userId) {
         return { message: 'ログインしてください。' };
     }
+    if (!(await rateLimit(`self-test-submit:lsas:${userId}`, 30, 60 * 60 * 1000))) {
+        return { message: '保存回数が多すぎます。しばらくしてから再度お試しください。' };
+    }
 
-    const fearScores = Array.from({ length: 24 }, (_, i) => parseScore(formData.get(`f${i + 1}`)));
-    const avoidScores = Array.from({ length: 24 }, (_, i) => parseScore(formData.get(`a${i + 1}`)));
+    const fearScores = Array.from({ length: 24 }, (_, i) => parseBoundedInteger(formData.get(`f${i + 1}`), 0, 3));
+    const avoidScores = Array.from({ length: 24 }, (_, i) => parseBoundedInteger(formData.get(`a${i + 1}`), 0, 3));
 
     if (
         fearScores.some((score) => score === null || score < 0 || score > 3) ||
