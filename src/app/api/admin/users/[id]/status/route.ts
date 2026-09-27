@@ -18,10 +18,10 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
-if (!parsedRequest.ok) {
+  const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+  if (!parsedRequest.ok) {
     return NextResponse.json({ error: parsedRequest.error }, { status: parsedRequest.status });
-}
+  }
 
   const { id: rawId } = await params;
   const id = rawId.trim();
