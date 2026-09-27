@@ -18,7 +18,15 @@ export default function SessionSecuritySetting() {
       <p className="mt-1 text-xs text-zinc-500">
         不審なログインがある場合などに、現在の端末を含むすべてのログイン状態を無効にできます。
       </p>
-      <form action={action} className="mt-3">
+      <form
+        action={action}
+        onSubmit={(event) => {
+          if (!window.confirm('現在の端末を含む、すべての端末からログアウトしますか？')) {
+            event.preventDefault();
+          }
+        }}
+        className="mt-3"
+      >
         <label className="block text-sm font-medium text-zinc-700">
           現在のパスワード
           <input
