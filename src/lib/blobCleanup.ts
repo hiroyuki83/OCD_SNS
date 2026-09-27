@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { del } from '@vercel/blob';
+import { logOperationalError } from '@/lib/operationalError';
 
 function isManagedBlobUrl(value: string) {
   try {
@@ -21,7 +22,7 @@ export async function deleteManagedBlob(url: string | null | undefined) {
     await del(url);
     return true;
   } catch (error) {
-    console.error('Failed to delete managed blob:', error);
+    logOperationalError('BLOB_DELETE_FAILED', error);
     return false;
   }
 }
