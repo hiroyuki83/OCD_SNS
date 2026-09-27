@@ -117,13 +117,14 @@ export default async function PostPage({ params }: { params?: { id?: string } })
         });
         }
     } catch (error) {
-        loadError = error instanceof Error ? error.message : String(error);
+        console.error('Failed to load post detail:', error);
+        loadError = 'failed';
     }
 
     if (loadError) {
         return (
             <div className="p-6 text-sm text-zinc-500">
-                読み込み中にエラーが発生しました。<span className="text-zinc-400">{loadError}</span>
+                読み込み中にエラーが発生しました。時間をおいて再度お試しください。
             </div>
         );
     }
@@ -162,10 +163,10 @@ export default async function PostPage({ params }: { params?: { id?: string } })
                 )}
                 <div className="flex-1 flex flex-col gap-2">
                     <div className="flex items-center gap-2 text-sm flex-wrap">
-                        <Link href={`/user/${handle}`} className="font-bold hover:underline">
+                        <Link href={`/user/${encodeURIComponent(handle)}`} className="font-bold hover:underline">
                             {post.author.name ?? 'ユーザー'}
                         </Link>
-                        <Link href={`/user/${handle}`} className="text-zinc-500 hover:underline">
+                        <Link href={`/user/${encodeURIComponent(handle)}`} className="text-zinc-500 hover:underline">
                             @{handle}
                         </Link>
                         <span className="text-zinc-500">・</span>
