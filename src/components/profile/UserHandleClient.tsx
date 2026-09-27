@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import HashtagText from '@/components/shared/HashtagText';
 import { formatPostTime } from '@/lib/formatTime';
 import { REPORT_REASONS, type ReportReasonValue } from '@/lib/reportReasons';
@@ -41,11 +41,17 @@ type ProfileResponse = {
     isMuted: boolean;
     isBlockedBy: boolean;
     viewerId: string | null;
+    postCount: number;
+    page: number;
+    totalPages: number;
+    hasPrevious: boolean;
+    hasNext: boolean;
 };
 
 export default function UserHandleClient() {
     const params = useParams();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const rawHandle = useMemo(() => {
         const value = params?.handle;
         return Array.isArray(value) ? value[0] ?? '' : (value ?? '');
@@ -54,6 +60,11 @@ export default function UserHandleClient() {
         const trimmed = rawHandle.trim();
         return trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
     }, [rawHandle]);
+    const rawPage = searchParams.get('page') ?? '1';
+    const requestedPage =
+        /^\d+$/.test(rawPage) && Number.isSafeInteger(Number(rawPage))
+            ? Math.max(1, Number(rawPage))
+            : 1;
 
     const [profile, setProfile] = useState<ProfileResponse | null>(null);
     const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
@@ -74,10 +85,13 @@ export default function UserHandleClient() {
             }
             setStatus('loading');
             try {
-                const res = await fetch(`/api/user-handle?handle=${encodeURIComponent(handle)}`, {
-                    cache: 'no-store',
-                    signal,
-                });
+                const res = await fetch(
+                    `/api/user-handle?handle=${encodeURIComponent(handle)}&page=${requestedPage}`,
+                    {
+                        cache: 'no-store',
+                        signal,
+                    },
+                );
                 if (!res.ok) throw new Error('failed');
                 const data = await res.json();
                 if (!data?.user) throw new Error('not found');
@@ -89,7 +103,7 @@ export default function UserHandleClient() {
                 setStatus('error');
             }
         },
-        [handle],
+        [handle, requestedPage],
     );
 
     useEffect(() => {
@@ -99,7 +113,7 @@ export default function UserHandleClient() {
         return () => {
             controller.abort();
         };
-    }, [handle, fetchProfile]);
+    }, [handle, requestedPage, fetchProfile]);
 
     useEffect(() => {
         if (profile) {
@@ -190,7 +204,16 @@ export default function UserHandleClient() {
         );
     }
 
-    const { user, posts, viewerId } = profile;
+    const {
+        user,
+        posts,
+        viewerId,
+        postCount,
+        page,
+        totalPages,
+        hasPrevious,
+        hasNext,
+    } = profile;
     const isPrivate = !!user.isPrivate;
     const canViewPosts = !isPrivate || viewerId === user.id || localFollowing;
 
@@ -333,6 +356,11 @@ export default function UserHandleClient() {
                 </div>
             </div>
             <div className="flex flex-col">
+                {!localBlocked && !localMuted && !localBlockedBy && canViewPosts && postCount > 0 && (
+                    <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
+                        投稿 {postCount}件・{page}/{totalPages}ページ
+                    </div>
+                )}
                 {(localBlocked || localMuted || localBlockedBy) && (
                     <div className="p-4 text-sm text-zinc-500 border-b border-border">
                         {localBlockedBy
@@ -464,6 +492,37 @@ export default function UserHandleClient() {
                         </div>
                     </div>
                 ))}
+                {!localBlocked && !localMuted && !localBlockedBy && canViewPosts && postCount > 0 && (
+                    <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm">
+                        {hasPrevious ? (
+                            <Link
+                                href={`/user/${encodeURIComponent(handle)}?page=${page - 1}`}
+                                className="rounded-full border border-border px-4 py-2 text-zinc-700"
+                            >
+                                前へ
+                            </Link>
+                        ) : (
+                            <span className="rounded-full border border-border px-4 py-2 text-zinc-400">
+                                前へ
+                            </span>
+                        )}
+                        <span className="text-xs text-zinc-500">
+                            {page} / {totalPages}
+                        </span>
+                        {hasNext ? (
+                            <Link
+                                href={`/user/${encodeURIComponent(handle)}?page=${page + 1}`}
+                                className="rounded-full border border-border px-4 py-2 text-zinc-700"
+                            >
+                                次へ
+                            </Link>
+                        ) : (
+                            <span className="rounded-full border border-border px-4 py-2 text-zinc-400">
+                                次へ
+                            </span>
+                        )}
+                    </div>
+                )}
                 {posts.length === 0 && !localBlocked && !localMuted && !localBlockedBy && canViewPosts && (
                     <div className="p-6 text-sm text-zinc-500 text-center">まだ投稿がありません</div>
                 )}
