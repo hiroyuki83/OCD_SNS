@@ -191,7 +191,7 @@ export default function ExploreClient() {
                                 />
                             )}
                             <Link
-                                href={`/post?id=${encodeURIComponent(post.id)}`}
+                                href={`/post/${encodeURIComponent(post.id)}`}
                                 className="text-xs font-semibold text-[#1d9bf0] hover:underline"
                             >
                                 投稿を開く
