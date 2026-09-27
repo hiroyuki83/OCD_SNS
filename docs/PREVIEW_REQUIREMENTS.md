@@ -209,6 +209,22 @@ AccountStatus:
 - POST_RESTRICTED
 - SUSPENDED
 
+投稿制限・アカウント停止は `User.status` の実効状態に加えて、独立した `Sanction` レコードとして履歴保存する。
+
+SanctionType:
+
+- WARNING
+- POST_RESTRICTION
+- SUSPENSION
+
+SanctionStatus:
+
+- ACTIVE
+- EXPIRED
+- REVOKED
+
+現段階では POST_RESTRICTION / SUSPENSION を `Sanction` に保存する。警告は既存の `ModerationWarning` を正本として維持し、共通Appeal導入時に段階移行する。
+
 投稿制限:
 
 - 1時間
@@ -233,7 +249,7 @@ AccountStatus:
 - 自分が出した警告の異議申立てを自分で審査しない
 - 必要な操作は Audit Log に記録
 
-警告以外の処分への拡張方針は `APPEAL_MODEL_DESIGN.md` を正本とする。投稿制限・停止を第一級の Sanction レコードとして表現してから共通 Appeal を導入する。
+警告以外の処分への拡張方針は `APPEAL_MODEL_DESIGN.md` を正本とする。投稿制限・停止の第一級 `Sanction` レコード化は実装済みで、次段階として `sanctionId` を参照する共通 Appeal を導入する。
 
 ## 13. 管理画面
 
