@@ -575,7 +575,7 @@ Post-merge validation:
 Production releaseは引き続き `NEXT-039 / NEXT-040` としてHOLDする。
 
 
-## 2026-09-28 実装バッチ6: Sanction永続化
+## 2026-09-28 実装バッチ6: Sanction永続化（40タスク）
 
 対象branch: `feature/sanction-records-20260928`
 
@@ -590,8 +590,8 @@ Production releaseは引き続き `NEXT-039 / NEXT-040` としてHOLDする。
 | 7 | ReportへSanction relationを追加 | DONE |
 | 8 | Sanction用DB indexを追加 | DONE |
 | 9 | Sanction migrationを追加 | DONE |
-| 10 | 投稿制限時にSanctionを永続化 | DONE |
-| 11 | アカウント停止時にSanctionを永続化 | DONE |
+| 10 | 通報画面の投稿制限時にSanctionを永続化 | DONE |
+| 11 | 通報画面のアカウント停止時にSanctionを永続化 | DONE |
 | 12 | 新処分前に期限切れSanctionをEXPIREDへ整理 | DONE |
 | 13 | 新処分で置換される有効SanctionをREVOKEDへ変更 | DONE |
 | 14 | Audit LogへsanctionIdを記録 | DONE |
@@ -600,17 +600,28 @@ Production releaseは引き続き `NEXT-039 / NEXT-040` としてHOLDする。
 | 17 | 期限超過ACTIVE Sanctionを表示上EXPIREDとして扱う | DONE |
 | 18 | ADMINユーザー詳細でSanction履歴を取得 | DONE |
 | 19 | ADMINユーザー詳細へ処分履歴UIを追加 | DONE |
-| 20 | Preview migration planを39件baseline + 新migration pendingへ更新 | DONE |
+| 20 | Preview migration planを既存39件 + 新migration pendingへ更新 | DONE |
 | 21 | migration plan回帰テストを更新 | DONE |
 | 22 | sanction timeline単体テストを追加 | DONE |
 | 23 | Audit action名不整合の回帰テストを追加 | DONE |
 | 24 | sanction schema回帰テストを追加 | DONE |
-| 25 | sanction persistence回帰テストを追加 | DONE |
+| 25 | moderation sanction persistence回帰テストを追加 | DONE |
 | 26 | sanction履歴UI回帰テストを追加 | DONE |
 | 27 | Appeal設計文書を段階導入状態へ更新 | DONE |
 | 28 | Preview要件定義へSanction永続化を反映 | DONE |
 | 29 | NEXT-041 / NEXT-042をロードマップへ追加 | DONE |
-| 30 | PR CI / E2Eで検証 | IN PROGRESS |
+| 30 | ADMIN直接status変更でもSanctionを永続化 | DONE |
+| 31 | ADMIN直接status変更の回帰テストを追加 | DONE |
+| 32 | ADMIN status E2EでSanction有効/解除履歴を確認 | DONE |
+| 33 | Preview migration許可branchを今回feature branchへ切替 | DONE |
+| 34 | Preview seed許可branchをmigration guardと共通化 | DONE |
+| 35 | Preview DB preflightを既存39 migration適用後schemaへ更新 | DONE |
+| 36 | Preview DB verifyへSanction table/column検証を追加 | DONE |
+| 37 | 今回releaseでhistorical baselineを禁止 | DONE |
+| 38 | migration前のfeature branch Vercel deployを明示停止 | DONE |
+| 39 | Preview deploy checklist / branch情報を現行化 | DONE |
+| 40 | PR CI / E2Eで最終検証 | IN PROGRESS |
 
 NEXT-041 はコード実装完了、CI / E2E確認後に DONE とする。
-NEXT-042 は Sanction 永続化の検証後に着手する。
+NEXT-042 は Sanction 永続化のPreview検証後に着手する。
+
