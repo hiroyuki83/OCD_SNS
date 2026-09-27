@@ -10,6 +10,8 @@ export const USERS = {
   private: 'coco.preview.private@example.com',
   moderator: 'coco.preview.moderator@example.com',
   admin: 'coco.preview.admin@example.com',
+  moderator2: 'coco.preview.moderator2@example.com',
+  admin2: 'coco.preview.admin2@example.com',
 };
 
 export async function login(page, email, password = PREVIEW_PASSWORD) {
