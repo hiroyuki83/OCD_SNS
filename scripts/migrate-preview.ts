@@ -1,5 +1,4 @@
 import { spawnSync } from 'node:child_process';
-// @ts-expect-error -- pg does not ship project-local TypeScript declarations here.
 import { Client } from 'pg';
 import {
   PREVIEW_MIGRATION_CONFIRMATION,
