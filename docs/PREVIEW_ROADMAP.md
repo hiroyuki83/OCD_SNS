@@ -455,3 +455,67 @@ GitHub Actions `Security integration CI` run 36334031017 で最終確認済み�
 
 以上をもって NEXT-020 / NEXT-022 / NEXT-025 / NEXT-026 / NEXT-032 を DONE とする。
 NEXT-006 は Vercel Preview最新同期待ち。NEXT-007 は Preview DB特定・schema差分確認・snapshot作成まで完了し、migration / seed / smoke待ちのため IN PROGRESS。
+
+
+## 2026-09-28 リリース安全化バッチ5
+
+| # | 内容 | Status |
+|---:|---|---|
+| 1 | Preview環境のPrisma migration接続先をPREVIEW_DATABASE_URL最優先へ変更 | DONE |
+| 2 | coco-preview承認済みNeon host / DB名をmigration guardへ固定 | DONE |
+| 3 | VERCEL_ENV / branch / confirmation / DB URL一致条件をmigration guardへ追加 | DONE |
+| 4 | Preview migration guard単体テストを追加 | DONE |
+| 5 | Preview DB preflight scriptを追加 | DONE |
+| 6 | Preview schema post-migration verify scriptを追加 | DONE |
+| 7 | guarded Preview migration runnerを追加 | DONE |
+| 8 | migration runner単独実行でもpreflight→migration→verifyを必須化 | DONE |
+| 9 | Prisma migration履歴不在時のhistorical baseline手順を実装 | DONE |
+| 10 | historical / pending migration計画を共通moduleへ集約 | DONE |
+| 11 | migration計画とrepository migrationディレクトリの完全一致テストを追加 | DONE |
+| 12 | 手動専用 Preview DB release GitHub Actions workflowを追加 | DONE |
+| 13 | Preview DB workflowのbranch / confirmation / secret安全条件を回帰テスト化 | DONE |
+| 14 | Vercel Previewが更新されなかった原因をvercel.json deploymentEnabledと特定 | DONE |
+| 15 | mainのVercel自動deployを無効化し、main mergeとProduction releaseを分離 | DONE |
+| 16 | integration branchもDB migration完了まではPreview自動deploy無効を維持 | DONE |
+| 17 | Vercel release policyを回帰テスト化 | DONE |
+| 18 | CI / E2Eをintegration push重複実行からPR検証 + main push検証へ整理 | DONE |
+| 19 | report E2EをAPI完了alertまで待つよう安定化 | DONE |
+| 20 | warning appeal E2Eを一時UIではなく永続化後server-rendered state待ちへ安定化 | DONE |
+| 21 | PR #47本文を現在のmain / Production分離方針へ更新 | DONE |
+| 22 | Preview DBが想定したpre-migration schemaであることを読み取り再確認 | DONE |
+
+### バッチ5検証
+
+コード検証commit: `c16bf160edde045c21fad44f4080f17f367b8d90`
+
+- Security integration CI run `36349415279`: SUCCESS
+  - Prisma validate / generate: SUCCESS
+  - lint: SUCCESS
+  - unit tests: **139 / 139 PASS**
+  - TypeScript: SUCCESS
+  - Next.js production build: SUCCESS
+- CoCo E2E run `36349415285`: SUCCESS
+  - isolated PostgreSQLへの全migration適用: SUCCESS
+  - Preview seed: SUCCESS
+  - application build: SUCCESS
+  - Playwright: **15 / 15 PASS**
+  - moderation report → warning → appeal → overturn flowを含む
+
+### 現在のリリース位置
+
+引き続き **PHASE-C / NEXT-007 IN PROGRESS**。
+
+コード側のPreview migration安全化は完了したが、実Preview DBへの破壊的migrationは未実行。
+
+次の順序:
+
+1. Preview DB migrationを明示承認のうえ実行
+2. historical Prisma migrationをbaseline登録（初回のみ）
+3. pending 4 migrationsを適用
+4. Preview seed / schema verify
+5. `security-integration-final-20260926` のVercel deploymentを有効化
+6. 最新Preview deploymentを作成
+7. NEXT-034 Preview最終受入
+8. NEXT-035 main統合ゲート
+9. NEXT-036 PR #47をmainへmerge
+
