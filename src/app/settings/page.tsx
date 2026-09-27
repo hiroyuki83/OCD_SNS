@@ -7,6 +7,7 @@ import StaffTotpSetting from '@/components/settings/StaffTotpSetting';
 import SessionSecuritySetting from '@/components/settings/SessionSecuritySetting';
 import PasswordChangeSetting from '@/components/settings/PasswordChangeSetting';
 import AccountDataExportSetting from '@/components/settings/AccountDataExportSetting';
+import NotificationPreferenceSetting from '@/components/settings/NotificationPreferenceSetting';
 import { Role } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -53,6 +54,9 @@ export default async function SettingsPage({
       staffTotpEnabledAt: true,
       emailVerifiedAt: true,
       isPrivate: true,
+      notifyLikes: true,
+      notifyReactions: true,
+      notifyFollows: true,
     },
   });
 
@@ -95,6 +99,11 @@ export default async function SettingsPage({
         <SessionSecuritySetting />
         <PasswordChangeSetting />
         <AccountDataExportSetting />
+        <NotificationPreferenceSetting
+          notifyLikes={user.notifyLikes}
+          notifyReactions={user.notifyReactions}
+          notifyFollows={user.notifyFollows}
+        />
         <ProfileEditForm name={user.name} bio={user.bio} autoHashtag={user.autoHashtag} />
         {isStaff && (
           <StaffTotpSetting
