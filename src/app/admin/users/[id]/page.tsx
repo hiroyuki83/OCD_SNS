@@ -6,6 +6,9 @@ import { requireRole } from "@/lib/rbac";
 import AdminNotesPanel from "../AdminNotesPanel";
 import UserAccessPanel from "../UserAccessPanel";
 import UserPasswordResetForm from "../UserPasswordResetForm";
+import { visibleAccountFilter } from "@/lib/accountStatus";
+
+export const dynamic = "force-dynamic";
 
 const statusLabels: Record<ReportStatus, string> = {
   OPEN: "未対応",
@@ -56,6 +59,7 @@ export default async function AdminUserDetailPage({
 
   const userId = params.id.trim();
   if (!userId || userId.length > 128) notFound();
+  const now = new Date();
   const [
     user,
     visiblePostCount,
@@ -99,10 +103,18 @@ export default async function AdminUserDetailPage({
     prisma.report.count({ where: { targetUserId: userId, status: ReportStatus.REVIEWING } }),
     prisma.report.count({ where: { reporterId: userId } }),
     prisma.follow.count({
-      where: { followingId: userId, acceptedAt: { not: null } },
+      where: {
+        followingId: userId,
+        acceptedAt: { not: null },
+        follower: visibleAccountFilter(now),
+      },
     }),
     prisma.follow.count({
-      where: { followerId: userId, acceptedAt: { not: null } },
+      where: {
+        followerId: userId,
+        acceptedAt: { not: null },
+        following: visibleAccountFilter(now),
+      },
     }),
     prisma.post.findMany({
       where: { authorId: userId },
