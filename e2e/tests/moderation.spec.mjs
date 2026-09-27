@@ -99,13 +99,22 @@ test('report → moderation warning → appeal → admin overturn', async ({ bro
   await appealCard.getByLabel('審査理由').fill(reviewNote);
   const overturnButton = appealCard.getByRole('button', { name: '警告を取り消す' });
   await overturnButton.click();
-  // Wait for the review mutation to persist before reading the result as the user.
+  // Wait for the reviewed state itself, not only for the transient form to disappear.
   await expect(overturnButton).toHaveCount(0);
+  await expect(appealCard.getByText('警告取消', { exact: true })).toBeVisible();
+  await expect(appealCard.getByText(reviewNote)).toBeVisible();
 
-  await author.goto('/');
-  await expect(
-    author.getByRole('link', { name: /通知、未読\d+件/ }).first(),
-  ).toBeVisible();
+  // The author uses a separate browser context. Poll fresh server renders until
+  // the warning re-unread state is reflected in the navigation badge.
+  await expect
+    .poll(
+      async () => {
+        await author.goto('/');
+        return author.getByRole('link', { name: /通知、未読\d+件/ }).count();
+      },
+      { timeout: 15_000, intervals: [300, 500, 1_000, 2_000] },
+    )
+    .toBeGreaterThan(0);
 
   await author.goto('/notifications?filter=warnings');
   const resolvedWarning = author.locator('[data-warning-card]').filter({ hasText: warningReason });
