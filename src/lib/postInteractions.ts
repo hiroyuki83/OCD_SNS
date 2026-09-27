@@ -107,8 +107,14 @@ async function toggleLike(
     });
   }
 
-  const count = await tx.like.count({ where: { postId } });
-  return { ok: true, active: created.count === 1, count };
+  const [count, currentLike] = await Promise.all([
+    tx.like.count({ where: { postId } }),
+    tx.like.findUnique({
+      where: { userId_postId: { userId, postId } },
+      select: { id: true },
+    }),
+  ]);
+  return { ok: true, active: Boolean(currentLike), count };
 }
 
 async function toggleBookmark(
@@ -121,11 +127,15 @@ async function toggleBookmark(
     return { ok: true, active: false };
   }
 
-  const created = await tx.bookmark.createMany({
+  await tx.bookmark.createMany({
     data: [{ userId, postId }],
     skipDuplicates: true,
   });
-  return { ok: true, active: created.count === 1 };
+  const currentBookmark = await tx.bookmark.findUnique({
+    where: { userId_postId: { userId, postId } },
+    select: { id: true },
+  });
+  return { ok: true, active: Boolean(currentBookmark) };
 }
 
 async function toggleReaction(
@@ -136,15 +146,11 @@ async function toggleReaction(
   type: ReactionType,
 ): Promise<InteractionState> {
   const removed = await tx.reaction.deleteMany({ where: { userId, postId, type } });
-  let active = false;
-
   if (removed.count === 0) {
     const created = await tx.reaction.createMany({
       data: [{ userId, postId, type }],
       skipDuplicates: true,
     });
-    active = created.count === 1;
-
     if (created.count === 1 && authorId !== userId) {
       await tx.notification.deleteMany({
         where: { type, userId: authorId, actorId: userId, postId },
@@ -159,7 +165,13 @@ async function toggleReaction(
     });
   }
 
-  const count = await tx.reaction.count({ where: { postId, type } });
+  const [count, currentReaction] = await Promise.all([
+    tx.reaction.count({ where: { postId, type } }),
+    tx.reaction.findUnique({
+      where: { userId_postId_type: { userId, postId, type } },
+      select: { id: true },
+    }),
+  ]);
   const synced = await tx.post.updateMany({
     where: { id: postId, deletedAt: null, isHidden: false },
     data:
@@ -169,7 +181,7 @@ async function toggleReaction(
   });
   if (synced.count !== 1) throw new InteractionConflictError();
 
-  return { ok: true, active, count };
+  return { ok: true, active: Boolean(currentReaction), count };
 }
 
 async function runOnce(
