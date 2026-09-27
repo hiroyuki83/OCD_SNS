@@ -1,8 +1,7 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { Role } from '@prisma/client';
-import { isSuspensionActive } from '@/lib/accountStatus';
 import { privateJson } from '@/lib/apiResponse';
+import { accessiblePostWhere } from '@/lib/postAccess';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,89 +12,36 @@ export async function GET(request: Request) {
         return privateJson({ post: null }, { status: 400 });
     }
 
-    const post = await prisma.post.findUnique({
-        where: { id },
+    const session = await auth();
+    let viewerId = session?.user?.id ?? null;
+    if (!viewerId && session?.user?.email) {
+        const viewer = await prisma.user.findUnique({
+            where: { email: session.user.email },
+            select: { id: true },
+        });
+        viewerId = viewer?.id ?? null;
+    }
+
+    const post = await prisma.post.findFirst({
+        where: accessiblePostWhere(viewerId, id),
         select: {
             id: true,
             content: true,
             imageUrl: true,
             createdAt: true,
-            authorId: true,
-            isHidden: true,
-            hiddenReason: true,
-            deletedAt: true,
             author: {
-                select: { id: true, name: true, handle: true, avatarUrl: true, isPrivate: true, status: true, suspendedUntil: true },
+                select: {
+                    id: true,
+                    name: true,
+                    handle: true,
+                    avatarUrl: true,
+                },
             },
         },
     });
+
     if (!post) {
         return privateJson({ post: null }, { status: 404 });
-    }
-
-    const session = await auth();
-    let viewerId = session?.user?.id ?? null;
-    let viewerRole: Role | null = (session?.user?.role as Role | undefined) ?? null;
-    if (!viewerId && session?.user?.email) {
-        const viewer = await prisma.user.findUnique({
-            where: { email: session.user.email },
-            select: { id: true, role: true },
-        });
-        viewerId = viewer?.id ?? null;
-        viewerRole = viewer?.role ?? null;
-    } else if (viewerId && !viewerRole) {
-        const viewer = await prisma.user.findUnique({
-            where: { id: viewerId },
-            select: { role: true },
-        });
-        viewerRole = viewer?.role ?? null;
-    }
-
-    const isModerator = viewerRole === Role.ADMIN || viewerRole === Role.MODERATOR;
-    if (post.deletedAt) {
-        return privateJson({ post: null }, { status: 404 });
-    }
-
-    if ((post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) && !isModerator) {
-        return privateJson({ post: null }, { status: 404 });
-    }
-
-    if (viewerId) {
-        const [blocked, muted] = await Promise.all([
-            prisma.block.findFirst({
-                where: {
-                    OR: [
-                        { blockerId: viewerId, blockedId: post.authorId },
-                        { blockerId: post.authorId, blockedId: viewerId },
-                    ],
-                },
-                select: { id: true },
-            }),
-            prisma.mute.findFirst({
-                where: { muterId: viewerId, mutedId: post.authorId },
-                select: { id: true },
-            }),
-        ]);
-        if (blocked || muted) {
-            return privateJson({ post: null }, { status: 404 });
-        }
-        if (post.author.isPrivate && viewerId !== post.authorId) {
-            const isFollowing = await prisma.follow.findFirst({
-                where: {
-                    followerId: viewerId,
-                    followingId: post.authorId,
-                    acceptedAt: { not: null },
-                },
-                select: { id: true },
-            });
-            if (!isFollowing) {
-                return privateJson({ post: null }, { status: 404 });
-            }
-        }
-    } else {
-        if (post.author.isPrivate) {
-            return privateJson({ post: null }, { status: 404 });
-        }
     }
 
     return privateJson({
@@ -104,18 +50,7 @@ export async function GET(request: Request) {
             content: post.content,
             imageUrl: post.imageUrl,
             createdAt: post.createdAt,
-            author: {
-                id: post.author.id,
-                name: post.author.name,
-                handle: post.author.handle,
-                avatarUrl: post.author.avatarUrl,
-            },
-            hidden: isModerator
-                ? {
-                      isHidden: post.isHidden,
-                      reason: post.hiddenReason,
-                  }
-                : undefined,
+            author: post.author,
         },
     });
 }
