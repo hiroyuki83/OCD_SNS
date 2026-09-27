@@ -23,6 +23,10 @@
 | DEC-004 | 動画投稿は実装しない | OUT OF SCOPE |
 | DEC-005 | ライブ配信は実装しない | OUT OF SCOPE |
 | DEC-006 | 残存している Reply / Quote 関連 schema・古いコードは削除する | DONE |
+| DEC-007 | 通常のPreview検証は共有Preview DB 1個を常設して使う | DONE |
+| DEC-008 | PR専用Neon branchはschema変更・破壊的migration検証時だけ一時作成し、検証後に削除する | DONE |
+| DEC-009 | mainは「コードとして承認済み」の基準ブランチとする | DONE |
+| DEC-010 | mainへのmergeとProduction deployは別工程とし、Production releaseは明示操作でのみ行う | DONE |
 
 ## 現在実装済みの主要機能
 
@@ -100,7 +104,7 @@
 | NEXT-004 | Reply / Quote 削除 migration を作成 | P0 | DONE |
 | NEXT-005 | Reply / Quote 削除後に validate / lint / test / typecheck / build | P0 | DONE |
 | NEXT-006 | 最新 Preview branch を Vercel Preview に同期 | P0 | TODO |
-| NEXT-007 | Preview DB migration / seed / smoke test | P0 | TODO |
+| NEXT-007 | Preview DB migration / seed / smoke test | P0 | IN PROGRESS |
 | NEXT-008 | Playwright E2E 基盤導入 | P0 | DONE |
 | NEXT-009 | 登録→確認→ログイン E2E | P0 | DONE |
 | NEXT-010 | private follow approval E2E | P0 | DONE |
@@ -127,6 +131,75 @@
 | NEXT-031 | キーボード / focus / screen reader 監査 | P2 | DONE |
 | NEXT-032 | アプリレベルのエラー監視 | P2 | DONE |
 | NEXT-033 | DB / Blob バックアップ・復旧手順の文書化 | P2 | DONE |
+| NEXT-034 | Preview最終受入確認（主要機能・migration・smoke・runtime error確認） | P0 | TODO |
+| NEXT-035 | main統合前ゲート確認（NEXT-006/007/034完了、Production自動deployの有無確認） | P0 | TODO |
+| NEXT-036 | PR #47 を main へmerge | P0 | TODO |
+| NEXT-037 | main merge後のCI / E2E再確認 | P0 | TODO |
+| NEXT-038 | integration branch終了・不要な一時Neon branch整理 | P1 | TODO |
+| NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | HOLD |
+| NEXT-040 | Productionへ明示release・post-deploy smoke / error scan | P0 | HOLD |
+
+## リリース進行フェーズ
+
+mainへ統合する位置を、以下のゲートで固定する。
+
+| Phase | 内容 | 完了条件 | Status |
+|---|---|---|---|
+| PHASE-A | 機能実装 | 要件上の主要機能・セキュリティ・管理機能が実装済み | DONE |
+| PHASE-B | ローカル/CI検証 | Prisma / lint / unit / TypeScript / build / Playwright E2E が成功 | DONE |
+| PHASE-C | Preview DB同期 | Preview専用DBを特定し、backup/snapshot後にmigration・seedを完了 | IN PROGRESS |
+| PHASE-D | Preview最終受入 | 最新commitのVercel Previewでsmoke・主要機能・runtime error確認 | TODO |
+| PHASE-E | main統合ゲート | PHASE-C/D完了、Production自動deployの有無と影響を確認 | TODO |
+| PHASE-F | mainへ統合 | PR #47をmainへmergeし、main上のCI/E2Eを再確認 | TODO |
+| PHASE-G | 統合後整理 | integration branchと不要な一時Neon branchを整理 | TODO |
+| PHASE-H | Production release | 別途明示承認のうえProduction DB migration→deploy→smoke | HOLD |
+
+### mainへ統合するタイミング
+
+**PHASE-D「Preview最終受入」が完了し、PHASE-Eのmain統合ゲートを通過した直後にmainへmergeする。**
+
+main mergeの必須条件:
+
+1. `NEXT-006` 最新commitがVercel Previewに同期済み
+2. `NEXT-007` Preview DB migration / seed / smokeが成功
+3. `NEXT-034` Preview最終受入確認が成功
+4. CI / E2Eが成功
+5. Preview runtime errorに重大な未解決エラーがない
+6. main mergeがProductionへ自動deployする設定かを確認済み
+7. 自動Production deployする場合は、merge前に自動deployを止めるか、Production release準備を先に完了する
+
+**mainへのmerge自体をProduction releaseとは扱わない。**
+Production releaseは `NEXT-039/040` の別工程とし、明示的に実施する。
+
+### DB運用ルール
+
+- 常設DBは原則2系統:
+  - Production DB
+  - 共有Preview DB（`coco-preview`）
+- PRごとのDBは通常作らない
+- schema変更・破壊的migration検証が必要なときだけ一時Neon branchを作る
+- 一時branchは検証完了後またはPR終了後に削除する
+- 一時branchを恒久的に増やさない
+- Preview DBのdefault branch名が `production` でも、Neon project `coco-preview` 内のbranchであり、本番DBとは区別する
+- 将来的にはPreview側default branch名を `preview` へ変更し、誤認しにくくする
+
+### 現在位置
+
+現在は **PHASE-C / NEXT-007**。
+
+完了済み:
+- Preview専用Neon project `coco-preview` を特定
+- project ID `plain-dawn-64792117` を確認
+- DB `neondb` を確認
+- schema差分を確認
+- migration前snapshot `before-preview-schema-sync-2026-09-28` を作成
+
+未完了:
+- 4本のPreview migration適用
+- Preview seed
+- 最新commitのVercel Preview同期
+- Preview smoke / acceptance
+- main merge
 
 ## 実装しない機能
 
@@ -151,6 +224,10 @@
 複数タスクを一度に進めた場合も、このIDを基準に進捗を更新する。
 
 新しい仕様変更があった場合は、DEC-ID または新しい NEXT-ID を追加する。
+
+リリース作業では NEXT-ID だけでなく PHASE-A〜H も更新し、現在どのゲートにいるかを常に明示する。
+mainへmergeした場合は、merge commit / PR番号 / main上のCI結果をこの文書へ記録する。
+Productionへreleaseした場合も、deploy ID / migration結果 / smoke結果を記録する。
 
 
 ## 2026-09-28 実装バッチ（30タスク）
