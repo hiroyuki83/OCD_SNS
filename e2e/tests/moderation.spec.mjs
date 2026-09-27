@@ -72,8 +72,16 @@ test('report → moderation warning → appeal → admin overturn', async ({ bro
   const warningCard = author.locator('[data-warning-card]').filter({ hasText: warningReason });
   await expect(warningCard).toBeVisible();
   await warningCard.getByLabel('この警告に異議申立てをする').fill(appealMessage);
-  await warningCard.getByRole('button', { name: '異議申立てを送信' }).click();
-  await expect(warningCard.getByRole('status')).toContainText('異議申立て');
+  const appealSubmitButton = warningCard.getByRole('button', { name: '異議申立てを送信' });
+  await appealSubmitButton.click();
+  // The Server Action revalidates /notifications and may replace the client form.
+  // Verify persistence from the server-rendered warning card instead of relying on
+  // the transient useActionState status node.
+  await expect(appealSubmitButton).toHaveCount(0);
+  await author.reload();
+  const appealedWarning = author.locator('[data-warning-card]').filter({ hasText: warningReason });
+  await expect(appealedWarning.getByText('異議申立てを受け付けました')).toBeVisible();
+  await expect(appealedWarning.getByText(appealMessage)).toBeVisible();
 
   const adminMfa = await enrollStaffMfa(admin, USERS.admin2, PREVIEW_PASSWORD);
   const adminRecoveryCode = adminMfa.recoveryCodes[0] ?? '';
