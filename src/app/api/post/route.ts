@@ -1,14 +1,16 @@
-import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { Role } from '@prisma/client';
 import { isSuspensionActive } from '@/lib/accountStatus';
+import { privateJson } from '@/lib/apiResponse';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id')?.trim();
     if (!id || id.length > 128) {
-        return NextResponse.json({ post: null }, { status: 400 });
+        return privateJson({ post: null }, { status: 400 });
     }
 
     const post = await prisma.post.findUnique({
@@ -28,7 +30,7 @@ export async function GET(request: Request) {
         },
     });
     if (!post) {
-        return NextResponse.json({ post: null }, { status: 404 });
+        return privateJson({ post: null }, { status: 404 });
     }
 
     const session = await auth();
@@ -51,11 +53,11 @@ export async function GET(request: Request) {
 
     const isModerator = viewerRole === Role.ADMIN || viewerRole === Role.MODERATOR;
     if (post.deletedAt) {
-        return NextResponse.json({ post: null }, { status: 404 });
+        return privateJson({ post: null }, { status: 404 });
     }
 
     if ((post.isHidden || isSuspensionActive(post.author.status, post.author.suspendedUntil)) && !isModerator) {
-        return NextResponse.json({ post: null }, { status: 404 });
+        return privateJson({ post: null }, { status: 404 });
     }
 
     if (viewerId) {
@@ -75,7 +77,7 @@ export async function GET(request: Request) {
             }),
         ]);
         if (blocked || muted) {
-            return NextResponse.json({ post: null }, { status: 404 });
+            return privateJson({ post: null }, { status: 404 });
         }
         if (post.author.isPrivate && viewerId !== post.authorId) {
             const isFollowing = await prisma.follow.findFirst({
@@ -87,16 +89,16 @@ export async function GET(request: Request) {
                 select: { id: true },
             });
             if (!isFollowing) {
-                return NextResponse.json({ post: null }, { status: 404 });
+                return privateJson({ post: null }, { status: 404 });
             }
         }
     } else {
         if (post.author.isPrivate) {
-            return NextResponse.json({ post: null }, { status: 404 });
+            return privateJson({ post: null }, { status: 404 });
         }
     }
 
-    return NextResponse.json({
+    return privateJson({
         post: {
             id: post.id,
             content: post.content,
