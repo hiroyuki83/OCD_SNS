@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { isSuspensionActive, visibleAccountFilter } from '@/lib/accountStatus';
@@ -78,10 +79,49 @@ export async function GET(request: Request) {
     }
 
     const now = new Date();
-    const postWhere = {
+    const postAuthorVisibility: Prisma.UserWhereInput = viewerId
+        ? {
+              AND: [
+                  visibleAccountFilter(now),
+                  {
+                      blocksInitiated: {
+                          none: { blockedId: viewerId },
+                      },
+                  },
+                  {
+                      blockedBy: {
+                          none: { blockerId: viewerId },
+                      },
+                  },
+                  {
+                      mutedBy: {
+                          none: { muterId: viewerId },
+                      },
+                  },
+                  {
+                      OR: [
+                          { isPrivate: false },
+                          { id: viewerId },
+                          {
+                              followers: {
+                                  some: {
+                                      followerId: viewerId,
+                                      acceptedAt: { not: null },
+                                  },
+                              },
+                          },
+                      ],
+                  },
+              ],
+          }
+        : {
+              AND: [visibleAccountFilter(now), { isPrivate: false }],
+          };
+    const postWhere: Prisma.PostWhereInput = {
         authorId: user.id,
         isHidden: false,
         deletedAt: null,
+        author: postAuthorVisibility,
     };
     const [postCount, followerCount, followingCount] = await Promise.all([
         canViewPosts ? prisma.post.count({ where: postWhere }) : Promise.resolve(0),
