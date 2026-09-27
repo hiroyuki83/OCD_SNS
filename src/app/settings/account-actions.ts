@@ -73,6 +73,8 @@ export async function requestEmailChange(
   };
 }
 
+class AccountDeletionConflictError extends Error {}
+
 export type AccountDeletionState =
   | { ok?: boolean; message?: string }
   | undefined;
@@ -133,7 +135,9 @@ export async function deleteOwnAccount(
   const deletedEmail = `deleted-${user.id}@deleted.invalid`;
   const deletedHandle = `deleted-${user.id}`;
 
-  const deleted = await prisma.$transaction(async (tx) => {
+  let deleted = false;
+  try {
+    deleted = await prisma.$transaction(async (tx) => {
     const current = await tx.user.findUnique({
       where: { id: userId },
       select: { role: true, sessionVersion: true },
@@ -143,7 +147,7 @@ export async function deleteOwnAccount(
       current.role !== Role.USER ||
       current.sessionVersion !== user.sessionVersion
     ) {
-      return false;
+      throw new AccountDeletionConflictError();
     }
 
     await tx.notification.deleteMany({
@@ -256,7 +260,7 @@ export async function deleteOwnAccount(
         sessionVersion: { increment: 1 },
       },
     });
-    if (updated.count !== 1) return false;
+    if (updated.count !== 1) throw new AccountDeletionConflictError();
 
     await tx.auditLog.create({
       data: {
@@ -273,7 +277,15 @@ export async function deleteOwnAccount(
     });
 
     return true;
-  });
+    });
+  } catch (error) {
+    if (error instanceof AccountDeletionConflictError) {
+      return {
+        message: 'アカウント状態が変更されました。画面を更新して再度お試しください。',
+      };
+    }
+    throw error;
+  }
 
   if (!deleted) {
     return {
