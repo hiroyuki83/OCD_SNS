@@ -63,9 +63,11 @@ export default function UserHandleClient() {
     const [localMuted, setLocalMuted] = useState(false);
     const [localBlockedBy, setLocalBlockedBy] = useState(false);
     const [reportingUser, setReportingUser] = useState(false);
+    const [pendingRelationAction, setPendingRelationAction] = useState<'follow' | 'block' | 'mute' | null>(null);
+    const [pendingPostAction, setPendingPostAction] = useState<string | null>(null);
 
     const fetchProfile = useMemo(
-        () => async () => {
+        () => async (signal?: AbortSignal) => {
             if (!handle || handle.length > 64) {
                 setStatus('error');
                 return;
@@ -74,13 +76,16 @@ export default function UserHandleClient() {
             try {
                 const res = await fetch(`/api/user-handle?handle=${encodeURIComponent(handle)}`, {
                     cache: 'no-store',
+                    signal,
                 });
                 if (!res.ok) throw new Error('failed');
                 const data = await res.json();
                 if (!data?.user) throw new Error('not found');
+                if (signal?.aborted) return;
                 setProfile(data);
                 setStatus('idle');
-            } catch {
+            } catch (error) {
+                if (signal?.aborted) return;
                 setStatus('error');
             }
         },
@@ -88,13 +93,11 @@ export default function UserHandleClient() {
     );
 
     useEffect(() => {
-        let active = true;
         if (!handle) return;
-        fetchProfile().catch(() => {
-            if (active) setStatus('error');
-        });
+        const controller = new AbortController();
+        fetchProfile(controller.signal);
         return () => {
-            active = false;
+            controller.abort();
         };
     }, [handle, fetchProfile]);
 
@@ -109,13 +112,20 @@ export default function UserHandleClient() {
     }, [profile]);
 
     const runPostAction = async (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
-        const res = await fetch('/api/post-action', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ postId, action }),
-        });
-        if (!res.ok) return;
-        await fetchProfile();
+        const actionKey = `${postId}:${action}`;
+        if (pendingPostAction) return;
+        setPendingPostAction(actionKey);
+        try {
+            const res = await fetch('/api/post-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ postId, action }),
+            });
+            if (!res.ok) return;
+            await fetchProfile();
+        } finally {
+            setPendingPostAction(null);
+        }
     };
 
     const reportUser = async () => {
@@ -185,43 +195,58 @@ export default function UserHandleClient() {
     const canViewPosts = !isPrivate || viewerId === user.id || localFollowing;
 
     const toggleFollow = async () => {
-        if (!viewerId) return;
-        const action = localFollowing || localFollowPending ? 'unfollow' : 'follow';
-        const res = await fetch('/api/follow-action', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetUserId: user.id, action }),
-        });
-        if (!res.ok) return;
-        await fetchProfile();
+        if (!viewerId || pendingRelationAction) return;
+        setPendingRelationAction('follow');
+        try {
+            const action = localFollowing || localFollowPending ? 'unfollow' : 'follow';
+            const res = await fetch('/api/follow-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetUserId: user.id, action }),
+            });
+            if (!res.ok) return;
+            await fetchProfile();
+        } finally {
+            setPendingRelationAction(null);
+        }
     };
 
     const toggleBlock = async () => {
-        if (!viewerId) return;
-        const res = await fetch('/api/block-action', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetUserId: user.id, action: localBlocked ? 'unblock' : 'block' }),
-        });
-        if (!res.ok) return;
-        setLocalBlocked((prev) => !prev);
-        if (!localBlocked) {
-            setLocalFollowing(false);
-            setLocalFollowPending(false);
+        if (!viewerId || pendingRelationAction) return;
+        setPendingRelationAction('block');
+        try {
+            const res = await fetch('/api/block-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetUserId: user.id, action: localBlocked ? 'unblock' : 'block' }),
+            });
+            if (!res.ok) return;
+            setLocalBlocked((prev) => !prev);
+            if (!localBlocked) {
+                setLocalFollowing(false);
+                setLocalFollowPending(false);
+            }
+            await fetchProfile();
+        } finally {
+            setPendingRelationAction(null);
         }
-        await fetchProfile();
     };
 
     const toggleMute = async () => {
-        if (!viewerId) return;
-        const res = await fetch('/api/mute-action', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetUserId: user.id, action: localMuted ? 'unmute' : 'mute' }),
-        });
-        if (!res.ok) return;
-        setLocalMuted((prev) => !prev);
-        await fetchProfile();
+        if (!viewerId || pendingRelationAction) return;
+        setPendingRelationAction('mute');
+        try {
+            const res = await fetch('/api/mute-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetUserId: user.id, action: localMuted ? 'unmute' : 'mute' }),
+            });
+            if (!res.ok) return;
+            setLocalMuted((prev) => !prev);
+            await fetchProfile();
+        } finally {
+            setPendingRelationAction(null);
+        }
     };
 
     return (
@@ -267,7 +292,8 @@ export default function UserHandleClient() {
                                 <button
                                     type="button"
                                     onClick={toggleFollow}
-                                    className="text-xs text-[#1d9bf0] hover:underline"
+                                    className="text-xs text-[#1d9bf0] hover:underline disabled:opacity-50"
+                                    disabled={pendingRelationAction !== null}
                                 >
                                     {localFollowing
                                         ? 'フォロー中'
@@ -280,14 +306,15 @@ export default function UserHandleClient() {
                                 type="button"
                                 onClick={toggleMute}
                                 className={`text-xs ${localMuted ? 'text-zinc-500' : 'text-[#1d9bf0]'} hover:underline`}
-                                disabled={localBlockedBy}
+                                disabled={localBlockedBy || pendingRelationAction !== null}
                             >
                                 {localMuted ? 'ミュート解除' : 'ミュート'}
                             </button>
                             <button
                                 type="button"
                                 onClick={toggleBlock}
-                                className={`text-xs ${localBlocked ? 'text-red-500' : 'text-[#1d9bf0]'} hover:underline`}
+                                className={`text-xs ${localBlocked ? 'text-red-500' : 'text-[#1d9bf0]'} hover:underline disabled:opacity-50`}
+                                disabled={pendingRelationAction !== null}
                             >
                                 {localBlocked ? 'ブロック解除' : 'ブロック'}
                             </button>
@@ -336,7 +363,8 @@ export default function UserHandleClient() {
                             router.push(`/post?id=${post.id}`);
                         }}
                         onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
                                 router.push(`/post?id=${post.id}`);
                             }
                         }}
@@ -375,7 +403,9 @@ export default function UserHandleClient() {
                                     <button
                                         type="button"
                                         onClick={(event) => { event.stopPropagation(); runPostAction(post.id, 'like'); }}
-                                        className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors ${
+                                        aria-pressed={post.liked}
+                                        disabled={pendingPostAction !== null}
+                                        className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors disabled:opacity-50 ${
                                             post.liked ? 'text-red-500' : 'hover:text-red-500'
                                         }`}
                                     >
@@ -389,7 +419,9 @@ export default function UserHandleClient() {
                                     <button
                                         type="button"
                                         onClick={(event) => { event.stopPropagation(); runPostAction(post.id, 'wakaru'); }}
-                                        className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                                        aria-pressed={post.wakaruReacted}
+                                        disabled={pendingPostAction !== null}
+                                        className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                             post.wakaruReacted ? 'text-yellow-400' : 'hover:text-yellow-400'
                                         }`}
                                     >
@@ -402,7 +434,9 @@ export default function UserHandleClient() {
                                     <button
                                         type="button"
                                         onClick={(event) => { event.stopPropagation(); runPostAction(post.id, 'ganbatta'); }}
-                                        className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                                        aria-pressed={post.ganbattaReacted}
+                                        disabled={pendingPostAction !== null}
+                                        className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                             post.ganbattaReacted ? 'text-green-400' : 'hover:text-green-400'
                                         }`}
                                     >
@@ -415,7 +449,9 @@ export default function UserHandleClient() {
                                     <button
                                         type="button"
                                         onClick={(event) => { event.stopPropagation(); runPostAction(post.id, 'bookmark'); }}
-                                        className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                                        aria-pressed={post.bookmarked}
+                                        disabled={pendingPostAction !== null}
+                                        className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                             post.bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
                                         }`}
                                     >
