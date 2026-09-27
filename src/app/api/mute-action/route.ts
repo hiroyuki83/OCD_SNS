@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
+import { mutateMuteRelation } from '@/lib/userPrivacyRelations';
 import { parseJsonMutationRequest } from '@/lib/requestSecurity';
 
 const MUTE_ACTIONS = ['mute', 'unmute'] as const;
@@ -36,42 +36,17 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, error: '自分自身はミュートできません。' }, { status: 400 });
     }
 
-    const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } });
-    if (!targetUser) {
-        return NextResponse.json({ ok: false }, { status: 404 });
-    }
     if (!(await rateLimit(`mute-action:${userId}`, 60, 60 * 1000))) {
         return NextResponse.json({ ok: false }, { status: 429 });
     }
 
-    if (action === 'unmute') {
-        await prisma.mute.deleteMany({
-            where: { muterId: userId, mutedId: targetUserId },
-        });
-        return NextResponse.json({ ok: true });
+    const result = await mutateMuteRelation(userId, targetUserId, action as MuteAction);
+    if (!result.ok) {
+        return NextResponse.json(
+            { ok: false },
+            { status: result.reason === 'NOT_FOUND' ? 404 : 400 },
+        );
     }
 
-    await prisma.$transaction([
-        prisma.mute.upsert({
-            where: {
-                muterId_mutedId: {
-                    muterId: userId,
-                    mutedId: targetUserId,
-                },
-            },
-            update: {},
-            create: {
-                muterId: userId,
-                mutedId: targetUserId,
-            },
-        }),
-        prisma.notification.deleteMany({
-            where: {
-                userId,
-                actorId: targetUserId,
-            },
-        }),
-    ]);
-
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, active: result.active });
 }
