@@ -5,10 +5,16 @@ import { formatPostTime } from '@/lib/formatTime';
 import { addGanbatta, addWakaru, deletePost, toggleBookmark, toggleLike, togglePrivateAccount } from '@/app/lib/actions';
 import HashtagText from '@/components/shared/HashtagText';
 import { visibleAccountFilter } from '@/lib/accountStatus';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ProfilePage() {
+export default async function ProfilePage({
+    searchParams,
+}: {
+    searchParams?: { page?: string };
+}) {
     const session = await auth();
     let userId = session?.user?.id ?? null;
     if (!userId && session?.user?.email) {
@@ -33,11 +39,21 @@ export default async function ProfilePage() {
     });
 
     const now = new Date();
-    const [posts, postCount, followerCount, followingCount, pendingFollowingCount, pendingFollowRequestCount, blockCount, muteCount] = await Promise.all([
+    const postCount = await prisma.post.count({
+        where: { authorId: userId, deletedAt: null },
+    });
+    const postPagination = clampPage(
+        parsePageNumber(searchParams?.page),
+        postCount,
+        50,
+    );
+
+    const [posts, followerCount, followingCount, pendingFollowingCount, pendingFollowRequestCount, blockCount, muteCount] = await Promise.all([
         prisma.post.findMany({
             where: { authorId: userId, deletedAt: null },
-            orderBy: { createdAt: 'desc' },
-            take: 100,
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            skip: postPagination.skip,
+            take: postPagination.pageSize,
             select: {
                 id: true,
                 content: true,
@@ -50,9 +66,6 @@ export default async function ProfilePage() {
                 reactions: { where: { userId }, select: { type: true } },
                 _count: { select: { likes: true, bookmarks: true } },
             },
-        }),
-        prisma.post.count({
-            where: { authorId: userId, deletedAt: null },
         }),
         prisma.follow.count({
             where: {
@@ -148,9 +161,9 @@ export default async function ProfilePage() {
                 </div>
             </div>
             <div className="flex flex-col">
-                {postCount > posts.length && (
+                {postCount > 0 && (
                     <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
-                        最新100件を表示しています（全{postCount}件）
+                        投稿 {postCount}件・{postPagination.page}/{postPagination.totalPages}ページ
                     </div>
                 )}
                 {posts.map((post) => {
@@ -246,6 +259,14 @@ export default async function ProfilePage() {
                     </div>
                     );
                 })}
+                {postCount > 0 && (
+                    <PaginationLinks
+                        page={postPagination.page}
+                        totalPages={postPagination.totalPages}
+                        previousHref={postPagination.hasPrevious ? `/profile?page=${postPagination.page - 1}` : null}
+                        nextHref={postPagination.hasNext ? `/profile?page=${postPagination.page + 1}` : null}
+                    />
+                )}
                 {postCount === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">まだ投稿がありません</div>
                 )}
