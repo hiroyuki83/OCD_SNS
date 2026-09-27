@@ -1,5 +1,3 @@
-import crypto from 'node:crypto';
-
 export type OperationalErrorRecord = {
   incidentId: string;
   event: string;
@@ -15,7 +13,7 @@ export function buildOperationalErrorRecord(
   const errorName = error instanceof Error && error.name ? error.name : 'UnknownError';
 
   return {
-    incidentId: crypto.randomUUID(),
+    incidentId: globalThis.crypto.randomUUID(),
     event,
     errorName,
     occurredAt: now.toISOString(),
