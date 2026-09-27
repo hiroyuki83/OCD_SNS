@@ -2,12 +2,14 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { isSuspensionActive, visibleAccountFilter } from '@/lib/accountStatus';
 import { privateJson } from '@/lib/apiResponse';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id')?.trim();
+    const requestedPage = parsePageNumber(searchParams.get('page'));
     if (!id || id.length > 128) {
         return privateJson({ user: null }, { status: 400 });
     }
@@ -76,15 +78,13 @@ export async function GET(request: Request) {
     }
 
     const now = new Date();
-    const [posts, followerCount, followingCount] = await Promise.all([
-        canViewPosts
-            ? prisma.post.findMany({
-                  where: { authorId: user.id, isHidden: false, deletedAt: null },
-                  orderBy: { createdAt: 'desc' },
-                  take: 100,
-                  select: { id: true, content: true, imageUrl: true, createdAt: true },
-              })
-            : Promise.resolve([]),
+    const postWhere = {
+        authorId: user.id,
+        isHidden: false,
+        deletedAt: null,
+    };
+    const [postCount, followerCount, followingCount] = await Promise.all([
+        canViewPosts ? prisma.post.count({ where: postWhere }) : Promise.resolve(0),
         prisma.follow.count({
             where: {
                 followingId: user.id,
@@ -100,6 +100,16 @@ export async function GET(request: Request) {
             },
         }),
     ]);
+    const postPagination = clampPage(requestedPage, postCount, 50);
+    const posts = canViewPosts
+        ? await prisma.post.findMany({
+              where: postWhere,
+              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+              skip: postPagination.skip,
+              take: postPagination.pageSize,
+              select: { id: true, content: true, imageUrl: true, createdAt: true },
+          })
+        : [];
 
     return privateJson({
         user: {
@@ -113,6 +123,11 @@ export async function GET(request: Request) {
             followerCount: isBlockRestricted ? 0 : followerCount,
             followingCount: isBlockRestricted ? 0 : followingCount,
             canViewPosts,
+            postCount,
+            postPage: postPagination.page,
+            postTotalPages: postPagination.totalPages,
+            postHasPrevious: postPagination.hasPrevious,
+            postHasNext: postPagination.hasNext,
             posts,
         },
     });
