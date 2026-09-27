@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { unmuteUser } from '@/app/lib/actions';
+import { UnmuteForm } from '@/components/profile/ProfileRelationActions';
 import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
 
@@ -101,11 +101,7 @@ export default async function MutesPage({
                                 </span>
                             </div>
                         </div>
-                        <form action={unmuteUser.bind(null, entry.muted.id)}>
-                            <button type="submit" className="text-xs text-[#1d9bf0] hover:underline">
-                                ミュート解除
-                            </button>
-                        </form>
+                        <UnmuteForm targetUserId={entry.muted.id} />
                     </div>
                 ))}
                 {muteCount > 0 && (
