@@ -125,6 +125,52 @@ export default function UserHandleClient() {
         }
     }, [profile]);
 
+    const reconcilePostAction = (
+        postId: string,
+        action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark',
+        active: boolean,
+        count: number | undefined,
+    ) => {
+        setProfile((current) => {
+            if (!current) return current;
+            return {
+                ...current,
+                posts: current.posts.map((post) => {
+                    if (post.id !== postId) return post;
+                    if (action === 'like') {
+                        return {
+                            ...post,
+                            liked: active,
+                            likeCount: typeof count === 'number' ? Math.max(0, count) : post.likeCount,
+                        };
+                    }
+                    if (action === 'bookmark') {
+                        return {
+                            ...post,
+                            bookmarked: active,
+                            bookmarkCount:
+                                typeof count === 'number' ? Math.max(0, count) : post.bookmarkCount,
+                        };
+                    }
+                    if (action === 'wakaru') {
+                        return {
+                            ...post,
+                            wakaruReacted: active,
+                            wakaruCount:
+                                typeof count === 'number' ? Math.max(0, count) : post.wakaruCount,
+                        };
+                    }
+                    return {
+                        ...post,
+                        ganbattaReacted: active,
+                        ganbattaCount:
+                            typeof count === 'number' ? Math.max(0, count) : post.ganbattaCount,
+                    };
+                }),
+            };
+        });
+    };
+
     const runPostAction = async (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
         const actionKey = `${postId}:${action}`;
         if (pendingPostAction) return;
@@ -135,7 +181,16 @@ export default function UserHandleClient() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ postId, action }),
             });
-            if (!res.ok) return;
+            if (!res.ok) throw new Error('failed');
+            const payload = await res.json();
+            if (typeof payload?.active !== 'boolean') throw new Error('invalid response');
+            reconcilePostAction(
+                postId,
+                action,
+                payload.active,
+                typeof payload?.count === 'number' ? payload.count : undefined,
+            );
+        } catch {
             await fetchProfile();
         } finally {
             setPendingPostAction(null);
