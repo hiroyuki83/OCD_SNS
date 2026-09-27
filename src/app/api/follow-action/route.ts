@@ -52,7 +52,9 @@ export async function POST(request: Request) {
                 ? 404
                 : result.reason === 'BLOCKED'
                   ? 403
-                  : 400;
+                  : result.reason === 'CONFLICT'
+                    ? 409
+                    : 400;
         return NextResponse.json({ ok: false }, { status });
     }
 
