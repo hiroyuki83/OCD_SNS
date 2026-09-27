@@ -2,17 +2,22 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 import { visibleAccountFilter } from '@/lib/accountStatus';
+import { normalizeSearchQuery } from '@/lib/searchInput';
 import { privateJson } from '@/lib/apiResponse';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
-    const rawQuery = searchParams.get('q')?.trim() ?? '';
-    if (!rawQuery) {
+    const rawQuery = searchParams.get('q') ?? '';
+    const normalizedQuery = normalizeSearchQuery(rawQuery);
+    if (!normalizedQuery.ok) {
+        return privateJson({ posts: [], error: normalizedQuery.error }, { status: 400 });
+    }
+    if (!normalizedQuery.value) {
         return privateJson({ posts: [] });
     }
-    const query = rawQuery.slice(0, 100);
+    const query = normalizedQuery.value;
     const insensitive: Prisma.QueryMode = 'insensitive';
 
     const session = await auth();
