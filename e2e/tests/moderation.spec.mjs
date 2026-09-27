@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import {
   enrollStaffMfa,
   login,
-  loginStaffWithTotp,
+  loginStaffWithRecoveryCode,
   PREVIEW_PASSWORD,
   reportVisiblePost,
   USERS,
@@ -42,10 +42,12 @@ test('report → moderation warning → appeal → admin overturn', async ({ bro
     PREVIEW_PASSWORD,
   );
   expect(moderatorMfa.secret).toBeTruthy();
-  await loginStaffWithTotp(
+    const moderatorRecoveryCode = moderatorMfa.recoveryCodes[0] ?? '';
+  expect(moderatorRecoveryCode.length).toBeGreaterThan(10);
+  await loginStaffWithRecoveryCode(
     moderator,
     USERS.moderator2,
-    moderatorMfa.secret,
+    moderatorRecoveryCode,
     PREVIEW_PASSWORD,
   );
 
