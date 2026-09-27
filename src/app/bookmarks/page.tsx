@@ -5,6 +5,9 @@ import { formatPostTime } from '@/lib/formatTime';
 import { toggleBookmark } from '@/app/lib/actions';
 import HashtagText from '@/components/shared/HashtagText';
 import { visibleAccountFilter } from '@/lib/accountStatus';
+import type { Prisma } from '@prisma/client';
+
+export const dynamic = 'force-dynamic';
 
 export default async function BookmarksPage() {
     const session = await auth();
@@ -44,34 +47,37 @@ export default async function BookmarksPage() {
 
     const now = new Date();
 
-    const bookmarkRows = await prisma.bookmark.findMany({
-        where: {
-            userId,
-            post: {
-                isHidden: false,
-                deletedAt: null,
-                ...(excludedAuthorIds.length > 0 ? { authorId: { notIn: excludedAuthorIds } } : {}),
-                author: {
-                    AND: [
-                        visibleAccountFilter(now),
-                        {
-                            OR: [
-                                { isPrivate: false },
-                                { id: userId },
-                                {
-                                    followers: {
-                                        some: {
-                                            followerId: userId,
-                                            acceptedAt: { not: null },
-                                        },
+    const bookmarkWhere: Prisma.BookmarkWhereInput = {
+        userId,
+        post: {
+            isHidden: false,
+            deletedAt: null,
+            ...(excludedAuthorIds.length > 0 ? { authorId: { notIn: excludedAuthorIds } } : {}),
+            author: {
+                AND: [
+                    visibleAccountFilter(now),
+                    {
+                        OR: [
+                            { isPrivate: false },
+                            { id: userId },
+                            {
+                                followers: {
+                                    some: {
+                                        followerId: userId,
+                                        acceptedAt: { not: null },
                                     },
                                 },
-                            ],
-                        },
-                    ],
-                },
+                            },
+                        ],
+                    },
+                ],
             },
         },
+    };
+
+    const [bookmarkRows, bookmarkCount] = await Promise.all([
+        prisma.bookmark.findMany({
+        where: bookmarkWhere,
         orderBy: { createdAt: 'desc' },
         take: 200,
         select: {
@@ -96,7 +102,9 @@ export default async function BookmarksPage() {
                 },
             },
         },
-    });
+        }),
+        prisma.bookmark.count({ where: bookmarkWhere }),
+    ]);
 
     const bookmarks = bookmarkRows;
 
@@ -106,6 +114,11 @@ export default async function BookmarksPage() {
                 <h1 className="font-bold text-base">ブックマーク</h1>
             </div>
             <div className="flex flex-col">
+                {bookmarkCount > bookmarks.length && (
+                    <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
+                        最新200件を表示しています（全{bookmarkCount}件）
+                    </div>
+                )}
                 {bookmarks.map((entry) => {
                     const post = entry.post;
                     const createdAt = formatPostTime(post.createdAt);
