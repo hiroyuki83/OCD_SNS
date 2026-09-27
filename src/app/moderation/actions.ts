@@ -121,6 +121,17 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
   }
 
   await prisma.$transaction(async (tx) => {
+    const currentActor = await tx.user.findUnique({
+      where: { id: actor.id },
+      select: { role: true },
+    });
+    if (
+      !currentActor ||
+      (currentActor.role !== Role.ADMIN && currentActor.role !== Role.MODERATOR)
+    ) {
+      return;
+    }
+
     const currentReport = await tx.report.findUnique({
       where: { id: report.id },
       select: {
@@ -135,7 +146,7 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
       !currentReport ||
       (currentReport.status !== ReportStatus.OPEN &&
         currentReport.status !== ReportStatus.REVIEWING) ||
-      !canReviewTarget(actor.role, currentReport.targetUser.role)
+      !canReviewTarget(currentActor.role, currentReport.targetUser.role)
     ) {
       return;
     }
@@ -213,11 +224,22 @@ export async function markReportReviewing(reportId: string) {
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction(async (tx) => {
+    const currentActor = await tx.user.findUnique({
+      where: { id: actor.id },
+      select: { role: true },
+    });
+    if (
+      !currentActor ||
+      (currentActor.role !== Role.ADMIN && currentActor.role !== Role.MODERATOR)
+    ) {
+      return;
+    }
+
     const freshTarget = await tx.user.findUnique({
       where: { id: report.targetUserId },
       select: { role: true },
     });
-    if (!freshTarget || !canReviewTarget(actor.role, freshTarget.role)) return;
+    if (!freshTarget || !canReviewTarget(currentActor.role, freshTarget.role)) return;
 
     const claimed = await tx.report.updateMany({
       where: { id: report.id, status: ReportStatus.OPEN },
@@ -263,11 +285,22 @@ export async function rejectReport(reportId: string, formData: FormData) {
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction(async (tx) => {
+    const currentActor = await tx.user.findUnique({
+      where: { id: actor.id },
+      select: { role: true },
+    });
+    if (
+      !currentActor ||
+      (currentActor.role !== Role.ADMIN && currentActor.role !== Role.MODERATOR)
+    ) {
+      return;
+    }
+
     const freshTarget = await tx.user.findUnique({
       where: { id: report.targetUserId },
       select: { role: true },
     });
-    if (!freshTarget || !canReviewTarget(actor.role, freshTarget.role)) return;
+    if (!freshTarget || !canReviewTarget(currentActor.role, freshTarget.role)) return;
 
     const claimed = await tx.report.updateMany({
       where: {
@@ -317,11 +350,22 @@ export async function resolveReport(reportId: string, formData: FormData) {
   if (!canReviewTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction(async (tx) => {
+    const currentActor = await tx.user.findUnique({
+      where: { id: actor.id },
+      select: { role: true },
+    });
+    if (
+      !currentActor ||
+      (currentActor.role !== Role.ADMIN && currentActor.role !== Role.MODERATOR)
+    ) {
+      return;
+    }
+
     const freshTarget = await tx.user.findUnique({
       where: { id: report.targetUserId },
       select: { role: true },
     });
-    if (!freshTarget || !canReviewTarget(actor.role, freshTarget.role)) return;
+    if (!freshTarget || !canReviewTarget(currentActor.role, freshTarget.role)) return;
 
     const claimed = await tx.report.updateMany({
       where: {
@@ -376,11 +420,22 @@ export async function hideReportedPost(reportId: string, formData: FormData) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      const freshTarget = await tx.user.findUnique({
+      const currentActor = await tx.user.findUnique({
+      where: { id: actor.id },
+      select: { role: true },
+    });
+    if (
+      !currentActor ||
+      (currentActor.role !== Role.ADMIN && currentActor.role !== Role.MODERATOR)
+    ) {
+      return;
+    }
+
+    const freshTarget = await tx.user.findUnique({
         where: { id: report.targetUserId },
         select: { role: true },
       });
-      if (!freshTarget || !canReviewTarget(actor.role, freshTarget.role)) return;
+      if (!freshTarget || !canReviewTarget(currentActor.role, freshTarget.role)) return;
 
       const claimed = await tx.report.updateMany({
         where: {
@@ -449,11 +504,22 @@ export async function restorePost(postId: string, _targetUserId: string, formDat
   if (!canReviewTarget(actor.role, post.author.role)) return;
 
   await prisma.$transaction(async (tx) => {
+    const currentActor = await tx.user.findUnique({
+      where: { id: actor.id },
+      select: { role: true },
+    });
+    if (
+      !currentActor ||
+      (currentActor.role !== Role.ADMIN && currentActor.role !== Role.MODERATOR)
+    ) {
+      return;
+    }
+
     const freshAuthor = await tx.user.findUnique({
       where: { id: post.authorId },
       select: { role: true },
     });
-    if (!freshAuthor || !canReviewTarget(actor.role, freshAuthor.role)) return;
+    if (!freshAuthor || !canReviewTarget(currentActor.role, freshAuthor.role)) return;
 
     const restored = await tx.post.updateMany({
       where: { id: postId, deletedAt: null, isHidden: true },
@@ -535,11 +601,23 @@ export async function setReportedUserStatus(
 
   try {
     await prisma.$transaction(async (tx) => {
+      const currentActor = await tx.user.findUnique({
+        where: { id: actor.id },
+        select: { role: true },
+      });
+      if (
+        !currentActor ||
+        (currentActor.role !== Role.ADMIN && currentActor.role !== Role.MODERATOR)
+      ) {
+        return;
+      }
+      if (permanentSuspension && currentActor.role !== Role.ADMIN) return;
+
       const currentTarget = await tx.user.findUnique({
         where: { id: report.targetUserId },
         select: { status: true, role: true },
       });
-      if (!currentTarget || !canSanctionTarget(actor.role, currentTarget.role)) return;
+      if (!currentTarget || !canSanctionTarget(currentActor.role, currentTarget.role)) return;
   
       const claimed = await tx.report.updateMany({
         where: {
@@ -627,11 +705,22 @@ export async function warnReportedUser(reportId: string, formData: FormData) {
   if (!canSanctionTarget(actor.role, report.targetUser.role)) return;
 
   await prisma.$transaction(async (tx) => {
+    const currentActor = await tx.user.findUnique({
+      where: { id: actor.id },
+      select: { role: true },
+    });
+    if (
+      !currentActor ||
+      (currentActor.role !== Role.ADMIN && currentActor.role !== Role.MODERATOR)
+    ) {
+      return;
+    }
+
     const freshTarget = await tx.user.findUnique({
       where: { id: report.targetUserId },
       select: { role: true },
     });
-    if (!freshTarget || !canSanctionTarget(actor.role, freshTarget.role)) return;
+    if (!freshTarget || !canSanctionTarget(currentActor.role, freshTarget.role)) return;
 
     const claimed = await tx.report.updateMany({
       where: {
