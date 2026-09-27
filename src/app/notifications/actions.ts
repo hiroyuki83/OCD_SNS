@@ -39,13 +39,24 @@ export async function submitWarningAppeal(formData: FormData) {
     select: {
       id: true,
       targetUserId: true,
+      revokedAt: true,
       appeal: { select: { id: true } },
     },
   });
-  if (!warning || warning.appeal) return;
+  if (!warning || warning.revokedAt || warning.appeal) return;
 
   try {
     await prisma.$transaction(async (tx) => {
+      const eligibleWarning = await tx.moderationWarning.updateMany({
+        where: {
+          id: warning.id,
+          targetUserId: userId,
+          revokedAt: null,
+        },
+        data: { readAt: new Date() },
+      });
+      if (eligibleWarning.count !== 1) return;
+
       const appeal = await tx.warningAppeal.create({
         data: {
           warningId: warning.id,
