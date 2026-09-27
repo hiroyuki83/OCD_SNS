@@ -281,7 +281,15 @@ export async function createPost(
     }
 
     try {
-        await prisma.$transaction(async (tx) => {
+        const created = await prisma.$transaction(async (tx) => {
+            const currentUser = await tx.user.findUnique({
+                where: { id: userId },
+                select: { status: true },
+            });
+            if (!currentUser || currentUser.status !== AccountStatus.ACTIVE) {
+                return false;
+            }
+
             const post = await tx.post.create({
                 data: {
                     content: finalContent || '',
@@ -312,7 +320,13 @@ export async function createPost(
                     },
                 });
             }
+            return true;
         });
+
+        if (!created) {
+            if (imageUrl) await deleteManagedBlob(imageUrl);
+            return { message: 'アカウント状態が変更されたため投稿できませんでした。画面を更新してください。' };
+        }
     } catch (error) {
         if (imageUrl) {
             await deleteManagedBlob(imageUrl);
@@ -778,6 +792,11 @@ export async function updateProfile(
     if (!(await rateLimit(`profile-update:${userId}`, 10, 10 * 60 * 1000))) {
         return { message: 'プロフィール更新が多すぎます。少し待ってから再度お試しください。' };
     }
+    const moderationState = await getNormalizedAccountModerationState(userId);
+    if (!moderationState) return { message: 'ユーザーが見つかりません。' };
+    if (moderationState.status === AccountStatus.SUSPENDED) {
+        return { message: 'アカウント停止中はプロフィールを変更できません。' };
+    }
 
     const rawName = formData.get('name');
     const rawBio = formData.get('bio');
@@ -836,19 +855,33 @@ export async function updateProfile(
         headerUrl = upload.url;
     }
 
-    let updatedUser: { handle: string };
+    let updatedUser: { handle: string } | null = null;
     try {
-        updatedUser = await prisma.user.update({
-            where: { id: userId },
-            data: {
-                name,
-                bio,
-                autoHashtag,
-                avatarUrl,
-                headerUrl,
-            },
-            select: { handle: true },
+        updatedUser = await prisma.$transaction(async (tx) => {
+            const changed = await tx.user.updateMany({
+                where: {
+                    id: userId,
+                    status: { not: AccountStatus.SUSPENDED },
+                },
+                data: {
+                    name,
+                    bio,
+                    autoHashtag,
+                    avatarUrl,
+                    headerUrl,
+                },
+            });
+            if (changed.count !== 1) return null;
+            return tx.user.findUnique({
+                where: { id: userId },
+                select: { handle: true },
+            });
         });
+
+        if (!updatedUser) {
+            await deleteManagedBlobs([avatarUrl, headerUrl]);
+            return { message: 'アカウント状態が変更されたためプロフィールを更新できませんでした。' };
+        }
     } catch (error) {
         await deleteManagedBlobs([avatarUrl, headerUrl]);
         console.error('Failed to update profile:', error);
