@@ -8,6 +8,7 @@ import SessionSecuritySetting from '@/components/settings/SessionSecuritySetting
 import PasswordChangeSetting from '@/components/settings/PasswordChangeSetting';
 import AccountDataExportSetting from '@/components/settings/AccountDataExportSetting';
 import NotificationPreferenceSetting from '@/components/settings/NotificationPreferenceSetting';
+import AccountDeletionSetting from '@/components/settings/AccountDeletionSetting';
 import { Role } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
@@ -111,6 +112,7 @@ export default async function SettingsPage({
             unusedRecoveryCodeCount={unusedRecoveryCodeCount}
           />
         )}
+        <AccountDeletionSetting isStaff={isStaff} />
         <div className="mt-6 rounded-lg border border-border p-4 text-xs text-zinc-600">
           <div>メール: {user.email ?? '-'}</div>
           <div className="mt-1">
