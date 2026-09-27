@@ -33,7 +33,7 @@ test.describe.serial('staff MFA gate', () => {
 
     const enrollment = section
       .getByRole('button', { name: 'コードを確認して有効化' })
-      .locator('form');
+      .locator('xpath=ancestor::form');
     await enrollment.getByLabel('現在のパスワード').fill(PREVIEW_PASSWORD);
     await enrollment.getByLabel('6桁コード').fill(totpCode(secret));
     await enrollment
