@@ -6,6 +6,7 @@ import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
 import { normalizeSearchQuery } from '@/lib/searchInput';
 import { visibleAccountFilter } from '@/lib/accountStatus';
+import { formatTokyoDateTimeLocal } from '@/lib/tokyoDateTime';
 
 export const dynamic = 'force-dynamic';
 import {
@@ -50,12 +51,6 @@ const priorityClassNames: Record<ReportPriority, string> = {
 
 const formatDate = (date: Date) =>
   date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-
-const formatDateInput = (date: Date | null) => {
-  if (!date) return '';
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
-  return localDate.toISOString().slice(0, 16);
-};
 
 const reportStatuses = [
   ReportStatus.OPEN,
@@ -542,7 +537,7 @@ export default async function ModerationPage({
                       <input
                         name="dueAt"
                         type="datetime-local"
-                        defaultValue={formatDateInput(report.dueAt)}
+                        defaultValue={formatTokyoDateTimeLocal(report.dueAt)}
                         className="mt-1 w-full rounded-md border border-border bg-white px-2 py-1 text-xs"
                       />
                     </label>
