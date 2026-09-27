@@ -22,7 +22,7 @@ export default function LoginPage() {
     return (
         <div className="flex min-h-screen justify-center items-center bg-white text-black">
             <div className="w-full max-w-sm p-8 space-y-6">
-                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-10 w-10 fill-white mx-auto r-4qtxqj r-yyyyoo r-dnmrzs r-bnwqim r-1plcrui r-lrvibr r-18jsvk2 r-16y2uox r-8kz0gk">
+                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-10 w-10 fill-black mx-auto">
                     <g>
                         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path>
                     </g>
@@ -60,10 +60,11 @@ export default function LoginPage() {
                             minLength={6}
                             maxLength={6}
                             autoComplete="one-time-code"
+                            aria-describedby="staff-totp-help"
                             placeholder="認証アプリの6桁コード（スタッフのみ）"
                             className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
                         />
-                        <p className="mt-1 text-xs text-zinc-500">
+                        <p id="staff-totp-help" className="mt-1 text-xs text-zinc-500">
                             2段階認証を有効にしているADMIN / MODERATORのみ入力してください。
                         </p>
                     </div>
@@ -81,7 +82,13 @@ export default function LoginPage() {
                         </p>
                     </div>
                     {errorMessage && (
-                        <p className="text-red-500 text-sm text-center">{errorMessage}</p>
+                        <p
+                            className="text-red-600 text-sm text-center"
+                            role="alert"
+                            aria-live="polite"
+                        >
+                            {errorMessage}
+                        </p>
                     )}
                     <SubmitButton />
                 </form>
