@@ -54,13 +54,18 @@ export default function StaffTotpSetting({
     undefined,
   );
   const displayedRecoveryCodes =
-    recoveryState?.recoveryCodes ?? enableState?.recoveryCodes;
-  const enrollmentSecret = recoveryResetState?.secret ?? setupState?.secret;
-  const enrollmentUri = recoveryResetState?.uri ?? setupState?.uri;
+    enableState?.recoveryCodes ??
+    (recoveryResetState?.secret ? undefined : recoveryState?.recoveryCodes);
+  const enrollmentSecret = enableState?.ok
+    ? undefined
+    : recoveryResetState?.secret ?? setupState?.secret;
+  const enrollmentUri = enableState?.ok
+    ? undefined
+    : recoveryResetState?.uri ?? setupState?.uri;
   const effectiveEnabled =
-    recoveryResetState?.secret ? false : enabled || Boolean(enableState?.ok);
+    Boolean(enableState?.ok) || (recoveryResetState?.secret ? false : enabled);
   const effectiveRecoveryCodeCount =
-    displayedRecoveryCodes?.length ?? unusedRecoveryCodeCount;
+    displayedRecoveryCodes?.length ?? (effectiveEnabled ? unusedRecoveryCodeCount : 0);
 
   return (
     <section className="mt-6 rounded-lg border border-border p-4">
