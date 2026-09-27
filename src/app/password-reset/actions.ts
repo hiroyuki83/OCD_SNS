@@ -15,7 +15,7 @@ const resetSchema = z
   .object({
     token: z.string().min(32).max(256),
     password: z.string().min(10, 'パスワードは10文字以上です。').max(128, 'パスワードは128文字以内です。'),
-    confirmPassword: z.string(),
+    confirmPassword: z.string().max(128, '確認用パスワードが長すぎます。'),
   })
   .refine((data) => data.password === data.confirmPassword, {
     path: ['confirmPassword'],
@@ -152,19 +152,28 @@ export async function resetPassword(
     };
   }
 
+  const resetTokenHash = tokenHash(parsed.data.token);
+  if (!(await rateLimit(`password-reset-token:${resetTokenHash.slice(0, 16)}`, 10, 15 * 60 * 1000))) {
+    return { message: '再設定の試行が多すぎます。しばらくしてから再度お試しください。' };
+  }
+
   const resetToken = await prisma.passwordResetToken.findUnique({
-    where: { tokenHash: tokenHash(parsed.data.token) },
+    where: { tokenHash: resetTokenHash },
     select: {
       id: true,
       userId: true,
       expiresAt: true,
       usedAt: true,
-      user: { select: { email: true } },
+      user: { select: { email: true, password: true } },
     },
   });
 
   if (!resetToken || resetToken.usedAt || resetToken.expiresAt <= new Date()) {
     return { message: 'この再設定リンクは無効または期限切れです。' };
+  }
+
+  if (await bcrypt.compare(parsed.data.password, resetToken.user.password)) {
+    return { message: '現在と異なるパスワードを設定してください。' };
   }
 
   const hashedPassword = await bcrypt.hash(parsed.data.password, 10);
@@ -192,6 +201,14 @@ export async function resetPassword(
     });
 
     await tx.passwordResetToken.updateMany({
+      where: {
+        userId: resetToken.userId,
+        usedAt: null,
+      },
+      data: { usedAt },
+    });
+
+    await tx.emailVerificationToken.updateMany({
       where: {
         userId: resetToken.userId,
         usedAt: null,
