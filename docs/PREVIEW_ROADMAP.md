@@ -429,4 +429,4 @@ GitHub Actions `Security integration CI` run 36334031017 で最終確認済み�
 - RateLimit keyはSHA-256化済みであることを再確認し、DBエラーの生ログもprivacy-safe loggerへ統一
 
 以上をもって NEXT-020 / NEXT-022 / NEXT-025 / NEXT-026 / NEXT-032 を DONE とする。
-NEXT-006 / NEXT-007 は Preview DB 接続先を安全に識別できるまで TODO のままとする。
+NEXT-006 は Vercel Preview最新同期待ち。NEXT-007 は Preview DB特定・schema差分確認・snapshot作成まで完了し、migration / seed / smoke待ちのため IN PROGRESS。
