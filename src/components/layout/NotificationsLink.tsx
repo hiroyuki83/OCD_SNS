@@ -49,11 +49,12 @@ export default function NotificationsLink({
             onClick={() => {
                 onNavigate?.();
             }}
+            aria-label={count > 0 ? `${label}、未読${count}件` : label}
         >
             <span className="relative">
                 {icon}
                 {count > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[9px] badge-text-white flex items-center justify-center">
+                    <span aria-hidden="true" className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[9px] badge-text-white flex items-center justify-center">
                         {count > 99 ? '99+' : count}
                     </span>
                 )}
