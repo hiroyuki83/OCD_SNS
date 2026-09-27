@@ -1,14 +1,14 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
-import { deletePost } from '@/app/lib/actions';
 import CreatePostForm from '@/components/feed/CreatePostForm';
 import HashtagText from '@/components/shared/HashtagText';
 import { formatPostTime } from '@/lib/formatTime';
 import { REPORT_REASONS, type ReportReasonValue } from '@/lib/reportReasons';
+import { DeletePostForm } from '@/components/profile/ProfileDangerActions';
 
 type FeedPost = {
     id: string;
@@ -69,7 +69,10 @@ export default function Feed({
     const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
     const [hasLoaded, setHasLoaded] = useState(false);
     const [reportingPostId, setReportingPostId] = useState<string | null>(null);
-    const [pendingPostAction, setPendingPostAction] = useState<string | null>(null);
+    const pendingPostActionKeys = useRef(new Set<string>());
+    const [pendingPostActions, setPendingPostActions] = useState<Set<string>>(
+        () => new Set(),
+    );
 
     useEffect(() => {
         const nextTab = searchParams.get('tab') === 'following' ? 'following' : 'for-you';
@@ -204,9 +207,15 @@ export default function Feed({
     };
 
     const runPostAction = async (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
-        if (!data.viewerId || !postId || postId.length > 128 || pendingPostAction) return;
+        if (!data.viewerId || !postId || postId.length > 128) return;
         const actionKey = `${postId}:${action}`;
-        setPendingPostAction(actionKey);
+        if (pendingPostActionKeys.current.has(actionKey)) return;
+        pendingPostActionKeys.current.add(actionKey);
+        setPendingPostActions((prev) => {
+            const next = new Set(prev);
+            next.add(actionKey);
+            return next;
+        });
         applyLocalPostAction(postId, action);
         try {
             const res = await fetch('/api/post-action', {
@@ -226,7 +235,12 @@ export default function Feed({
         } catch {
             await fetchFeed();
         } finally {
-            setPendingPostAction(null);
+            pendingPostActionKeys.current.delete(actionKey);
+            setPendingPostActions((prev) => {
+                const next = new Set(prev);
+                next.delete(actionKey);
+                return next;
+            });
         }
     };
 
@@ -248,16 +262,29 @@ export default function Feed({
         const reasonGuide = REPORT_REASONS.map((reason, index) => `${index + 1}. ${reason.label}`).join('\n');
         const selected = window.prompt(`通報理由を番号で選んでください。\n${reasonGuide}`);
         if (selected === null) return;
-        const selectedIndex = Number.parseInt(selected, 10) - 1;
+        const normalizedSelection = selected.trim();
+        if (!/^\d+$/.test(normalizedSelection)) {
+            alert('通報理由の番号が正しくありません。');
+            return;
+        }
+        const selectedIndex = Number(normalizedSelection) - 1;
         const selectedReason = REPORT_REASONS[selectedIndex];
         if (!selectedReason) {
             alert('通報理由の番号が正しくありません。');
             return;
         }
         const reason: ReportReasonValue = selectedReason.value;
-        const detail = window.prompt('通報理由を入力してください。空欄でも送信できます。');
+        const detailPrompt =
+            reason === 'OTHER'
+                ? '「その他」の具体的な理由を10文字以上で入力してください。'
+                : '通報理由の補足があれば入力してください。空欄でも送信できます。';
+        const detail = window.prompt(detailPrompt);
         if (detail === null) return;
-        const boundedDetail = detail.trim().slice(0, 500);
+        const boundedDetail = Array.from(detail.trim()).slice(0, 500).join('');
+        if (reason === 'OTHER' && Array.from(boundedDetail).length < 10) {
+            alert('「その他」を選んだ場合は、詳細を10文字以上入力してください。');
+            return;
+        }
 
         setReportingPostId(postId);
         try {
@@ -420,7 +447,7 @@ export default function Feed({
                                             type="button"
                                             onClick={(event) => handleAction(event, post.id, 'like')}
                                             aria-pressed={post.liked}
-                                            disabled={pendingPostAction !== null}
+                                            disabled={pendingPostActions.has(`${post.id}:like`)}
                                             className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors disabled:opacity-50 ${
                                                 post.liked ? 'text-red-500' : 'hover:text-red-500'
                                             }`}
@@ -436,7 +463,7 @@ export default function Feed({
                                             type="button"
                                             onClick={(event) => handleAction(event, post.id, 'wakaru')}
                                             aria-pressed={post.wakaruReacted}
-                                            disabled={pendingPostAction !== null}
+                                            disabled={pendingPostActions.has(`${post.id}:wakaru`)}
                                             className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                                 post.wakaruReacted ? 'text-yellow-400' : 'hover:text-yellow-400'
                                             }`}
@@ -451,7 +478,7 @@ export default function Feed({
                                             type="button"
                                             onClick={(event) => handleAction(event, post.id, 'ganbatta')}
                                             aria-pressed={post.ganbattaReacted}
-                                            disabled={pendingPostAction !== null}
+                                            disabled={pendingPostActions.has(`${post.id}:ganbatta`)}
                                             className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                                 post.ganbattaReacted ? 'text-green-400' : 'hover:text-green-400'
                                             }`}
@@ -466,7 +493,7 @@ export default function Feed({
                                             type="button"
                                             onClick={(event) => handleAction(event, post.id, 'bookmark')}
                                             aria-pressed={post.bookmarked}
-                                            disabled={pendingPostAction !== null}
+                                            disabled={pendingPostActions.has(`${post.id}:bookmark`)}
                                             className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                                 post.bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
                                             }`}
@@ -477,14 +504,7 @@ export default function Feed({
                                         <div className="text-xs">ブックマーク {post.bookmarkCount}</div>
                                     )}
                                     {data.viewerId && post.author.id === data.viewerId && (
-                                        <form action={deletePost.bind(null, post.id)}>
-                                            <button
-                                                type="submit"
-                                                className="text-xs text-red-500 hover:underline"
-                                            >
-                                                削除
-                                            </button>
-                                        </form>
+                                        <DeletePostForm postId={post.id} />
                                     )}
                                     {data.viewerId && post.author.id !== data.viewerId && (
                                         <button
