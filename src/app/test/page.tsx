@@ -99,7 +99,7 @@ export default async function TestPage() {
 
             <div className="p-4 space-y-6">
                 <div className="text-xs text-zinc-500 leading-relaxed border border-border rounded-2xl p-4">
-                    このテストは自己チェック用です。診断や治療の代わりにはなりません。
+                    このテストは自己チェック用です。診断や治療の代わりにはなりません。保存した結果は本人の心理検査ページだけに表示し、公開プロフィールや通常の管理画面には表示しません。
                 </div>
                 <TestTabs
                     ybocsResults={ybocsResults.map((result) => ({
