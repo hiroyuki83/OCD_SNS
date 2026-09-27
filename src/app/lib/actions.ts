@@ -23,6 +23,7 @@ import { parseBoundedInteger, parseBoundedStringList, parseItqTiming } from '@/l
 import { togglePostInteraction } from '@/lib/postInteractions';
 import { mutateBlockRelation, mutateMuteRelation } from '@/lib/userPrivacyRelations';
 import { getNormalizedAccountModerationState } from '@/lib/accountModeration';
+import { isE2eBlobMode } from '@/lib/blobDeliveryMode';
 import { normalizeImageAlt } from '@/lib/postImageAlt';
 
 const RegisterSchema = z.object({
@@ -178,6 +179,11 @@ async function uploadImage(file: File, pathPrefix: string) {
     }
 
     try {
+        if (isE2eBlobMode(process.env)) {
+            const bytes = Buffer.from(await file.arrayBuffer());
+            return { url: `data:${file.type};base64,${bytes.toString('base64')}` } as const;
+        }
+
         const blob = await put(`${pathPrefix}/${validation.objectName}`, file, {
             access: 'public',
         });
