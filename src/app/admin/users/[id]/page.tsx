@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AccountStatus, ReportReason, ReportStatus, Role } from "@prisma/client";
+import { AccountStatus, ReportReason, ReportStatus, Role, SanctionStatus, SanctionType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 import AdminNotesPanel from "../AdminNotesPanel";
@@ -30,6 +30,18 @@ const accountStatusLabels: Record<AccountStatus, string> = {
   ACTIVE: "通常",
   POST_RESTRICTED: "投稿制限",
   SUSPENDED: "停止中",
+};
+
+const sanctionTypeLabels: Record<SanctionType, string> = {
+  WARNING: "警告",
+  POST_RESTRICTION: "投稿制限",
+  SUSPENSION: "アカウント停止",
+};
+
+const sanctionStatusLabels: Record<SanctionStatus, string> = {
+  ACTIVE: "有効",
+  EXPIRED: "期限切れ",
+  REVOKED: "解除済み",
 };
 
 const formatDate = (date: Date | null) =>
@@ -77,6 +89,7 @@ export default async function AdminUserDetailPage({
     reportsMade,
     warningCount,
     warnings,
+    sanctions,
     adminNotes,
     auditLogs,
   ] = await Promise.all([
@@ -167,6 +180,23 @@ export default async function AdminUserDetailPage({
         actorUser: { select: { id: true, email: true, name: true } },
       },
     }),
+    prisma.sanction.findMany({
+      where: { targetUserId: userId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 20,
+      select: {
+        id: true,
+        createdAt: true,
+        startsAt: true,
+        endsAt: true,
+        revokedAt: true,
+        type: true,
+        status: true,
+        reason: true,
+        reportId: true,
+        actorUser: { select: { id: true, email: true, name: true } },
+      },
+    }),
     prisma.adminNote.findMany({
       where: { targetUserId: userId },
       orderBy: { createdAt: "desc" },
@@ -187,13 +217,19 @@ export default async function AdminUserDetailPage({
 
   if (!user) notFound();
 
-  const [reportsTargetingCount, warningHistoryCount, adminNoteCount, auditLogCount] =
-    await Promise.all([
-      prisma.report.count({ where: { targetUserId: userId } }),
-      prisma.moderationWarning.count({ where: { targetUserId: userId } }),
-      prisma.adminNote.count({ where: { targetUserId: userId } }),
-      prisma.auditLog.count({ where: { targetUserId: userId } }),
-    ]);
+  const [
+    reportsTargetingCount,
+    warningHistoryCount,
+    sanctionHistoryCount,
+    adminNoteCount,
+    auditLogCount,
+  ] = await Promise.all([
+    prisma.report.count({ where: { targetUserId: userId } }),
+    prisma.moderationWarning.count({ where: { targetUserId: userId } }),
+    prisma.sanction.count({ where: { targetUserId: userId } }),
+    prisma.adminNote.count({ where: { targetUserId: userId } }),
+    prisma.auditLog.count({ where: { targetUserId: userId } }),
+  ]);
   const totalPostCount = visiblePostCount + hiddenPostCount + deletedPostCount;
   const moderationTimeline = buildModerationTimeline({
     warnings: warnings.map((warning) => ({
@@ -208,6 +244,16 @@ export default async function AdminUserDetailPage({
       reason: report.reason,
       status: report.status,
       detail: report.detail,
+    })),
+    sanctions: sanctions.map((sanction) => ({
+      id: sanction.id,
+      createdAt: sanction.createdAt,
+      startsAt: sanction.startsAt,
+      endsAt: sanction.endsAt,
+      revokedAt: sanction.revokedAt,
+      type: sanction.type,
+      status: sanction.status,
+      reason: sanction.reason,
     })),
     auditLogs: auditLogs.map((log) => ({
       id: log.id,
@@ -316,6 +362,58 @@ export default async function AdminUserDetailPage({
                 )}
               </div>
             ))
+          )}
+        </div>
+      </section>
+
+      <section className="mb-6 rounded-lg border border-border p-4">
+        <h2 className="text-base font-semibold text-zinc-900">処分履歴</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          投稿制限・アカウント停止を独立した処分レコードとして保存しています。
+          {sanctionHistoryCount > sanctions.length
+            ? ` 最新${sanctions.length}件 / 全${sanctionHistoryCount}件を表示しています。`
+            : sanctionHistoryCount > 0
+              ? ` 全${sanctionHistoryCount}件です。`
+              : ""}
+        </p>
+        <div className="mt-3 flex flex-col gap-3">
+          {sanctions.length === 0 ? (
+            <div className="text-sm text-zinc-500">処分履歴はありません。</div>
+          ) : (
+            sanctions.map((sanction) => {
+              const effectiveStatus =
+                sanction.status === SanctionStatus.ACTIVE &&
+                sanction.endsAt &&
+                sanction.endsAt.getTime() <= now.getTime()
+                  ? SanctionStatus.EXPIRED
+                  : sanction.status;
+              return (
+                <div key={sanction.id} className="rounded-md bg-zinc-50 p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-semibold text-zinc-900">
+                      {sanctionTypeLabels[sanction.type]}
+                    </div>
+                    <div className="text-xs text-zinc-500">{formatDate(sanction.createdAt)}</div>
+                  </div>
+                  <div className="mt-1 text-xs font-medium text-zinc-600">
+                    状態: {sanctionStatusLabels[effectiveStatus]}
+                    {sanction.endsAt ? ` / 期限: ${formatDate(sanction.endsAt)}` : " / 期限: なし"}
+                  </div>
+                  <div className="mt-2 whitespace-pre-wrap break-words text-zinc-800">
+                    {sanction.reason}
+                  </div>
+                  {sanction.revokedAt && (
+                    <div className="mt-2 text-xs text-zinc-600">
+                      解除日時: {formatDate(sanction.revokedAt)}
+                    </div>
+                  )}
+                  <div className="mt-2 text-xs text-zinc-500">
+                    actor: {sanction.actorUser.email ?? sanction.actorUser.name ?? sanction.actorUser.id}
+                    {sanction.reportId ? ` / report: ${sanction.reportId}` : ""}
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
       </section>
