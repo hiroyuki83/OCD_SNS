@@ -183,6 +183,23 @@ Production releaseは `NEXT-039/040` の別工程とし、明示的に実施す�
 - Preview DBのdefault branch名が `production` でも、Neon project `coco-preview` 内のbranchであり、本番DBとは区別する
 - 将来的にはPreview側default branch名を `preview` へ変更し、誤認しにくくする
 
+### Vercel deploy制御
+
+調査の結果、Vercel Previewが古いcommitで止まっていた原因は `vercel.json` の設定だった。
+
+- `security-integration-final-20260926: false` → Preview DB migration前のため現時点では維持
+- `main: true` → main mergeでProductionへ自動deployしてしまうため `false` へ変更済み
+
+今後は:
+
+1. Preview DB migration完了
+2. integration branchのVercel deployを有効化
+3. 最新Previewを受入確認
+4. mainへmerge
+5. Production release時のみ明示的にProduction deploy
+
+の順で進める。
+
 ### 現在位置
 
 現在は **PHASE-C / NEXT-007**。
@@ -204,7 +221,7 @@ Production releaseは `NEXT-039/040` の別工程とし、明示的に実施す�
 - historical migration baseline登録（初回のみ）
 - 4本のPreview migration適用
 - Preview seed
-- 最新commitのVercel Preview同期
+- 最新commitのVercel Preview同期（DB migration完了後にintegration branchのVercel deployを有効化）
 - Preview smoke / acceptance
 - main merge
 
