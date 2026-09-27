@@ -1185,9 +1185,13 @@ export async function submitYbocs(
     }
 
     const scores = parsedScores as number[];
-    const cgiI = parseBoundedInteger(formData.get('cgiI'), 1, 7);
-    const cgiS = parseBoundedInteger(formData.get('cgiS'), 1, 7);
-    if ((cgiI !== null && (cgiI < 1 || cgiI > 7)) || (cgiS !== null && (cgiS < 1 || cgiS > 7))) {
+    const rawCgiI = formData.get('cgiI');
+    const rawCgiS = formData.get('cgiS');
+    const hasCgiI = typeof rawCgiI === 'string' && rawCgiI.trim() !== '';
+    const hasCgiS = typeof rawCgiS === 'string' && rawCgiS.trim() !== '';
+    const cgiI = hasCgiI ? parseBoundedInteger(rawCgiI, 1, 7) : null;
+    const cgiS = hasCgiS ? parseBoundedInteger(rawCgiS, 1, 7) : null;
+    if ((hasCgiI && cgiI === null) || (hasCgiS && cgiS === null)) {
         return { message: 'CGIは1〜7で回答してください。' };
     }
     const obsessionsScore = scores.slice(0, 5).reduce((sum, val) => sum + (val ?? 0), 0);
