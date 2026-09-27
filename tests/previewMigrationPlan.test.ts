@@ -26,9 +26,6 @@ test('Preview historical and pending migration sets do not overlap', () => {
 
 test('Preview pending migration order is the release order', () => {
   assert.deepEqual(PREVIEW_PENDING_MIGRATIONS, [
-    '20260928013000_remove_reply_and_quote_post',
-    '20260928014500_add_post_image_alt',
-    '20260928023000_add_notification_preferences',
-    '20260928031500_add_email_change_pending',
+    '20260928071000_add_sanction_records',
   ]);
 });
