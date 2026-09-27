@@ -22,6 +22,21 @@ type ProfilePost = {
     ganbattaReacted: boolean;
 };
 
+async function apiFailureMessage(response: Response, fallback: string) {
+    try {
+        const payload = await response.json();
+        if (typeof payload?.error === 'string' && payload.error.trim()) {
+            return payload.error;
+        }
+    } catch {
+        // Use the fallback message.
+    }
+    if (response.status === 409) return '同時に別の操作が行われました。もう一度お試しください。';
+    if (response.status === 403) return 'この操作は現在の関係では実行できません。';
+    if (response.status === 404) return '対象のユーザーまたは投稿が見つかりません。';
+    return fallback;
+}
+
 type ProfileResponse = {
     user: {
         id: string;
@@ -75,6 +90,8 @@ export default function UserHandleClient() {
     const [reportingUser, setReportingUser] = useState(false);
     const [pendingRelationAction, setPendingRelationAction] = useState<'follow' | 'block' | 'mute' | null>(null);
     const [pendingPostAction, setPendingPostAction] = useState<string | null>(null);
+    const [relationMessage, setRelationMessage] = useState<string | null>(null);
+    const [postActionMessage, setPostActionMessage] = useState<string | null>(null);
 
     const fetchProfile = useMemo(
         () => async (signal?: AbortSignal) => {
@@ -174,13 +191,20 @@ export default function UserHandleClient() {
         const actionKey = `${postId}:${action}`;
         if (pendingPostAction) return;
         setPendingPostAction(actionKey);
+        setPostActionMessage(null);
         try {
             const res = await fetch('/api/post-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ postId, action }),
             });
-            if (!res.ok) throw new Error('failed');
+            if (!res.ok) {
+                setPostActionMessage(
+                    await apiFailureMessage(res, '投稿への操作に失敗しました。'),
+                );
+                await fetchProfile();
+                return;
+            }
             const payload = await res.json();
             if (typeof payload?.active !== 'boolean') throw new Error('invalid response');
             reconcilePostAction(
@@ -190,6 +214,7 @@ export default function UserHandleClient() {
                 typeof payload?.count === 'number' ? payload.count : undefined,
             );
         } catch {
+            setPostActionMessage('通信エラーのため操作を完了できませんでした。');
             await fetchProfile();
         } finally {
             setPendingPostAction(null);
@@ -295,15 +320,29 @@ export default function UserHandleClient() {
     const toggleFollow = async () => {
         if (!viewerId || pendingRelationAction) return;
         setPendingRelationAction('follow');
+        setRelationMessage(null);
+        const action = localFollowing || localFollowPending ? 'unfollow' : 'follow';
         try {
-            const action = localFollowing || localFollowPending ? 'unfollow' : 'follow';
             const res = await fetch('/api/follow-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ targetUserId: user.id, action }),
             });
-            if (!res.ok) return;
+            if (!res.ok) {
+                setRelationMessage(await apiFailureMessage(res, 'フォロー操作に失敗しました。'));
+                return;
+            }
+            const payload = await res.json();
+            setRelationMessage(
+                action === 'unfollow'
+                    ? 'フォローを解除しました。'
+                    : payload?.followState === 'PENDING'
+                      ? 'フォロー申請を送信しました。'
+                      : 'フォローしました。',
+            );
             await fetchProfile();
+        } catch {
+            setRelationMessage('通信エラーのためフォロー操作を完了できませんでした。');
         } finally {
             setPendingRelationAction(null);
         }
@@ -311,20 +350,37 @@ export default function UserHandleClient() {
 
     const toggleBlock = async () => {
         if (!viewerId || pendingRelationAction) return;
+        if (
+            !localBlocked &&
+            !window.confirm(
+                'このユーザーをブロックしますか？相互のフォロー関係が解除され、互いの通知も削除されます。',
+            )
+        ) {
+            return;
+        }
+
         setPendingRelationAction('block');
+        setRelationMessage(null);
+        const action = localBlocked ? 'unblock' : 'block';
         try {
             const res = await fetch('/api/block-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ targetUserId: user.id, action: localBlocked ? 'unblock' : 'block' }),
+                body: JSON.stringify({ targetUserId: user.id, action }),
             });
-            if (!res.ok) return;
-            setLocalBlocked((prev) => !prev);
-            if (!localBlocked) {
+            if (!res.ok) {
+                setRelationMessage(await apiFailureMessage(res, 'ブロック操作に失敗しました。'));
+                return;
+            }
+            setLocalBlocked(action === 'block');
+            if (action === 'block') {
                 setLocalFollowing(false);
                 setLocalFollowPending(false);
             }
+            setRelationMessage(action === 'block' ? 'ブロックしました。' : 'ブロックを解除しました。');
             await fetchProfile();
+        } catch {
+            setRelationMessage('通信エラーのためブロック操作を完了できませんでした。');
         } finally {
             setPendingRelationAction(null);
         }
@@ -333,15 +389,23 @@ export default function UserHandleClient() {
     const toggleMute = async () => {
         if (!viewerId || pendingRelationAction) return;
         setPendingRelationAction('mute');
+        setRelationMessage(null);
+        const action = localMuted ? 'unmute' : 'mute';
         try {
             const res = await fetch('/api/mute-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ targetUserId: user.id, action: localMuted ? 'unmute' : 'mute' }),
+                body: JSON.stringify({ targetUserId: user.id, action }),
             });
-            if (!res.ok) return;
-            setLocalMuted((prev) => !prev);
+            if (!res.ok) {
+                setRelationMessage(await apiFailureMessage(res, 'ミュート操作に失敗しました。'));
+                return;
+            }
+            setLocalMuted(action === 'mute');
+            setRelationMessage(action === 'mute' ? 'ミュートしました。' : 'ミュートを解除しました。');
             await fetchProfile();
+        } catch {
+            setRelationMessage('通信エラーのためミュート操作を完了できませんでした。');
         } finally {
             setPendingRelationAction(null);
         }
@@ -404,7 +468,7 @@ export default function UserHandleClient() {
                             <button
                                 type="button"
                                 onClick={toggleMute}
-                                className={`text-xs ${localMuted ? 'text-zinc-500' : 'text-[#1d9bf0]'} hover:underline`}
+                                className={`text-xs ${localMuted ? 'text-zinc-500' : 'text-[#1d9bf0]'} hover:underline disabled:opacity-50`}
                                 disabled={localBlockedBy || pendingRelationAction !== null}
                                 aria-pressed={localMuted}
                             >
@@ -432,6 +496,15 @@ export default function UserHandleClient() {
                         </div>
                     )}
                 </div>
+                {(relationMessage || postActionMessage) && (
+                    <div
+                        role="status"
+                        aria-live="polite"
+                        className="px-4 pb-3 text-xs text-zinc-600"
+                    >
+                        {relationMessage ?? postActionMessage}
+                    </div>
+                )}
             </div>
             <div className="flex flex-col">
                 {!localBlocked && !localMuted && !localBlockedBy && canViewPosts && postCount > 0 && (
