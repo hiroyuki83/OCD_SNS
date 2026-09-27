@@ -8,10 +8,10 @@ const MUTE_ACTIONS = ['mute', 'unmute'] as const;
 type MuteAction = (typeof MUTE_ACTIONS)[number];
 
 export async function POST(request: Request) {
-const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
-if (!parsedRequest.ok) {
-    return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
-}
+    const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+    if (!parsedRequest.ok) {
+        return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
+    }
 
     const body = parsedRequest.data;
     const targetUserId = typeof body?.targetUserId === 'string' ? body.targetUserId.trim() : '';
@@ -51,19 +51,27 @@ if (!parsedRequest.ok) {
         return NextResponse.json({ ok: true });
     }
 
-    await prisma.mute.upsert({
-        where: {
-            muterId_mutedId: {
+    await prisma.$transaction([
+        prisma.mute.upsert({
+            where: {
+                muterId_mutedId: {
+                    muterId: userId,
+                    mutedId: targetUserId,
+                },
+            },
+            update: {},
+            create: {
                 muterId: userId,
                 mutedId: targetUserId,
             },
-        },
-        update: {},
-        create: {
-            muterId: userId,
-            mutedId: targetUserId,
-        },
-    });
+        }),
+        prisma.notification.deleteMany({
+            where: {
+                userId,
+                actorId: targetUserId,
+            },
+        }),
+    ]);
 
     return NextResponse.json({ ok: true });
 }
