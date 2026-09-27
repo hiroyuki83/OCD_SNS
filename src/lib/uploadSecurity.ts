@@ -1,11 +1,12 @@
 import 'server-only';
 
 import crypto from 'crypto';
-import { readImageDimensions } from '@/lib/imageDimensions';
+import {
+  isSafeImageDimensions,
+  readImageDimensions,
+} from '@/lib/imageDimensions';
 
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
-const MAX_IMAGE_DIMENSION = 12000;
-const MAX_IMAGE_PIXELS = 50_000_000;
 
 type SupportedImage = {
   mime: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
@@ -83,11 +84,7 @@ export async function validateImageUpload(file: File) {
     };
   }
 
-  if (
-    dimensions.width > MAX_IMAGE_DIMENSION ||
-    dimensions.height > MAX_IMAGE_DIMENSION ||
-    dimensions.width * dimensions.height > MAX_IMAGE_PIXELS
-  ) {
+  if (!isSafeImageDimensions(dimensions)) {
     return {
       ok: false as const,
       error: '画像の解像度が大きすぎます。最大12000px・5000万画素以内にしてください。',
