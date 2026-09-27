@@ -8,8 +8,9 @@ import {
 
 test('ADMIN can change and restore a user role and account status', async ({ page }) => {
   const mfa = await enrollStaffMfa(page, USERS.admin3, PREVIEW_PASSWORD);
-  expect(mfa.secret).toBeTruthy();
-  await loginStaffWithTotp(page, USERS.admin3, mfa.secret, PREVIEW_PASSWORD);
+  const recoveryCode = mfa.recoveryCodes[0] ?? '';
+  expect(recoveryCode.length).toBeGreaterThan(10);
+  await loginStaffWithRecoveryCode(page, USERS.admin3, recoveryCode, PREVIEW_PASSWORD);
 
   await page.goto(`/admin/users?q=${encodeURIComponent(USERS.public2)}`);
   await page.getByRole('link', { name: 'Preview 公開ユーザー2', exact: true }).click();
