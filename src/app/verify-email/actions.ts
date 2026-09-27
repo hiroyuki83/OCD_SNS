@@ -43,7 +43,7 @@ export async function verifyEmail(
     const pendingEmail = record.pendingEmail;
     if (pendingEmail) {
         try {
-            const changed = await prisma.$transaction(async (tx) => {
+            await prisma.$transaction(async (tx) => {
                 const consumed = await tx.emailVerificationToken.updateMany({
                     where: {
                         id: record.id,
