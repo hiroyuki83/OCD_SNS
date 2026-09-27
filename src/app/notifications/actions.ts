@@ -23,20 +23,33 @@ const AppealSchema = z.object({
     .refine((value) => Array.from(value).length <= 1000, '異議申立ては1000文字以内です。'),
 });
 
-export async function submitWarningAppeal(formData: FormData) {
+export type WarningAppealSubmitState =
+  | { ok?: boolean; message?: string; errors?: { message?: string[] } }
+  | undefined;
+
+export async function submitWarningAppeal(
+  _prevState: WarningAppealSubmitState,
+  formData: FormData,
+): Promise<WarningAppealSubmitState> {
   const session = await auth();
   const userId = session?.user?.id;
-  if (!userId) return;
+  if (!userId) return { message: 'ログインしてください。' };
 
   if (!(await rateLimit(`warning-appeal:${userId}`, 5, 24 * 60 * 60 * 1000))) {
-    return;
+    return { message: '異議申立ての送信回数が多すぎます。時間をおいて再度お試しください。' };
   }
 
   const parsed = AppealSchema.safeParse({
     warningId: formData.get('warningId'),
     message: formData.get('message'),
   });
-  if (!parsed.success) return;
+  if (!parsed.success) {
+    const flattened = parsed.error.flatten();
+    return {
+      message: '入力内容を確認してください。',
+      errors: { message: flattened.fieldErrors.message },
+    };
+  }
 
   const warning = await prisma.moderationWarning.findFirst({
     where: {
@@ -50,7 +63,13 @@ export async function submitWarningAppeal(formData: FormData) {
       appeal: { select: { id: true } },
     },
   });
-  if (!warning || warning.revokedAt || warning.appeal) return;
+  if (!warning) return { message: '対象の警告が見つかりません。' };
+  if (warning.revokedAt) {
+    return { message: 'この警告は既に取り消されているため、異議申立ては不要です。' };
+  }
+  if (warning.appeal) {
+    return { message: 'この警告には既に異議申立てが送信されています。' };
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -62,7 +81,9 @@ export async function submitWarningAppeal(formData: FormData) {
         },
         data: { readAt: new Date() },
       });
-      if (eligibleWarning.count !== 1) return;
+      if (eligibleWarning.count !== 1) {
+        throw new Error('WARNING_APPEAL_STATE_CHANGED');
+      }
 
       const appeal = await tx.warningAppeal.create({
         data: {
@@ -90,11 +111,15 @@ export async function submitWarningAppeal(formData: FormData) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      return;
+      return { message: 'この警告には既に異議申立てが送信されています。' };
+    }
+    if (error instanceof Error && error.message === 'WARNING_APPEAL_STATE_CHANGED') {
+      return { message: '警告の状態が変更されました。画面を更新して再度お試しください。' };
     }
     throw error;
   }
 
   revalidatePath('/notifications');
   revalidatePath('/admin/audit');
+  return { ok: true, message: '異議申立てを送信しました。審査結果は通知画面に表示されます。' };
 }
