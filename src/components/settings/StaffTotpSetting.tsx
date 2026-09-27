@@ -213,7 +213,7 @@ export default function StaffTotpSetting({
           >
             <div className="text-sm font-semibold text-zinc-900">認証アプリを使えない場合</div>
             <p className="mt-1 text-xs text-zinc-600">
-              現在のパスワードと未使用のリカバリーコードで、認証アプリを再登録できます。開始すると古い認証アプリと残りのリカバリーコードは無効になります。
+              現在のパスワードと未使用のリカバリーコードで、認証アプリを再登録できます。開始すると古い認証アプリと残りのリカバリーコードは無効になり、再有効化が終わるまで管理機能は使えません。再有効化完了時に全端末の既存セッションを無効にします。
             </p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <input
