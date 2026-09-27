@@ -16,7 +16,7 @@ export function validateContentLength(
   maxBytes: number = MAX_JSON_MUTATION_BYTES,
 ): { ok: true } | RequestPayloadFailure {
   if (rawValue === null || rawValue === '') return { ok: true };
-  if (!/^\\d+$/.test(rawValue)) {
+  if (!/^\d+$/.test(rawValue)) {
     return { ok: false, status: 400, error: 'Invalid Content-Length header.' };
   }
 
