@@ -14,7 +14,7 @@ import { rateLimit } from '@/lib/rateLimit';
 import { evaluatePostSafety, validatePublicPostContent } from '@/lib/contentSafety';
 import { isEmailDeliveryConfigured } from '@/lib/email';
 import { sendEmailVerification } from '@/lib/emailVerification';
-import { getAccessiblePostForViewer, usersAreBlocked } from '@/lib/postAccess';
+import { getAccessiblePostForViewer } from '@/lib/postAccess';
 import { validateImageUpload } from '@/lib/uploadSecurity';
 import { isSuspensionActive } from '@/lib/accountStatus';
 import { normalizeAutoHashtag, normalizeProfileBio, normalizeProfileName } from '@/lib/profileInput';
