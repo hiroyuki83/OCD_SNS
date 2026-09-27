@@ -29,3 +29,15 @@ test('rejects a search query longer than 100 Unicode characters', () => {
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.error, '検索語は100文字以内です。');
 });
+
+
+test('preserves hashtag and handle prefixes for search routing', () => {
+  assert.deepEqual(normalizeSearchQuery('  #OCD  '), {
+    ok: true,
+    value: '#OCD',
+  });
+  assert.deepEqual(normalizeSearchQuery('  @coco  '), {
+    ok: true,
+    value: '@coco',
+  });
+});
