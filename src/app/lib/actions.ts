@@ -27,7 +27,11 @@ import { getNormalizedAccountModerationState } from '@/lib/accountModeration';
 const RegisterSchema = z.object({
     name: z.string().trim().min(1, '名前は必須です').max(50, '名前は50文字以内です'),
     email: z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます').email('正しいメールアドレスを入力してください'),
-    password: z.string().min(10, 'パスワードは10文字以上です').max(128, 'パスワードは128文字以内です'),
+    password: z
+        .string()
+        .min(10, 'パスワードは10文字以上です')
+        .max(128, 'パスワードは128文字以内です')
+        .refine((value) => /\S/.test(value), 'パスワードに空白以外の文字を含めてください'),
 });
 
 export type RegisterState =
@@ -61,6 +65,13 @@ export async function register(
     }
 
     const { name, email, password } = validatedFields.data;
+    const normalizedName = normalizeProfileName(name);
+    if (!normalizedName || Array.from(normalizedName).length > 50) {
+        return {
+            errors: { name: ['名前は1〜50文字で入力してください。'] },
+            message: '入力内容を確認してください。',
+        };
+    }
     const normalizedEmail = email.toLowerCase();
     if (!(await rateLimit(`register:${normalizedEmail}`, 3, 60 * 60 * 1000))) {
         return { message: '登録試行が多すぎます。しばらくしてから再度お試しください。' };
@@ -79,7 +90,7 @@ export async function register(
 
         createdUser = await prisma.user.create({
             data: {
-                name,
+                name: normalizedName,
                 email: normalizedEmail,
                 password: hashedPassword,
             },
