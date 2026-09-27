@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { AccountStatus, Prisma, Role } from "@prisma/client";
+import { AccountStatus, Prisma, Role, SanctionStatus, SanctionType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { checkRoleApi } from "@/lib/rbac";
 import { rateLimit } from "@/lib/rateLimit";
@@ -115,12 +115,57 @@ export async function PATCH(
       return { error: "対象ユーザーの状態または権限が変更されました。画面を更新してください。", status: 409 } as const;
     }
 
+    const sanctionChangedAt = new Date();
+    await tx.sanction.updateMany({
+      where: {
+        targetUserId: target.id,
+        status: SanctionStatus.ACTIVE,
+        endsAt: { lte: sanctionChangedAt },
+      },
+      data: { status: SanctionStatus.EXPIRED },
+    });
+
+    await tx.sanction.updateMany({
+      where: {
+        targetUserId: target.id,
+        status: SanctionStatus.ACTIVE,
+      },
+      data: {
+        status: SanctionStatus.REVOKED,
+        revokedAt: sanctionChangedAt,
+      },
+    });
+
+    let sanctionId: string | null = null;
+    if (nextStatus !== AccountStatus.ACTIVE) {
+      const sanction = await tx.sanction.create({
+        data: {
+          type:
+            nextStatus === AccountStatus.POST_RESTRICTED
+              ? SanctionType.POST_RESTRICTION
+              : SanctionType.SUSPENSION,
+          status: SanctionStatus.ACTIVE,
+          reason: reason ?? "ADMINによるアカウント状態変更",
+          startsAt: sanctionChangedAt,
+          endsAt:
+            nextStatus === AccountStatus.POST_RESTRICTED
+              ? restrictionUntil
+              : suspendedUntil,
+          targetUserId: target.id,
+          actorUserId: actor.id,
+        },
+        select: { id: true },
+      });
+      sanctionId = sanction.id;
+    }
+
     await tx.auditLog.create({
       data: {
         action: "USER_STATUS_CHANGE",
         actorUserId: actor.id,
         targetUserId: target.id,
         meta: {
+          sanctionId,
           fromStatus: target.status,
           toStatus: nextStatus,
           suspendedUntil,
