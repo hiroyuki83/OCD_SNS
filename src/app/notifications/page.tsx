@@ -6,7 +6,10 @@ import { Prisma, WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { visibleAccountFilter } from '@/lib/accountStatus';
 import { submitWarningAppeal } from './actions';
-import { acceptFollowRequest, rejectFollowRequest } from '@/app/lib/actions';
+import {
+    AcceptFollowForm,
+    RejectFollowForm,
+} from '@/components/profile/ProfileRelationActions';
 import NotificationsReadMarker from '@/components/layout/NotificationsReadMarker';
 import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
@@ -401,22 +404,8 @@ export default async function NotificationsPage({
                                         >
                                             プロフィールを見る
                                         </Link>
-                                        <form action={acceptFollowRequest.bind(null, notification.actorId)}>
-                                            <button
-                                                type="submit"
-                                                className="rounded-full bg-black px-3 py-1 text-xs font-semibold text-white"
-                                            >
-                                                承認
-                                            </button>
-                                        </form>
-                                        <form action={rejectFollowRequest.bind(null, notification.actorId)}>
-                                            <button
-                                                type="submit"
-                                                className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-zinc-700"
-                                            >
-                                                拒否
-                                            </button>
-                                        </form>
+                                        <AcceptFollowForm followerId={notification.actorId} />
+                                        <RejectFollowForm followerId={notification.actorId} />
                                         <Link
                                             href="/profile/followers"
                                             className="px-2 py-1 text-xs font-semibold text-[#1d9bf0] hover:underline"
