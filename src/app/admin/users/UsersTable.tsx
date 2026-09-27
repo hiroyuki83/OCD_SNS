@@ -1,13 +1,12 @@
 import Link from "next/link";
 
-const ROLE_OPTIONS = ["USER", "MODERATOR", "ADMIN"] as const;
-const STATUS_OPTIONS = ["ACTIVE", "POST_RESTRICTED", "SUSPENDED"] as const;
-export type Role = (typeof ROLE_OPTIONS)[number];
-export type AccountStatus = (typeof STATUS_OPTIONS)[number];
+export type Role = "USER" | "MODERATOR" | "ADMIN";
+export type AccountStatus = "ACTIVE" | "POST_RESTRICTED" | "SUSPENDED";
 
 export type UserRow = {
   id: string;
   name: string | null;
+  handle: string;
   email: string | null;
   role: Role;
   status: AccountStatus;
@@ -65,7 +64,8 @@ export default function UsersTable({ users }: { users: UserRow[] }) {
                 >
                   {user.name ?? "(no name)"}
                 </Link>
-                <div className="truncate text-xs text-zinc-500">{user.id}</div>
+                <div className="truncate text-xs text-zinc-500">@{user.handle}</div>
+                <div className="truncate text-[11px] text-zinc-400">{user.id}</div>
               </div>
               <div className="col-span-3 truncate pr-3 text-zinc-700">{user.email ?? "-"}</div>
               <div className="col-span-2 text-xs text-zinc-500">{formatDate(user.createdAt)}</div>
