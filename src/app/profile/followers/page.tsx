@@ -1,7 +1,11 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { acceptFollowRequest, rejectFollowRequest, removeFollower } from '@/app/lib/actions';
+import {
+    AcceptFollowForm,
+    RejectFollowForm,
+    RemoveFollowerForm,
+} from '@/components/profile/ProfileRelationActions';
 import { visibleAccountFilter } from '@/lib/accountStatus';
 import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
@@ -161,22 +165,8 @@ export default async function FollowersPage({
                                 </div>
                             </div>
                             <div className="flex gap-2">
-                                <form action={acceptFollowRequest.bind(null, entry.follower.id)}>
-                                    <button
-                                        type="submit"
-                                        className="rounded-full bg-black px-3 py-1 text-xs font-semibold text-white"
-                                    >
-                                        承認
-                                    </button>
-                                </form>
-                                <form action={rejectFollowRequest.bind(null, entry.follower.id)}>
-                                    <button
-                                        type="submit"
-                                        className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-zinc-700"
-                                    >
-                                        拒否
-                                    </button>
-                                </form>
+                                <AcceptFollowForm followerId={entry.follower.id} />
+                                <RejectFollowForm followerId={entry.follower.id} />
                             </div>
                         </div>
                     ))}
@@ -244,14 +234,7 @@ export default async function FollowersPage({
                                 </span>
                             )}
                         </div>
-                        <form action={removeFollower.bind(null, entry.follower.id)}>
-                            <button
-                                type="submit"
-                                className="text-xs font-semibold text-zinc-500 hover:text-red-500 hover:underline"
-                            >
-                                フォロワーから削除
-                            </button>
-                        </form>
+                        <RemoveFollowerForm followerId={entry.follower.id} />
                     </div>
                 ))}
                 {followerCount > 0 && (
