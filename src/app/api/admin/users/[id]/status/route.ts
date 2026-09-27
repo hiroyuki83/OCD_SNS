@@ -6,7 +6,7 @@ import { AccountStatus, Prisma, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { checkRoleApi } from "@/lib/rbac";
 import { rateLimit } from "@/lib/rateLimit";
-import { validateJsonMutationRequest } from "@/lib/requestSecurity";
+import { parseJsonMutationRequest } from "@/lib/requestSecurity";
 
 const BodySchema = z.object({
   status: z.enum([AccountStatus.ACTIVE, AccountStatus.POST_RESTRICTED, AccountStatus.SUSPENDED]),
@@ -18,10 +18,10 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const requestCheck = validateJsonMutationRequest(request);
-  if (!requestCheck.ok) {
-    return NextResponse.json({ error: requestCheck.error }, { status: requestCheck.status });
-  }
+const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+if (!parsedRequest.ok) {
+    return NextResponse.json({ error: parsedRequest.error }, { status: parsedRequest.status });
+}
 
   const { id: rawId } = await params;
   const id = rawId.trim();
@@ -38,7 +38,7 @@ export async function PATCH(
     return NextResponse.json({ error: "操作が多すぎます。" }, { status: 429 });
   }
 
-  const body = await request.json().catch(() => null);
+  const body = parsedRequest.data;
   const parsed = BodySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "status が不正です。" }, { status: 400 });
