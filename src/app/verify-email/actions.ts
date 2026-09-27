@@ -89,7 +89,7 @@ export async function requestEmailVerification(
 ): Promise<VerifyEmailState> {
     const parsed = emailSchema.safeParse(formData.get('email'));
     if (!parsed.success) {
-        return { errors: { email: parsed.error.flatten().fieldErrors.email }, message: '入力内容を確認してください。' };
+        return { errors: { email: parsed.error.flatten().formErrors }, message: '入力内容を確認してください。' };
     }
 
     const genericMessage = '未確認の登録メールアドレスであれば、確認メールを送信しました。';
