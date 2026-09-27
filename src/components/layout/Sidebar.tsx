@@ -56,6 +56,17 @@ export default async function Sidebar() {
                 { mutedBy: { none: { muterId: resolvedUserId } } },
               ],
             },
+            OR: [
+              { type: "FOLLOW" },
+              {
+                post: {
+                  is: {
+                    deletedAt: null,
+                    isHidden: false,
+                  },
+                },
+              },
+            ],
           },
         }),
         prisma.moderationWarning.count({
