@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-// @ts-ignore -- pg is a runtime dependency; scripts only need its runtime Client API.
+// @ts-expect-error -- pg does not ship project-local TypeScript declarations here.
 import { Client } from 'pg';
 import {
   PREVIEW_MIGRATION_CONFIRMATION,
