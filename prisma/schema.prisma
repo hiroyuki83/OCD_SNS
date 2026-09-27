@@ -43,7 +43,6 @@ model User {
   iesrResults             IesrResult[]
   itqResults              ItqResult[]
   lsasResults             LsasResult[]
-  replies                 Reply[]
   reactions               Reaction[]
   blocksInitiated         Block[]              @relation("UserBlocks")
   blockedBy               Block[]              @relation("UserBlockedBy")
@@ -77,9 +76,6 @@ model Post {
   ganbattaCount Int            @default(0)
   authorId      String
   author        User           @relation(fields: [authorId], references: [id])
-  quotePostId   String?
-  quotePost     Post?          @relation("QuotePost", fields: [quotePostId], references: [id])
-  quotedBy      Post[]         @relation("QuotePost")
   isHidden      Boolean        @default(false)
   hiddenAt      DateTime?
   hiddenReason  String?
@@ -90,7 +86,6 @@ model Post {
   likes         Like[]
   bookmarks     Bookmark[]
   notifications Notification[]
-  replies       Reply[]
   reactions     Reaction[]
   reports       Report[]       @relation("PostReports")
 
@@ -350,17 +345,6 @@ model LsasResult {
   a24         Int
 
   user User @relation(fields: [userId], references: [id])
-}
-
-model Reply {
-  id        String   @id @default(cuid())
-  content   String
-  createdAt DateTime @default(now())
-  authorId  String
-  postId    String
-
-  author User @relation(fields: [authorId], references: [id])
-  post   Post @relation(fields: [postId], references: [id])
 }
 
 model Reaction {
