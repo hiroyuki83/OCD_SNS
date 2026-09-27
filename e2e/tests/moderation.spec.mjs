@@ -56,6 +56,9 @@ test('report → moderation warning → appeal → admin overturn', async ({ bro
   await expect(reportCard).toBeVisible();
 
   await reportCard.getByRole('button', { name: '対応中', exact: true }).click();
+  // Wait for the Server Action to commit the OPEN -> REVIEWING transition.
+  // Navigating immediately can race the action and render an empty REVIEWING list.
+  await expect(reportCard).toHaveCount(0, { timeout: 15_000 });
   await moderator.goto('/moderation?status=REVIEWING');
   reportCard = moderator.locator('[data-report-card]').filter({ hasText: content });
   await expect(reportCard).toBeVisible();
