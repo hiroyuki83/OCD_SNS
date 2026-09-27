@@ -1,11 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readImageDimensions } from '../src/lib/imageDimensions';
+import {
+  isSafeImageDimensions,
+  readImageDimensions,
+} from '../src/lib/imageDimensions';
 
 test('reads PNG dimensions', () => {
   const bytes = new Uint8Array(24);
   bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
   const view = new DataView(bytes.buffer);
+  view.setUint32(8, 13, false);
+  bytes.set([0x49, 0x48, 0x44, 0x52], 12);
   view.setUint32(16, 1920, false);
   view.setUint32(20, 1080, false);
   assert.deepEqual(readImageDimensions(bytes, 'image/png'), { width: 1920, height: 1080 });
@@ -46,4 +51,22 @@ test('reads WebP VP8X dimensions', () => {
 test('rejects zero or malformed dimensions', () => {
   assert.equal(readImageDimensions(new Uint8Array(24), 'image/png'), null);
   assert.equal(readImageDimensions(new Uint8Array([0xff,0xd8,0xff,0xda]), 'image/jpeg'), null);
+});
+
+
+test('rejects malformed PNG without IHDR', () => {
+  const bytes = new Uint8Array(24);
+  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(16, 640, false);
+  view.setUint32(20, 480, false);
+  assert.equal(readImageDimensions(bytes, 'image/png'), null);
+});
+
+test('image dimension safety limits reject huge pixel counts and dimensions', () => {
+  assert.equal(isSafeImageDimensions({ width: 8000, height: 6000 }), true);
+  assert.equal(isSafeImageDimensions({ width: 12000, height: 4000 }), true);
+  assert.equal(isSafeImageDimensions({ width: 12001, height: 1 }), false);
+  assert.equal(isSafeImageDimensions({ width: 10000, height: 6000 }), false);
+  assert.equal(isSafeImageDimensions({ width: 0, height: 100 }), false);
 });
