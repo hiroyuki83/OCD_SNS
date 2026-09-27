@@ -23,8 +23,8 @@ export default async function VerifyEmailPage({
                     <h1 className="text-center text-3xl font-bold">メールアドレスの確認</h1>
                     <p className="mt-2 text-center text-sm leading-6 text-zinc-500">
                         {token
-                            ? '登録を完了するには、下のボタンを押してください。'
-                            : '確認メールが届かない場合は再送できます。'}
+                            ? 'メールアドレスの確認を完了するには、下のボタンを押してください。'
+                            : '登録確認メールが届かない場合は再送できます。'}
                     </p>
                 </div>
                 {token ? <ConfirmEmailForm token={token} /> : <ResendEmailForm />}
