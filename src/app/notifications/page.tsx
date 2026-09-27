@@ -104,61 +104,70 @@ export default async function NotificationsPage({
     );
 
     const allTake = pagination.skip + pagination.pageSize;
-
-    const notificationQuery = prisma.notification.findMany({
-        where: notificationWhere,
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        select: {
-            id: true,
-            type: true,
-            actorId: true,
-            createdAt: true,
-            actor: {
-                select: {
-                    id: true,
-                    name: true,
-                    handle: true,
-                    avatarUrl: true,
-                },
-            },
-            post: {
-                select: {
-                    id: true,
-                    content: true,
-                },
-            },
-        },
-        ...(filter === 'social'
-            ? { skip: pagination.skip, take: pagination.pageSize }
-            : { take: allTake }),
-    });
-    const warningQuery = prisma.moderationWarning.findMany({
-        where: warningWhere,
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        select: {
-            id: true,
-            reason: true,
-            createdAt: true,
-            revokedAt: true,
-            appeal: {
-                select: {
-                    id: true,
-                    message: true,
-                    createdAt: true,
-                    status: true,
-                    resolutionNote: true,
-                    reviewedAt: true,
-                },
-            },
-        },
-        ...(filter === 'warnings'
-            ? { skip: pagination.skip, take: pagination.pageSize }
-            : { take: allTake }),
-    });
+    const notificationSkip = filter === 'social' ? pagination.skip : 0;
+    const notificationTake =
+        filter === 'warnings'
+            ? 0
+            : filter === 'social'
+              ? pagination.pageSize
+              : allTake;
+    const warningSkip = filter === 'warnings' ? pagination.skip : 0;
+    const warningTake =
+        filter === 'social'
+            ? 0
+            : filter === 'warnings'
+              ? pagination.pageSize
+              : allTake;
 
     const [notifications, warnings] = await Promise.all([
-        filter === 'warnings' ? Promise.resolve([]) : notificationQuery,
-        filter === 'social' ? Promise.resolve([]) : warningQuery,
+        prisma.notification.findMany({
+            where: notificationWhere,
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            skip: notificationSkip,
+            take: notificationTake,
+            select: {
+                id: true,
+                type: true,
+                actorId: true,
+                createdAt: true,
+                actor: {
+                    select: {
+                        id: true,
+                        name: true,
+                        handle: true,
+                        avatarUrl: true,
+                    },
+                },
+                post: {
+                    select: {
+                        id: true,
+                        content: true,
+                    },
+                },
+            },
+        }),
+        prisma.moderationWarning.findMany({
+            where: warningWhere,
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            skip: warningSkip,
+            take: warningTake,
+            select: {
+                id: true,
+                reason: true,
+                createdAt: true,
+                revokedAt: true,
+                appeal: {
+                    select: {
+                        id: true,
+                        message: true,
+                        createdAt: true,
+                        status: true,
+                        resolutionNote: true,
+                        reviewedAt: true,
+                    },
+                },
+            },
+        }),
     ]);
 
     const totalItemCount = notificationCount + warningCount;
