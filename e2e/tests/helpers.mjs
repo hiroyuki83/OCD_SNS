@@ -130,15 +130,16 @@ export async function loginStaffWithTotp(page, email, secret, password = PREVIEW
 }
 
 
-export async function reportPost(page, postContent, {
+
+export async function reportVisiblePost(page, postContent, {
   reasonNumber = '1',
   detail = 'E2E report detail',
 } = {}) {
-  await page.goto('/profile');
-  const ownPost = page.getByText(postContent, { exact: true });
-  if (await ownPost.count()) {
-    throw new Error('reportPost helper must be called as a different user than the post author.');
-  }
+  await page.goto(`/explore?q=${encodeURIComponent(postContent)}`);
+  const result = page.getByText(postContent, { exact: true });
+  await expect(result).toBeVisible();
+  const resultCard = result.locator('xpath=ancestor::div[contains(@class,"rounded-2xl")][1]');
+  await resultCard.getByRole('link', { name: '投稿を開く' }).click();
 
   let promptIndex = 0;
   page.on('dialog', async (dialog) => {
@@ -150,25 +151,7 @@ export async function reportPost(page, postContent, {
     }
     await dialog.accept();
   });
-}
 
-export async function reportVisiblePost(page, postContent, options = {}) {
-  const reasonNumber = options.reasonNumber ?? '1';
-  const detail = options.detail ?? 'E2E report detail';
-  let promptIndex = 0;
-  page.on('dialog', async (dialog) => {
-    if (dialog.type() === 'prompt') {
-      const value = promptIndex === 0 ? reasonNumber : detail;
-      promptIndex += 1;
-      await dialog.accept(value);
-      return;
-    }
-    await dialog.accept();
-  });
-
-  const contentNode = page.getByText(postContent, { exact: true });
-  await expect(contentNode).toBeVisible();
-  const card = contentNode.locator('xpath=ancestor::div[contains(@class,"relative")][1]');
-  await card.getByRole('button', { name: '通報', exact: true }).click();
+  await page.getByRole('button', { name: '通報', exact: true }).click();
   await expect.poll(() => promptIndex).toBeGreaterThanOrEqual(2);
 }
