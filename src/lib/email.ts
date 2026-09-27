@@ -1,4 +1,5 @@
 import 'server-only';
+import { appendFile } from 'node:fs/promises';
 
 type EmailMessage = {
     to: string;
@@ -10,11 +11,31 @@ function emailFrom() {
     return process.env.EMAIL_FROM ?? process.env.PASSWORD_RESET_FROM_EMAIL ?? null;
 }
 
+function e2eOutboxPath() {
+    if (process.env.VERCEL_ENV === 'production') return null;
+    if (process.env.E2E_EMAIL_MODE !== '1') return null;
+    const path = process.env.E2E_EMAIL_OUTBOX_FILE?.trim();
+    return path || null;
+}
+
 export function isEmailDeliveryConfigured() {
-    return Boolean(process.env.RESEND_API_KEY && emailFrom());
+    return Boolean(e2eOutboxPath() || (process.env.RESEND_API_KEY && emailFrom()));
 }
 
 export async function sendTransactionalEmail(message: EmailMessage) {
+    const outboxPath = e2eOutboxPath();
+    if (outboxPath) {
+        await appendFile(
+            outboxPath,
+            `${JSON.stringify({
+                ...message,
+                capturedAt: new Date().toISOString(),
+            })}\n`,
+            'utf8',
+        );
+        return;
+    }
+
     const apiKey = process.env.RESEND_API_KEY;
     const from = emailFrom();
     if (!apiKey || !from) {
