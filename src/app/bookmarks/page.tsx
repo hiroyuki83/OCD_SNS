@@ -167,7 +167,7 @@ export default async function BookmarksPage({
                                 <div className="flex items-center gap-3 text-zinc-500">
                                     <div className="text-xs">いいね {post._count.likes}</div>
                                     <Link
-                                        href={`/post?id=${post.id}`}
+                                        href={`/post/${encodeURIComponent(post.id)}`}
                                         className="text-xs text-[#1d9bf0] hover:underline"
                                     >
                                         投稿を開く
