@@ -38,7 +38,7 @@
 - src/app/error.tsx
 - src/app/global-error.tsx
 - account export失敗時は incidentId を返す
-- Blob削除、認証ユーザー検索、メール再送/メール変更送信の失敗も privacy-safe logger を使用する
+- Blob削除、認証ユーザー検索、メール再送/メール変更送信、RateLimit DB処理の失敗も privacy-safe logger を使用する
 
 ## 将来の外部監視連携
 
