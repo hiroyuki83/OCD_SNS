@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { parseJsonMutationRequest } from '@/lib/requestSecurity';
 import { rateLimit } from '@/lib/rateLimit';
+import { parseUniqueStringIds } from '@/lib/idList';
 
 export async function POST(request: Request) {
     const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
@@ -11,26 +12,13 @@ export async function POST(request: Request) {
     }
 
     const body = parsedRequest.data;
-    const notificationIds = Array.isArray(body.notificationIds)
-        ? body.notificationIds.filter(
-              (value): value is string =>
-                  typeof value === 'string' && value.length > 0 && value.length <= 128,
-          )
-        : [];
-    const warningIds = Array.isArray(body.warningIds)
-        ? body.warningIds.filter(
-              (value): value is string =>
-                  typeof value === 'string' && value.length > 0 && value.length <= 128,
-          )
-        : [];
-    if (
-        notificationIds.length > 50 ||
-        warningIds.length > 50 ||
-        notificationIds.length !== new Set(notificationIds).size ||
-        warningIds.length !== new Set(warningIds).size
-    ) {
+    const parsedNotificationIds = parseUniqueStringIds(body.notificationIds ?? [], 50);
+    const parsedWarningIds = parseUniqueStringIds(body.warningIds ?? [], 50);
+    if (!parsedNotificationIds.ok || !parsedWarningIds.ok) {
         return NextResponse.json({ ok: false }, { status: 400 });
     }
+    const notificationIds = parsedNotificationIds.value;
+    const warningIds = parsedWarningIds.value;
     if (notificationIds.length === 0 && warningIds.length === 0) {
         return NextResponse.json({ ok: true, updated: 0 });
     }
