@@ -1,3 +1,4 @@
+// @ts-ignore -- pg is a runtime dependency; scripts only need its runtime Client API.
 import { Client } from 'pg';
 import {
   validatePreviewMigrationSafety,
