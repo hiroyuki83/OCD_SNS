@@ -22,6 +22,7 @@ async function runFollowMutation(
           isPrivate: true,
           status: true,
           suspendedUntil: true,
+          notifyFollows: true,
         },
       });
       if (!target || isSuspensionActive(target.status, target.suspendedUntil)) {
@@ -103,7 +104,7 @@ async function runFollowMutation(
         return { ok: false as const, reason: 'BLOCKED' as const };
       }
 
-      if (created) {
+      if (created && target.notifyFollows) {
         await tx.notification.deleteMany({
           where: {
             type: 'FOLLOW',
