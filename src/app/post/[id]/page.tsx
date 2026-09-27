@@ -15,7 +15,7 @@ export default async function PostPage({
     params: Promise<{ id?: string }>;
 }) {
     const resolvedParams = await params;
-    let postId = resolvedParams.id?.trim();
+    const postId = resolvedParams.id?.trim();
     if (!postId || postId.length > 128) {
         return (
             <div className="p-6 text-sm text-zinc-500">
