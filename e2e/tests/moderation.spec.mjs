@@ -65,6 +65,8 @@ test('report → moderation warning → appeal → admin overturn', async ({ bro
     .locator('xpath=ancestor::form');
   await warningForm.getByPlaceholder('警告理由（5文字以上）').fill(warningReason);
   await warningForm.getByRole('button', { name: '警告して解決' }).click();
+  // Server Actions update asynchronously; wait until the report actually leaves REVIEWING.
+  await expect(reportCard).toHaveCount(0);
 
   await author.goto('/notifications?filter=warnings');
   const warningCard = author.locator('[data-warning-card]').filter({ hasText: warningReason });
@@ -87,7 +89,10 @@ test('report → moderation warning → appeal → admin overturn', async ({ bro
   const appealCard = admin.locator('[data-appeal-card]').filter({ hasText: appealMessage });
   await expect(appealCard).toBeVisible();
   await appealCard.getByLabel('審査理由').fill(reviewNote);
-  await appealCard.getByRole('button', { name: '警告を取り消す' }).click();
+  const overturnButton = appealCard.getByRole('button', { name: '警告を取り消す' });
+  await overturnButton.click();
+  // Wait for the review mutation to persist before reading the result as the user.
+  await expect(overturnButton).toHaveCount(0);
 
   await author.goto('/notifications?filter=warnings');
   const resolvedWarning = author.locator('[data-warning-card]').filter({ hasText: warningReason });
