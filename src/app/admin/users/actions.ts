@@ -24,6 +24,14 @@ const AdminNoteSchema = z.object({
   body: z.string().trim().min(1, 'メモ本文を入力してください。').max(1000, 'メモは1000文字以内です。'),
 });
 
+const AdminPasswordResetSchema = z.object({
+  userId: z.string().trim().min(1).max(128),
+  currentPassword: z
+    .string()
+    .min(1, '現在のADMINパスワードを入力してください。')
+    .max(128),
+});
+
 export type CreateUserState =
   | {
       errors?: {
@@ -213,11 +221,26 @@ export async function resetUserPassword(
     return { message: '操作が多すぎます。しばらくしてから再度お試しください。' };
   }
 
-  const userIdValue = formData.get('userId');
-  const userId = typeof userIdValue === 'string' ? userIdValue.trim() : '';
-  if (!userId || userId.length > 128) {
-    return { message: 'ユーザーIDが不正です。' };
+  const parsed = AdminPasswordResetSchema.safeParse({
+    userId: formData.get('userId'),
+    currentPassword: formData.get('currentPassword'),
+  });
+  if (!parsed.success) {
+    return { message: 'ユーザーIDと現在のADMINパスワードを確認してください。' };
   }
+
+  const actorAccount = await prisma.user.findUnique({
+    where: { id: actor.id },
+    select: { password: true },
+  });
+  if (
+    !actorAccount ||
+    !(await bcrypt.compare(parsed.data.currentPassword, actorAccount.password))
+  ) {
+    return { message: '現在のADMINパスワードを確認できませんでした。' };
+  }
+
+  const userId = parsed.data.userId;
   if (!isEmailDeliveryConfigured()) {
     return { message: '現在メール送信を利用できません。' };
   }
