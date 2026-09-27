@@ -124,7 +124,7 @@ export default async function Sidebar() {
               priority
             />
           </Link>
-          <nav className="flex flex-col gap-1">
+          <nav aria-label="主要ナビゲーション" className="flex flex-col gap-1">
             {allNavItems.map((item) => {
               const Icon = item.icon;
               return (
