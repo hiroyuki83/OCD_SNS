@@ -18,9 +18,9 @@ test('ADMIN can change and restore a user role and account status', async ({ pag
   const section = page.locator('section').filter({
     has: page.getByRole('heading', { name: '権限とアカウント状態' }),
   });
-  const password = section.getByLabel('操作確認用のADMINパスワード');
-  const roleSelect = section.getByLabel('権限', { exact: true });
-  const statusSelect = section.getByLabel('アカウント状態', { exact: true });
+  const password = section.locator('#admin-current-password');
+  const roleSelect = section.locator('#admin-user-role');
+  const statusSelect = section.locator('#admin-user-status');
 
   await password.fill(PREVIEW_PASSWORD);
   await roleSelect.selectOption('MODERATOR');
