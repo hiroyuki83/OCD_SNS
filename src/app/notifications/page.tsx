@@ -280,6 +280,8 @@ export default async function NotificationsPage({
                         return (
                             <div
                                 key={item.id}
+                                data-warning-card
+                                data-warning-id={item.warning.id}
                                 className="p-4 border-b border-border flex flex-col gap-2 text-sm bg-amber-50/60"
                             >
                                 <div className="text-zinc-500 text-xs">{timestamp}</div>
