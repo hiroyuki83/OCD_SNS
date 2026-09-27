@@ -22,7 +22,7 @@
 | DEC-003 | DMは実装しない | OUT OF SCOPE |
 | DEC-004 | 動画投稿は実装しない | OUT OF SCOPE |
 | DEC-005 | ライブ配信は実装しない | OUT OF SCOPE |
-| DEC-006 | 残存している Reply / Quote 関連 schema・古いコードは削除する | TODO |
+| DEC-006 | 残存している Reply / Quote 関連 schema・古いコードは削除する | DONE |
 
 ## 現在実装済みの主要機能
 
@@ -94,11 +94,11 @@
 
 | ID | 内容 | Priority | Status |
 |---|---|---:|---|
-| NEXT-001 | Reply model と関連 relation を Prisma schema から削除 | P0 | TODO |
-| NEXT-002 | Quote post fields / relation を Prisma schema から削除 | P0 | TODO |
-| NEXT-003 | Reply / Quote の残存コードを全検索して削除 | P0 | TODO |
-| NEXT-004 | Reply / Quote 削除 migration を作成 | P0 | TODO |
-| NEXT-005 | Reply / Quote 削除後に validate / lint / test / typecheck / build | P0 | TODO |
+| NEXT-001 | Reply model と関連 relation を Prisma schema から削除 | P0 | DONE |
+| NEXT-002 | Quote post fields / relation を Prisma schema から削除 | P0 | DONE |
+| NEXT-003 | Reply / Quote の残存コードを全検索して削除 | P0 | DONE |
+| NEXT-004 | Reply / Quote 削除 migration を作成 | P0 | DONE |
+| NEXT-005 | Reply / Quote 削除後に validate / lint / test / typecheck / build | P0 | IN PROGRESS |
 | NEXT-006 | 最新 Preview branch を Vercel Preview に同期 | P0 | TODO |
 | NEXT-007 | Preview DB migration / seed / smoke test | P0 | TODO |
 | NEXT-008 | Playwright E2E 基盤導入 | P0 | TODO |
@@ -111,20 +111,20 @@
 | NEXT-015 | ADMIN role / status change E2E | P0 | TODO |
 | NEXT-016 | staff TOTP / recovery code E2E | P0 | TODO |
 | NEXT-017 | session revoke E2E | P0 | TODO |
-| NEXT-018 | 心理検査データのアクセス権仕様を明文化 | P0 | TODO |
-| NEXT-019 | 心理検査データを管理画面から原則参照不可にする確認 / 修正 | P0 | TODO |
+| NEXT-018 | 心理検査データのアクセス権仕様を明文化 | P0 | DONE |
+| NEXT-019 | 心理検査データを管理画面から原則参照不可にする確認 / 修正 | P0 | DONE |
 | NEXT-020 | アカウント削除 | P1 | TODO |
 | NEXT-021 | ユーザーデータエクスポート | P1 | TODO |
 | NEXT-022 | メールアドレス変更 | P1 | TODO |
-| NEXT-023 | 通常のパスワード変更 | P1 | TODO |
+| NEXT-023 | 通常のパスワード変更 | P1 | DONE |
 | NEXT-024 | 制裁履歴をユーザー単位で統合表示 | P1 | TODO |
 | NEXT-025 | 警告以外の処分への Appeal model を検討 | P1 | TODO |
 | NEXT-026 | 異議申立て結果通知 | P1 | TODO |
 | NEXT-027 | 通知設定 | P2 | TODO |
-| NEXT-028 | ユーザー / @handle 検索 | P2 | TODO |
-| NEXT-029 | ハッシュタグ検索 | P2 | TODO |
-| NEXT-030 | 画像 alt text | P2 | TODO |
-| NEXT-031 | キーボード / focus / screen reader 監査 | P2 | TODO |
+| NEXT-028 | ユーザー / @handle 検索 | P2 | DONE |
+| NEXT-029 | ハッシュタグ検索 | P2 | DONE |
+| NEXT-030 | 画像 alt text | P2 | DONE |
+| NEXT-031 | キーボード / focus / screen reader 監査 | P2 | IN PROGRESS |
 | NEXT-032 | アプリレベルのエラー監視 | P2 | TODO |
 | NEXT-033 | DB / Blob バックアップ・復旧手順の文書化 | P2 | TODO |
 
@@ -151,3 +151,43 @@
 複数タスクを一度に進めた場合も、このIDを基準に進捗を更新する。
 
 新しい仕様変更があった場合は、DEC-ID または新しい NEXT-ID を追加する。
+
+
+## 2026-09-28 実装バッチ（30タスク）
+
+| # | 内容 | Status |
+|---:|---|---|
+| 1 | Reply / Quote の全ソース参照監査 | DONE |
+| 2 | User から Reply relation を削除 | DONE |
+| 3 | Post から Reply relation を削除 | DONE |
+| 4 | Reply model を削除 | DONE |
+| 5 | Quote post fields / relation を削除 | DONE |
+| 6 | Reply / Quote 削除 migration を追加 | DONE |
+| 7 | Reply / Quote 再混入防止テストを追加 | DONE |
+| 8 | 心理セルフチェックデータのプライバシー要件を文書化 | DONE |
+| 9 | ADMIN が心理検査データを直接読まない回帰テスト | DONE |
+| 10 | MODERATOR が心理検査データを直接読まない回帰テスト | DONE |
+| 11 | 公開プロフィール / user API が心理検査データを読まない回帰テスト | DONE |
+| 12 | 心理検査履歴の本人 userId スコープを回帰テスト化 | DONE |
+| 13 | 心理検査画面に保存結果の公開範囲を明示 | DONE |
+| 14 | パスワード変更入力の共通バリデーションを追加 | DONE |
+| 15 | パスワード変更バリデーションのテストを追加 | DONE |
+| 16 | 本人による通常パスワード変更 Server Action を追加 | DONE |
+| 17 | パスワード変更時の全セッション失効・Audit Log を追加 | DONE |
+| 18 | 設定画面にパスワード変更 UI を追加 | DONE |
+| 19 | 投稿画像の代替テキスト正規化・上限検証を追加 | DONE |
+| 20 | 代替テキストの単体テストを追加 | DONE |
+| 21 | Post.imageAlt と DB migration を追加 | DONE |
+| 22 | 投稿フォームに画像説明入力欄を追加 | DONE |
+| 23 | Feed / 投稿詳細で代替テキストを表示 | DONE |
+| 24 | プロフィール / ブックマークで代替テキストを表示 | DONE |
+| 25 | 投稿検索 / 公開プロフィール API に代替テキストを反映 | DONE |
+| 26 | ユーザー検索のプライバシー境界 helper を追加 | DONE |
+| 27 | ユーザー検索の privacy / PII 回帰テストを追加 | DONE |
+| 28 | ユーザー・@handle 検索 API を追加 | DONE |
+| 29 | 検索画面にユーザー検索・独立 pagination を追加 | DONE |
+| 30 | #ハッシュタグ / @handle 検索 prefix の回帰テストと要件同期 | DONE |
+
+### バッチ後の検証
+
+GitHub Actions の最新 `Security integration CI` で Prisma validate / generate / lint / unit tests / typecheck / build を最終確認する。
