@@ -353,6 +353,8 @@ feature / integration branch上で実装・CI・E2E・Preview検証を完了し�
 
 mainへのmergeをProduction releaseとはみなさない。
 
+`vercel.json` の `main` 自動deploymentは通常無効とし、main pushだけでProductionへ反映されない構成を維持する。
+
 Production releaseは別工程とし、以下を明示的に実施する。
 
 1. Production DB backup / restore経路確認
