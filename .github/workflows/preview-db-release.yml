@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   migrate-preview:
-    if: ${{ github.ref_name == 'security-integration-final-20260926' && inputs.confirmation == 'MIGRATE_COCO_PREVIEW' }}
+    if: ${{ github.ref_name == 'feature/sanction-records-20260928' && inputs.confirmation == 'MIGRATE_COCO_PREVIEW' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: preview
@@ -39,7 +39,7 @@ jobs:
       PREVIEW_TEST_PASSWORD: ${{ secrets.PREVIEW_TEST_PASSWORD }}
 
     steps:
-      - name: Checkout approved integration branch
+      - name: Checkout approved Preview release branch
         uses: actions/checkout@v6
 
       - name: Use Node.js
