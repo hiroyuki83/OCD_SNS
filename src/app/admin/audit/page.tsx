@@ -83,14 +83,15 @@ function auditHref(action: string | null, query: string, page = 1) {
 export default async function AdminAuditPage({
   searchParams,
 }: {
-  searchParams?: { action?: string; q?: string; page?: string };
+  searchParams?: Promise<{ action?: string; q?: string; page?: string }>;
 }) {
+  const params = await searchParams;
   await requireRole(Role.ADMIN);
 
-  const normalizedQuery = normalizeSearchQuery(searchParams?.q ?? "");
+  const normalizedQuery = normalizeSearchQuery(params?.q ?? "");
   const query = normalizedQuery.ok ? normalizedQuery.value : "";
-  const actionFilter = selectedAction(searchParams?.action);
-  const requestedPage = parsePageNumber(searchParams?.page);
+  const actionFilter = selectedAction(params?.action);
+  const requestedPage = parsePageNumber(params?.page);
   const pageSize = 100;
   const filters: Prisma.AuditLogWhereInput[] = [];
 
