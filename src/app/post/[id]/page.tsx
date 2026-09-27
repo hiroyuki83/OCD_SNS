@@ -3,11 +3,13 @@ import { headers } from 'next/headers';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
-import { addGanbatta, addWakaru, deletePost, toggleBookmark, toggleLike } from '@/app/lib/actions';
 import type { Prisma } from '@prisma/client';
 import { isSuspensionActive } from '@/lib/accountStatus';
 import HashtagText from '@/components/shared/HashtagText';
 import { getAccessiblePostForViewer } from '@/lib/postAccess';
+import ProfilePostActionForm from '@/components/profile/ProfilePostActionForm';
+import { DeletePostForm } from '@/components/profile/ProfileDangerActions';
+import ReportPostButton from '@/components/report/ReportPostButton';
 
 export default async function PostPage({ params }: { params?: { id?: string } }) {
     let postId = params?.id;
@@ -178,69 +180,45 @@ export default async function PostPage({ params }: { params?: { id?: string } })
                         />
                     )}
                     <div className="flex items-center gap-3 text-zinc-500 flex-wrap">
-                        {session?.user ? (
-                            <form action={toggleLike.bind(null, post.id)}>
-                                <button
-                                    type="submit"
-                                    className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors ${
-                                        liked ? 'text-red-500' : 'hover:text-red-500'
-                                    }`}
-                                >
-                                    いいね
-                                    <span>{likeCount}</span>
-                                </button>
-                            </form>
+                        {userId ? (
+                            <>
+                                <ProfilePostActionForm
+                                    postId={post.id}
+                                    action="like"
+                                    active={liked}
+                                    count={likeCount}
+                                />
+                                <ProfilePostActionForm
+                                    postId={post.id}
+                                    action="wakaru"
+                                    active={wakaruReacted}
+                                    count={post.wakaruCount}
+                                />
+                                <ProfilePostActionForm
+                                    postId={post.id}
+                                    action="ganbatta"
+                                    active={ganbattaReacted}
+                                    count={post.ganbattaCount}
+                                />
+                                <ProfilePostActionForm
+                                    postId={post.id}
+                                    action="bookmark"
+                                    active={bookmarked}
+                                    count={post._count.bookmarks}
+                                />
+                                {post.authorId === userId ? (
+                                    <DeletePostForm postId={post.id} />
+                                ) : (
+                                    <ReportPostButton postId={post.id} />
+                                )}
+                            </>
                         ) : (
-                            <div className="text-xs">いいね {likeCount}</div>
-                        )}
-                        {session?.user ? (
-                            <form action={addWakaru.bind(null, post.id)}>
-                                <button
-                                    type="submit"
-                                    className={`text-xs rounded-full px-3 py-1 transition-colors ${
-                                        wakaruReacted ? 'text-yellow-400' : 'hover:text-yellow-400'
-                                    }`}
-                                >
-                                    わかる <span>{post.wakaruCount}</span>
-                                </button>
-                            </form>
-                        ) : (
-                            <div className="text-xs">わかる {post.wakaruCount}</div>
-                        )}
-                        {session?.user ? (
-                            <form action={addGanbatta.bind(null, post.id)}>
-                                <button
-                                    type="submit"
-                                    className={`text-xs rounded-full px-3 py-1 transition-colors ${
-                                        ganbattaReacted ? 'text-green-400' : 'hover:text-green-400'
-                                    }`}
-                                >
-                                    頑張った！ <span>{post.ganbattaCount}</span>
-                                </button>
-                            </form>
-                        ) : (
-                            <div className="text-xs">頑張った！ {post.ganbattaCount}</div>
-                        )}
-                        {session?.user ? (
-                            <form action={toggleBookmark.bind(null, post.id)}>
-                                <button
-                                    type="submit"
-                                    className={`text-xs rounded-full px-3 py-1 transition-colors ${
-                                        bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
-                                    }`}
-                                >
-                                    ブックマーク <span>{post._count.bookmarks}</span>
-                                </button>
-                            </form>
-                        ) : (
-                            <div className="text-xs">ブックマーク {post._count.bookmarks}</div>
-                        )}
-                        {session?.user && post.authorId === userId && (
-                            <form action={deletePost.bind(null, post.id)}>
-                                <button type="submit" className="text-xs text-red-500 hover:underline">
-                                    削除
-                                </button>
-                            </form>
+                            <>
+                                <div className="text-xs">いいね {likeCount}</div>
+                                <div className="text-xs">わかる {post.wakaruCount}</div>
+                                <div className="text-xs">頑張った！ {post.ganbattaCount}</div>
+                                <div className="text-xs">ブックマーク {post._count.bookmarks}</div>
+                            </>
                         )}
                     </div>
 
