@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function NotificationsLink({
     href,
@@ -22,13 +22,31 @@ export default function NotificationsLink({
 }) {
     const [count, setCount] = useState(unread);
 
+    useEffect(() => {
+        setCount(unread);
+    }, [unread]);
+
+    useEffect(() => {
+        const onRead = (event: Event) => {
+            const detail = (event as CustomEvent<{ updated?: number }>).detail;
+            const updated =
+                typeof detail?.updated === 'number' && Number.isFinite(detail.updated)
+                    ? Math.max(0, Math.floor(detail.updated))
+                    : 0;
+            if (updated > 0) {
+                setCount((current) => Math.max(0, current - updated));
+            }
+        };
+        window.addEventListener('coco:notifications-read', onRead);
+        return () => window.removeEventListener('coco:notifications-read', onRead);
+    }, []);
+
     return (
         <Link
             href={href}
             prefetch={false}
             className={className}
             onClick={() => {
-                setCount(0);
                 onNavigate?.();
             }}
         >
