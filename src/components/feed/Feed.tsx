@@ -69,6 +69,7 @@ export default function Feed({
     const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
     const [hasLoaded, setHasLoaded] = useState(false);
     const [reportingPostId, setReportingPostId] = useState<string | null>(null);
+    const [pendingPostAction, setPendingPostAction] = useState<string | null>(null);
 
     useEffect(() => {
         const nextTab = searchParams.get('tab') === 'following' ? 'following' : 'for-you';
@@ -76,7 +77,7 @@ export default function Feed({
     }, [searchParams]);
 
     const fetchFeed = useMemo(
-        () => async () => {
+        () => async (signal?: AbortSignal) => {
             setStatus('loading');
             setData((prev) => ({
                 posts: [],
@@ -88,14 +89,15 @@ export default function Feed({
                 const res = await fetch(`/api/feed?tab=${encodeURIComponent(tab)}`, {
                     cache: 'no-store',
                     credentials: 'include',
+                    signal,
                 });
                 if (!res.ok) throw new Error('failed');
                 const payload = await res.json();
+                if (signal?.aborted) return;
                 const viewerId = payload?.viewerId ?? null;
                 const rawPosts = Array.isArray(payload?.posts) ? payload.posts : [];
-                const filteredPosts = rawPosts;
                 setData({
-                    posts: filteredPosts,
+                    posts: rawPosts,
                     followingIds: Array.isArray(payload?.followingIds) ? payload.followingIds : [],
                     viewerId,
                     viewerAvatarUrl: payload?.viewerAvatarUrl ?? null,
@@ -103,6 +105,7 @@ export default function Feed({
                 setStatus('idle');
                 setHasLoaded(true);
             } catch {
+                if (signal?.aborted) return;
                 setData({ posts: [], followingIds: [], viewerId: null, viewerAvatarUrl: null });
                 setStatus('error');
                 setHasLoaded(true);
@@ -112,12 +115,10 @@ export default function Feed({
     );
 
     useEffect(() => {
-        let active = true;
-        fetchFeed().catch(() => {
-            if (active) setStatus('error');
-        });
+        const controller = new AbortController();
+        fetchFeed(controller.signal);
         return () => {
-            active = false;
+            controller.abort();
         };
     }, [fetchFeed]);
 
@@ -161,7 +162,9 @@ export default function Feed({
     };
 
     const runPostAction = async (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
-        if (!data.viewerId || !postId || postId.length > 128) return;
+        if (!data.viewerId || !postId || postId.length > 128 || pendingPostAction) return;
+        const actionKey = `${postId}:${action}`;
+        setPendingPostAction(actionKey);
         if (tab === 'for-you') {
             applyLocalPostAction(postId, action);
         }
@@ -179,6 +182,8 @@ export default function Feed({
             if (tab === 'for-you') {
                 await fetchFeed();
             }
+        } finally {
+            setPendingPostAction(null);
         }
     };
 
@@ -327,7 +332,8 @@ export default function Feed({
                                 router.push(`/post?id=${post.id}`);
                             }}
                             onKeyDown={(event) => {
-                                if (event.key === 'Enter') {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
                                     router.push(`/post?id=${post.id}`);
                                 }
                             }}
@@ -370,7 +376,9 @@ export default function Feed({
                                         <button
                                             type="button"
                                             onClick={(event) => handleAction(event, post.id, 'like')}
-                                            className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors ${
+                                            aria-pressed={post.liked}
+                                            disabled={pendingPostAction !== null}
+                                            className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors disabled:opacity-50 ${
                                                 post.liked ? 'text-red-500' : 'hover:text-red-500'
                                             }`}
                                         >
@@ -384,7 +392,9 @@ export default function Feed({
                                         <button
                                             type="button"
                                             onClick={(event) => handleAction(event, post.id, 'wakaru')}
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                                            aria-pressed={post.wakaruReacted}
+                                            disabled={pendingPostAction !== null}
+                                            className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                                 post.wakaruReacted ? 'text-yellow-400' : 'hover:text-yellow-400'
                                             }`}
                                         >
@@ -397,7 +407,9 @@ export default function Feed({
                                         <button
                                             type="button"
                                             onClick={(event) => handleAction(event, post.id, 'ganbatta')}
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                                            aria-pressed={post.ganbattaReacted}
+                                            disabled={pendingPostAction !== null}
+                                            className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                                 post.ganbattaReacted ? 'text-green-400' : 'hover:text-green-400'
                                             }`}
                                         >
@@ -410,7 +422,9 @@ export default function Feed({
                                         <button
                                             type="button"
                                             onClick={(event) => handleAction(event, post.id, 'bookmark')}
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                                            aria-pressed={post.bookmarked}
+                                            disabled={pendingPostAction !== null}
+                                            className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                                 post.bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
                                             }`}
                                         >
