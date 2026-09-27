@@ -63,11 +63,13 @@ model User {
   adminNotesTargetingUser AdminNote[]          @relation("AdminNotesTargetUser")
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
-  warningsReceived         ModerationWarning[] @relation("WarningTarget")
-  warningsCreated          ModerationWarning[] @relation("WarningActor")
+  warningsReceived          ModerationWarning[] @relation("WarningTarget")
+  warningsCreated           ModerationWarning[] @relation("WarningActor")
   warningAppeals            WarningAppeal[] @relation("AppealUser")
   warningAppealsReviewed    WarningAppeal[] @relation("AppealReviewer")
-  staffRecoveryCodes       StaffRecoveryCode[]
+  sanctionsReceived         Sanction[] @relation("SanctionTarget")
+  sanctionsCreated          Sanction[] @relation("SanctionActor")
+  staffRecoveryCodes        StaffRecoveryCode[]
 }
 
 model Post {
@@ -153,6 +155,18 @@ enum AccountStatus {
   ACTIVE
   POST_RESTRICTED
   SUSPENDED
+}
+
+enum SanctionType {
+  WARNING
+  POST_RESTRICTION
+  SUSPENSION
+}
+
+enum SanctionStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
 }
 
 enum ReportReason {
@@ -426,6 +440,7 @@ model Report {
   reviewedBy User? @relation("ReportsReviewed", fields: [reviewedById], references: [id])
   assignedTo User? @relation("ReportsAssigned", fields: [assignedToId], references: [id], onDelete: SetNull)
   warnings   ModerationWarning[]
+  sanctions  Sanction[]
 
   @@index([status, createdAt])
   @@index([priority, status, createdAt])
@@ -506,6 +521,29 @@ model Announcement {
   @@index([createdAt])
 }
 
+
+model Sanction {
+  id           String         @id @default(cuid())
+  createdAt    DateTime       @default(now())
+  startsAt     DateTime       @default(now())
+  endsAt       DateTime?
+  revokedAt    DateTime?
+  type         SanctionType
+  status       SanctionStatus @default(ACTIVE)
+  reason       String
+  targetUserId String
+  actorUserId  String
+  reportId     String?
+
+  targetUser User    @relation("SanctionTarget", fields: [targetUserId], references: [id])
+  actorUser  User    @relation("SanctionActor", fields: [actorUserId], references: [id])
+  report     Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  @@index([targetUserId, createdAt])
+  @@index([targetUserId, status, endsAt])
+  @@index([actorUserId, createdAt])
+  @@index([reportId])
+}
 
 model ModerationWarning {
   id           String    @id @default(cuid())
