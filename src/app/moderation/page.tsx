@@ -116,26 +116,27 @@ function NoteInput({
 export default async function ModerationPage({
   searchParams,
 }: {
-  searchParams?: {
+  searchParams?: Promise<{
     status?: string;
     reason?: string;
     q?: string;
     priority?: string;
     assigned?: string;
     page?: string;
-  };
+  }>;
 }) {
   const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  const resolvedSearchParams = await searchParams;
 
-  const statusParam = searchParams?.status?.trim();
+  const statusParam = resolvedSearchParams?.status?.trim();
   const statusFilter = reportStatuses.find((status) => status === statusParam) ?? ReportStatus.OPEN;
-  const reasonParam = searchParams?.reason?.trim();
+  const reasonParam = resolvedSearchParams?.reason?.trim();
   const reasonFilter = reportReasons.find((reason) => reason === reasonParam) ?? null;
-  const priorityParam = searchParams?.priority?.trim();
+  const priorityParam = resolvedSearchParams?.priority?.trim();
   const priorityFilter = reportPriorities.find((priority) => priority === priorityParam) ?? null;
-  const rawAssigneeFilter = searchParams?.assigned?.trim() ?? '';
+  const rawAssigneeFilter = resolvedSearchParams?.assigned?.trim() ?? '';
   const assigneeFilter = rawAssigneeFilter.length <= 128 ? rawAssigneeFilter : '';
-  const normalizedQuery = normalizeSearchQuery(searchParams?.q ?? '');
+  const normalizedQuery = normalizeSearchQuery(resolvedSearchParams?.q ?? '');
   const query = normalizedQuery.ok ? normalizedQuery.value : '';
   const baseFilters: Prisma.ReportWhereInput[] = [];
 
@@ -208,7 +209,7 @@ export default async function ModerationPage({
   ]);
 
   const pagination = clampPage(
-    parsePageNumber(searchParams?.page),
+    parsePageNumber(resolvedSearchParams?.page),
     filteredCount,
     50,
   );
