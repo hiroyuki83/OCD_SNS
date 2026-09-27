@@ -51,6 +51,7 @@ test('verified email change and account deletion lifecycle', async ({ page }) =>
   page.once('dialog', (dialog) => dialog.accept());
   await deletionSection.getByRole('button', { name: 'アカウントを削除' }).click();
   await expect(page).toHaveURL(/\/login\?account=deleted$/);
+  await expect(page.getByRole('status')).toContainText('アカウントを削除しました');
 
   await page.getByLabel('メールアドレス').fill(NEW_EMAIL);
   await page.getByLabel('パスワード').fill(PASSWORD);
