@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { acceptFollowRequest, rejectFollowRequest, removeFollower } from '@/app/lib/actions';
+import { visibleAccountFilter } from '@/lib/accountStatus';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,11 +25,13 @@ export default async function FollowersPage() {
         );
     }
 
+    const now = new Date();
     const [followers, pendingRequests, followerCount, pendingRequestCount] = await Promise.all([
         prisma.follow.findMany({
             where: {
                 followingId: userId,
                 acceptedAt: { not: null },
+                follower: visibleAccountFilter(now),
             },
             select: {
                 id: true,
@@ -50,6 +53,7 @@ export default async function FollowersPage() {
             where: {
                 followingId: userId,
                 acceptedAt: null,
+                follower: visibleAccountFilter(now),
             },
             select: {
                 id: true,
@@ -71,12 +75,14 @@ export default async function FollowersPage() {
             where: {
                 followingId: userId,
                 acceptedAt: { not: null },
+                follower: visibleAccountFilter(now),
             },
         }),
         prisma.follow.count({
             where: {
                 followingId: userId,
                 acceptedAt: null,
+                follower: visibleAccountFilter(now),
             },
         }),
     ]);
