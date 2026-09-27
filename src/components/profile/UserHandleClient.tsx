@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import HashtagText from '@/components/shared/HashtagText';
 import { formatPostTime } from '@/lib/formatTime';
-import { REPORT_REASONS, type ReportReasonValue } from '@/lib/reportReasons';
+import { promptForReport, submitReport } from '@/lib/reportClient';
 
 type ProfilePost = {
     id: string;
@@ -223,60 +223,14 @@ export default function UserHandleClient() {
 
     const reportUser = async () => {
         if (!profile?.viewerId || !profile.user.id || reportingUser) return;
-        const reasonGuide = REPORT_REASONS.map((reason, index) => `${index + 1}. ${reason.label}`).join('\n');
-        const selected = window.prompt(`通報理由を番号で選んでください。\n${reasonGuide}`);
-        if (selected === null) return;
-        const normalizedSelection = selected.trim();
-        if (!/^\d+$/.test(normalizedSelection)) {
-            alert('通報理由の番号が正しくありません。');
-            return;
-        }
-        const selectedIndex = Number(normalizedSelection) - 1;
-        const selectedReason = REPORT_REASONS[selectedIndex];
-        if (!selectedReason) {
-            alert('通報理由の番号が正しくありません。');
-            return;
-        }
-        const reason: ReportReasonValue = selectedReason.value;
-        const detail = window.prompt(
-            reason === 'OTHER'
-                ? '「その他」の場合は、通報理由を10〜500文字で入力してください。'
-                : '必要であれば詳細を入力してください（500文字以内・空欄可）。',
-        );
-        if (detail === null) return;
-        const normalizedDetail = detail.trim();
-        const detailLength = Array.from(normalizedDetail).length;
-        if (detailLength > 500) {
-            alert('通報理由は500文字以内で入力してください。');
-            return;
-        }
-        if (reason === 'OTHER' && detailLength < 10) {
-            alert('「その他」の場合は、通報理由を10文字以上入力してください。');
-            return;
-        }
-        const boundedDetail = normalizedDetail;
+
+        const report = promptForReport();
+        if (!report) return;
 
         setReportingUser(true);
         try {
-            const res = await fetch('/api/report', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ targetUserId: profile.user.id, reason, detail: boundedDetail }),
-            });
-            if (!res.ok) {
-                let message = '通報に失敗しました。';
-                try {
-                    const payload = await res.json();
-                    if (payload?.error) message = payload.error;
-                } catch {
-                    // ignore
-                }
-                alert(message);
-                return;
-            }
-            alert('通報を受け付けました。');
-        } catch {
-            alert('通信エラーのため通報を送信できませんでした。');
+            const result = await submitReport({ targetUserId: profile.user.id }, report);
+            window.alert(result.message);
         } finally {
             setReportingUser(false);
         }
