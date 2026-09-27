@@ -101,16 +101,16 @@
 | NEXT-005 | Reply / Quote 削除後に validate / lint / test / typecheck / build | P0 | DONE |
 | NEXT-006 | 最新 Preview branch を Vercel Preview に同期 | P0 | TODO |
 | NEXT-007 | Preview DB migration / seed / smoke test | P0 | TODO |
-| NEXT-008 | Playwright E2E 基盤導入 | P0 | IN PROGRESS |
-| NEXT-009 | 登録→確認→ログイン E2E | P0 | IN PROGRESS |
-| NEXT-010 | private follow approval E2E | P0 | IN PROGRESS |
-| NEXT-011 | block / mute E2E | P0 | IN PROGRESS |
-| NEXT-012 | 投稿 / リアクション / bookmark / 削除 E2E | P0 | IN PROGRESS |
-| NEXT-013 | 通報→moderation→警告 E2E | P0 | IN PROGRESS |
-| NEXT-014 | 警告→異議申立て→審査 E2E | P0 | IN PROGRESS |
-| NEXT-015 | ADMIN role / status change E2E | P0 | IN PROGRESS |
-| NEXT-016 | staff TOTP / recovery code E2E | P0 | IN PROGRESS |
-| NEXT-017 | session revoke E2E | P0 | IN PROGRESS |
+| NEXT-008 | Playwright E2E 基盤導入 | P0 | DONE |
+| NEXT-009 | 登録→確認→ログイン E2E | P0 | DONE |
+| NEXT-010 | private follow approval E2E | P0 | DONE |
+| NEXT-011 | block / mute E2E | P0 | DONE |
+| NEXT-012 | 投稿 / リアクション / bookmark / 削除 E2E | P0 | DONE |
+| NEXT-013 | 通報→moderation→警告 E2E | P0 | DONE |
+| NEXT-014 | 警告→異議申立て→審査 E2E | P0 | DONE |
+| NEXT-015 | ADMIN role / status change E2E | P0 | DONE |
+| NEXT-016 | staff TOTP / recovery code E2E | P0 | DONE |
+| NEXT-017 | session revoke E2E | P0 | DONE |
 | NEXT-018 | 心理検査データのアクセス権仕様を明文化 | P0 | DONE |
 | NEXT-019 | 心理検査データを管理画面から原則参照不可にする確認 / 修正 | P0 | DONE |
 | NEXT-020 | アカウント削除 | P1 | TODO |
@@ -273,4 +273,22 @@ GitHub Actions `Security integration CI` run 36334031017 で最終確認済み�
 
 ### バッチ3検証
 
-通常CIとPlaywright E2Eの最新runが成功した時点で NEXT-008〜017 を DONE に更新する。
+検証commit: `0bdb167cd1627d0ddee48d8ab398cdc687e97cc7`
+
+- Security integration CI run `36340956117`: SUCCESS
+  - Prisma validate / generate: SUCCESS
+  - lint: SUCCESS
+  - unit tests: 106 / 106 PASS
+  - TypeScript: SUCCESS
+  - Next.js production build: SUCCESS
+- CoCo E2E run `36340956049`: SUCCESS
+  - Playwright: 14 / 14 PASS
+  - 登録→メール確認→ログイン、パスワード変更、session revoke
+  - private follow approval、block / mute
+  - 投稿 / reaction / bookmark / delete、画像alt text
+  - report→moderation→warning→appeal→review
+  - ADMIN role / status change
+  - staff TOTP / recovery code
+  - account export / accessibility
+
+以上をもって NEXT-008〜017 を DONE とする。
