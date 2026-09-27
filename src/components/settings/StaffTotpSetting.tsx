@@ -14,6 +14,8 @@ function Message({ state }: { state: TotpSetupState }) {
   if (!state?.message) return null;
   return (
     <div
+      role={state.ok ? 'status' : 'alert'}
+      aria-live="polite"
       className={
         'mt-3 rounded-md px-3 py-2 text-sm ' +
         (state.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')
@@ -31,23 +33,23 @@ export default function StaffTotpSetting({
   enabled: boolean;
   unusedRecoveryCodeCount: number;
 }) {
-  const [setupState, setupAction] = useActionState<TotpSetupState, FormData>(
+  const [setupState, setupAction, setupPending] = useActionState<TotpSetupState, FormData>(
     startStaffTotpSetup,
     undefined,
   );
-  const [enableState, enableAction] = useActionState<TotpSetupState, FormData>(
+  const [enableState, enableAction, enablePending] = useActionState<TotpSetupState, FormData>(
     enableStaffTotp,
     undefined,
   );
-  const [recoveryState, recoveryAction] = useActionState<TotpSetupState, FormData>(
+  const [recoveryState, recoveryAction, recoveryPending] = useActionState<TotpSetupState, FormData>(
     regenerateStaffRecoveryCodes,
     undefined,
   );
-  const [recoveryResetState, recoveryResetAction] = useActionState<TotpSetupState, FormData>(
+  const [recoveryResetState, recoveryResetAction, recoveryResetPending] = useActionState<TotpSetupState, FormData>(
     recoverStaffTotpWithRecoveryCode,
     undefined,
   );
-  const [disableState, disableAction] = useActionState<TotpSetupState, FormData>(
+  const [disableState, disableAction, disablePending] = useActionState<TotpSetupState, FormData>(
     disableStaffTotp,
     undefined,
   );
@@ -125,8 +127,11 @@ export default function StaffTotpSetting({
                 className="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
               />
             </label>
-            <button className="mt-3 rounded-full bg-black px-4 py-2 text-sm font-semibold text-white">
-              2段階認証の登録を開始
+            <button
+              disabled={setupPending}
+              className="mt-3 rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {setupPending ? '処理中…' : '2段階認証の登録を開始'}
             </button>
             <Message state={setupState} />
           </form>
@@ -181,8 +186,11 @@ export default function StaffTotpSetting({
                   />
                 </label>
                 <div className="sm:col-span-2">
-                  <button className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white">
-                    コードを確認して有効化
+                  <button
+                    disabled={enablePending}
+                    className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {enablePending ? '確認中…' : 'コードを確認して有効化'}
                   </button>
                   <Message state={enableState} />
                 </div>
@@ -194,7 +202,15 @@ export default function StaffTotpSetting({
 
       {enabled && (
         <>
-          <form action={recoveryResetAction} className="mt-4 rounded-md border border-amber-200 bg-amber-50/60 p-3">
+          <form
+            action={recoveryResetAction}
+            onSubmit={(event) => {
+              if (!window.confirm('認証アプリを再登録しますか？古い認証アプリと残りのリカバリーコードは無効になります。')) {
+                event.preventDefault();
+              }
+            }}
+            className="mt-4 rounded-md border border-amber-200 bg-amber-50/60 p-3"
+          >
             <div className="text-sm font-semibold text-zinc-900">認証アプリを使えない場合</div>
             <p className="mt-1 text-xs text-zinc-600">
               現在のパスワードと未使用のリカバリーコードで、認証アプリを再登録できます。開始すると古い認証アプリと残りのリカバリーコードは無効になります。
@@ -219,13 +235,24 @@ export default function StaffTotpSetting({
                 className="rounded-md border border-border bg-white px-3 py-2 text-sm"
               />
             </div>
-            <button className="mt-3 rounded-full border border-amber-400 px-4 py-2 text-sm font-semibold text-amber-900">
-              認証アプリを再登録
+            <button
+              disabled={recoveryResetPending}
+              className="mt-3 rounded-full border border-amber-400 px-4 py-2 text-sm font-semibold text-amber-900 disabled:opacity-50"
+            >
+              {recoveryResetPending ? '処理中…' : '認証アプリを再登録'}
             </button>
             <Message state={recoveryResetState} />
           </form>
 
-          <form action={recoveryAction} className="mt-4 rounded-md border border-border bg-zinc-50 p-3">
+          <form
+            action={recoveryAction}
+            onSubmit={(event) => {
+              if (!window.confirm('リカバリーコードを再発行しますか？現在の未使用コードはすべて無効になります。')) {
+                event.preventDefault();
+              }
+            }}
+            className="mt-4 rounded-md border border-border bg-zinc-50 p-3"
+          >
             <div className="text-sm font-semibold text-zinc-900">リカバリーコードを再発行</div>
             <p className="mt-1 text-xs text-zinc-500">
               再発行すると、現在残っている古いリカバリーコードはすべて無効になります。
@@ -252,13 +279,24 @@ export default function StaffTotpSetting({
                 className="rounded-md border border-border bg-white px-3 py-2 text-sm"
               />
             </div>
-            <button className="mt-3 rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-800">
-              新しい10個のコードを発行
+            <button
+              disabled={recoveryPending}
+              className="mt-3 rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-800 disabled:opacity-50"
+            >
+              {recoveryPending ? '発行中…' : '新しい10個のコードを発行'}
             </button>
             <Message state={recoveryState} />
           </form>
 
-          <form action={disableAction} className="mt-4 rounded-md border border-red-100 bg-red-50/50 p-3">
+          <form
+            action={disableAction}
+            onSubmit={(event) => {
+              if (!window.confirm('2段階認証を解除しますか？リカバリーコードもすべて無効になります。')) {
+                event.preventDefault();
+              }
+            }}
+            className="mt-4 rounded-md border border-red-100 bg-red-50/50 p-3"
+          >
           <div className="text-sm font-semibold text-zinc-900">2段階認証を解除</div>
           <p className="mt-1 text-xs text-zinc-500">
             解除には現在のパスワードと認証アプリの新しい6桁コードが必要です。
@@ -285,8 +323,11 @@ export default function StaffTotpSetting({
               className="rounded-md border border-border bg-white px-3 py-2 text-sm"
             />
           </div>
-          <button className="mt-3 rounded-full border border-red-300 px-4 py-2 text-sm font-semibold text-red-700">
-            2段階認証を解除
+          <button
+            disabled={disablePending}
+            className="mt-3 rounded-full border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
+          >
+            {disablePending ? '解除中…' : '2段階認証を解除'}
           </button>
           <Message state={disableState} />
         </form>
