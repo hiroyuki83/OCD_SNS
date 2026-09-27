@@ -5,6 +5,7 @@ import { Role } from '@prisma/client';
 import { auth, signOut } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
+import { parsePasswordChangeInput } from '@/lib/passwordInput';
 import { generateStaffRecoveryCodes, hashRecoveryCode, normalizeRecoveryCode } from '@/lib/recoveryCodes';
 import {
   buildTotpUri,
@@ -554,4 +555,85 @@ export async function revokeAllSessions(
 
   await signOut({ redirectTo: '/login' });
   return { ok: true, message: 'すべての端末からログアウトしました。' };
+}
+
+
+export type PasswordChangeState =
+  | {
+      ok?: boolean;
+      message?: string;
+    }
+  | undefined;
+
+export async function changePassword(
+  _prevState: PasswordChangeState,
+  formData: FormData,
+): Promise<PasswordChangeState> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { message: 'ログインしてください。' };
+
+  if (!(await rateLimit(`password-change:${userId}`, 5, 60 * 60 * 1000))) {
+    return { message: '操作が多すぎます。しばらくしてから再度お試しください。' };
+  }
+
+  const parsed = parsePasswordChangeInput(
+    formData.get('currentPassword'),
+    formData.get('newPassword'),
+    formData.get('confirmPassword'),
+  );
+  if (!parsed.ok) return { message: parsed.message };
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      password: true,
+      sessionVersion: true,
+    },
+  });
+  if (!user || !(await bcrypt.compare(parsed.currentPassword, user.password))) {
+    return { message: '現在のパスワードを確認できませんでした。' };
+  }
+
+  if (await bcrypt.compare(parsed.newPassword, user.password)) {
+    return { message: '現在とは異なるパスワードを設定してください。' };
+  }
+
+  const passwordHash = await bcrypt.hash(parsed.newPassword, 10);
+  const changedAt = new Date();
+
+  const changed = await prisma.$transaction(async (tx) => {
+    const updated = await tx.user.updateMany({
+      where: {
+        id: userId,
+        password: user.password,
+        sessionVersion: user.sessionVersion,
+      },
+      data: {
+        password: passwordHash,
+        sessionVersion: { increment: 1 },
+      },
+    });
+    if (updated.count !== 1) return false;
+
+    await tx.auditLog.create({
+      data: {
+        action: 'USER_PASSWORD_CHANGED',
+        actorUserId: userId,
+        targetUserId: userId,
+        meta: {
+          changedAt,
+          sessionsRevoked: true,
+        },
+      },
+    });
+    return true;
+  });
+
+  if (!changed) {
+    return { message: 'アカウント状態が変更されました。画面を更新して再度お試しください。' };
+  }
+
+  await signOut({ redirectTo: '/login' });
+  return { ok: true, message: 'パスワードを変更しました。もう一度ログインしてください。' };
 }
