@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { accountExportHeaders } from '@/lib/accountExport';
+import { logOperationalError } from '@/lib/operationalError';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,7 @@ export async function GET() {
     });
   }
 
+  try {
   const [
     user,
     posts,
@@ -221,4 +223,20 @@ export async function GET() {
     status: 200,
     headers: accountExportHeaders(exportedAt),
   });
+  } catch (error) {
+    const incident = logOperationalError('ACCOUNT_EXPORT_FAILED', error);
+    return new Response(
+      JSON.stringify({
+        error: 'データのエクスポートに失敗しました。',
+        incidentId: incident.incidentId,
+      }),
+      {
+        status: 500,
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'private, no-store, max-age=0',
+        },
+      },
+    );
+  }
 }
