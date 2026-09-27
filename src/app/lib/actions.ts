@@ -751,6 +751,18 @@ export async function unmuteUser(targetUserId: string) {
     revalidatePath('/profile/mutes');
 }
 
+export type ProfileState =
+    | {
+          message: string;
+      }
+    | undefined;
+
+const ProfileSchema = z.object({
+    name: z.string().max(50, '名前は50文字以内です。').nullable(),
+    bio: z.string().max(500, '自己紹介は500文字以内です。').nullable(),
+    autoHashtag: z.string().max(100, '自動ハッシュタグは100文字以内です。').nullable(),
+});
+
 export async function updateProfile(
     _prevState: ProfileState,
     formData: FormData,
