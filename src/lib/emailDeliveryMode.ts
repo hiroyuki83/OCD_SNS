@@ -1,4 +1,5 @@
 export type EmailModeEnv = {
+  [key: string]: string | undefined;
   VERCEL_ENV?: string;
   E2E_EMAIL_MODE?: string;
   E2E_EMAIL_OUTBOX_FILE?: string;
