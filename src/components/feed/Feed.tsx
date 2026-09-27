@@ -286,7 +286,7 @@ export default function Feed({
                                 <a
                                     href={announcement.href}
                                     target="_blank"
-                                    rel="noreferrer"
+                                    rel="noopener noreferrer"
                                     className="mt-2 inline-block text-sm font-semibold text-[#1d9bf0] hover:underline"
                                 >
                                     詳しく見る
