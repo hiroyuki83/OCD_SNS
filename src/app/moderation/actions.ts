@@ -6,6 +6,7 @@ import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
 import { rateLimit } from '@/lib/rateLimit';
 import { visibleAccountFilter } from '@/lib/accountStatus';
+import { parseTokyoDateTimeLocal } from '@/lib/tokyoDateTime';
 
 function normalizeModerationText(value: string, maxLength: number) {
   return value
@@ -39,10 +40,12 @@ function optionalText(formData: FormData, key: string) {
 }
 
 function optionalDate(formData: FormData, key: string) {
-  const value = optionalText(formData, key);
-  if (!value || value.length > 64) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  const rawValue = formData.get(key);
+  if (typeof rawValue !== 'string') return null;
+  const value = rawValue.trim();
+  if (!value) return null;
+  if (value.length > 64) return null;
+  return parseTokyoDateTimeLocal(value);
 }
 
 async function requireModerator() {
