@@ -2,18 +2,18 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
-import { validateJsonMutationRequest } from '@/lib/requestSecurity';
+import { parseJsonMutationRequest } from '@/lib/requestSecurity';
 
 const MUTE_ACTIONS = ['mute', 'unmute'] as const;
 type MuteAction = (typeof MUTE_ACTIONS)[number];
 
 export async function POST(request: Request) {
-    const requestCheck = validateJsonMutationRequest(request);
-    if (!requestCheck.ok) {
-        return NextResponse.json({ ok: false, error: requestCheck.error }, { status: requestCheck.status });
-    }
+const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+if (!parsedRequest.ok) {
+    return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
+}
 
-    const body = await request.json().catch(() => ({}));
+    const body = parsedRequest.data;
     const targetUserId = typeof body?.targetUserId === 'string' ? body.targetUserId.trim() : '';
     const action = typeof body?.action === 'string' ? body.action : '';
     if (!targetUserId || targetUserId.length > 128 || !MUTE_ACTIONS.includes(action as MuteAction)) {
