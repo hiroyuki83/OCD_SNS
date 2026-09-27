@@ -42,6 +42,7 @@ test.describe.serial('authentication lifecycle', () => {
     await page.getByRole('button', { name: 'ログイン', exact: true }).click();
     await expect(page.locator('#main-content').getByRole('alert')).toContainText('確認してください');
 
+    await page.getByLabel('メールアドレス').fill(EMAIL);
     await page.getByLabel('パスワード').fill(NEW_PASSWORD);
     await page.getByRole('button', { name: 'ログイン', exact: true }).click();
     await expect(page).toHaveURL(/\/$/);
