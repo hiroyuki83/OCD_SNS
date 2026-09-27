@@ -20,7 +20,7 @@ export default function PaginationLinks({
         <Link
           href={previousHref}
           rel="prev"
-          className="rounded-full border border-border px-4 py-2 text-zinc-700"
+          className="rounded-full border border-border px-4 py-2 text-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#1d9bf0]"
         >
           前へ
         </Link>
