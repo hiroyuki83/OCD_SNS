@@ -32,8 +32,9 @@ function notificationsHref(filter: NotificationFilter, page = 1) {
 export default async function NotificationsPage({
     searchParams,
 }: {
-    searchParams?: { filter?: string; page?: string };
+    searchParams?: Promise<{ filter?: string; page?: string }>;
 }) {
+    const resolvedSearchParams = await searchParams;
     const session = await auth();
     const userId = session?.user?.id;
 
@@ -69,7 +70,7 @@ export default async function NotificationsPage({
         ],
     };
 
-    const filter = selectedFilter(searchParams?.filter);
+    const filter = selectedFilter(resolvedSearchParams?.filter);
     const notificationWhere: Prisma.NotificationWhereInput = {
         userId: resolvedUserId,
         actor: notificationActorFilter,
@@ -101,7 +102,7 @@ export default async function NotificationsPage({
               ? warningCount
               : notificationCount + warningCount;
     const pagination = clampPage(
-        parsePageNumber(searchParams?.page),
+        parsePageNumber(resolvedSearchParams?.page),
         filteredCount,
         50,
     );
