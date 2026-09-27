@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { AccountStatus, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { isSuspensionActive } from '@/lib/accountStatus';
 
@@ -160,22 +160,4 @@ export async function mutateFollowRelation(
   }
 
   return { ok: false, reason: 'CONFLICT' };
-}
-
-export async function activateExpiredSuspension(userId: string) {
-  const now = new Date();
-  const changed = await prisma.user.updateMany({
-    where: {
-      id: userId,
-      status: AccountStatus.SUSPENDED,
-      suspendedUntil: { lte: now },
-    },
-    data: {
-      status: AccountStatus.ACTIVE,
-      suspendedUntil: null,
-      restrictionUntil: null,
-      restrictionReason: null,
-    },
-  });
-  return changed.count === 1;
 }
