@@ -33,9 +33,11 @@ const formatDate = (value: string) => {
 export default function AdminNotesPanel({
   userId,
   notes,
+  totalCount,
 }: {
   userId: string;
   notes: AdminNote[];
+  totalCount: number;
 }) {
   const [state, dispatch] = useActionState<AdminNoteState, FormData>(createAdminNote, undefined);
 
@@ -45,6 +47,11 @@ export default function AdminNotesPanel({
         <h2 className="text-base font-semibold text-zinc-900">管理者メモ</h2>
         <p className="mt-1 text-xs text-zinc-500">
           運営だけが見られる内部メモです。ユーザーには表示されません。
+          {totalCount > notes.length
+            ? ` 最新${notes.length}件 / 全${totalCount}件を表示しています。`
+            : totalCount > 0
+              ? ` 全${totalCount}件です。`
+              : ''}
         </p>
       </div>
 
