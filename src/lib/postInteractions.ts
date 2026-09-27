@@ -124,7 +124,8 @@ async function toggleBookmark(
 ): Promise<InteractionState> {
   const removed = await tx.bookmark.deleteMany({ where: { userId, postId } });
   if (removed.count > 0) {
-    return { ok: true, active: false };
+    const count = await tx.bookmark.count({ where: { postId } });
+    return { ok: true, active: false, count };
   }
 
   await tx.bookmark.createMany({
@@ -194,6 +195,17 @@ async function runOnce(
 ): Promise<InteractionState> {
   return prisma.$transaction(
     async (tx) => {
+      const viewer = await tx.user.findUnique({
+        where: { id: userId },
+        select: { status: true, suspendedUntil: true },
+      });
+      if (
+        !viewer ||
+        isSuspensionActive(viewer.status, viewer.suspendedUntil)
+      ) {
+        return { ok: false as const, reason: 'NOT_FOUND' as const };
+      }
+
       const post = await getAccessiblePost(tx, userId, postId);
       if (!post) return { ok: false as const, reason: 'NOT_FOUND' as const };
 
