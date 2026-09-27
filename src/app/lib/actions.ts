@@ -18,6 +18,8 @@ import { getAccessiblePostForViewer, usersAreBlocked } from '@/lib/postAccess';
 import { validateImageUpload } from '@/lib/uploadSecurity';
 import { isSuspensionActive } from '@/lib/accountStatus';
 import { normalizeAutoHashtag, normalizeProfileBio, normalizeProfileName } from '@/lib/profileInput';
+import { deleteManagedBlob, deleteManagedBlobs } from '@/lib/blobCleanup';
+import { mutateFollowRelation } from '@/lib/userRelations';
 
 const RegisterSchema = z.object({
     name: z.string().trim().min(1, '名前は必須です').max(50, '名前は50文字以内です'),
@@ -566,54 +568,12 @@ export async function followUser(targetUserId: string) {
     }
     if (!userId || userId === targetUserId) return;
     if (!(await rateLimit(`follow-action:${userId}`, 60, 60 * 1000))) return;
-    const targetUser = await prisma.user.findUnique({
-        where: { id: targetUserId },
-        select: { id: true, isPrivate: true, status: true, suspendedUntil: true },
-    });
-    if (
-        !targetUser ||
-        isSuspensionActive(targetUser.status, targetUser.suspendedUntil) ||
-        (await usersAreBlocked(userId, targetUserId))
-    ) return;
 
-    const createdFollow = await prisma.follow.createMany({
-        data: [{
-            followerId: userId,
-            followingId: targetUserId,
-            acceptedAt: targetUser.isPrivate ? null : new Date(),
-        }],
-        skipDuplicates: true,
-    });
-
-    if (!targetUser.isPrivate) {
-        await prisma.follow.updateMany({
-            where: {
-                followerId: userId,
-                followingId: targetUserId,
-                acceptedAt: null,
-            },
-            data: { acceptedAt: new Date() },
-        });
-    }
-
-    if (await usersAreBlocked(userId, targetUserId)) {
-        await prisma.follow.deleteMany({
-            where: { followerId: userId, followingId: targetUserId },
-        });
-        return;
-    }
-
-    if (createdFollow.count === 1) {
-        await prisma.notification.create({
-            data: {
-                type: 'FOLLOW',
-                userId: targetUserId,
-                actorId: userId,
-            },
-        });
-    }
+    const result = await mutateFollowRelation(userId, targetUserId, 'follow');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
     revalidatePath('/profile/following');
     revalidatePath('/profile/followers');
     revalidatePath('/notifications');
@@ -634,20 +594,8 @@ export async function unfollowUser(targetUserId: string) {
     if (!userId || userId === targetUserId) return;
     if (!(await rateLimit(`follow-action:${userId}`, 60, 60 * 1000))) return;
 
-    await prisma.follow.deleteMany({
-        where: {
-            followerId: userId,
-            followingId: targetUserId,
-        },
-    });
-
-    await prisma.notification.deleteMany({
-        where: {
-            type: 'FOLLOW',
-            userId: targetUserId,
-            actorId: userId,
-        },
-    });
+    const result = await mutateFollowRelation(userId, targetUserId, 'unfollow');
+    if (!result.ok) return;
 
     revalidatePath('/');
     revalidatePath('/profile');
