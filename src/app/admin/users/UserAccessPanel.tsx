@@ -167,9 +167,10 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
         )}
       </div>
 
-      <label className="mb-4 block max-w-xl text-sm font-medium text-zinc-700">
+      <label htmlFor="admin-current-password" className="mb-4 block max-w-xl text-sm font-medium text-zinc-700">
         操作確認用のADMINパスワード
         <input
+          id="admin-current-password"
           type="password"
           value={adminPassword}
           onChange={(event) => setAdminPassword(event.target.value)}
@@ -186,9 +187,10 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-md bg-zinc-50 p-3">
-          <label className="block text-sm font-medium text-zinc-700">
+          <label htmlFor="admin-user-role" className="block text-sm font-medium text-zinc-700">
             権限
             <select
+              id="admin-user-role"
               className="mt-2 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
               value={selectedRole}
               onChange={(event) => setSelectedRole(event.target.value as Role)}
@@ -212,9 +214,10 @@ export default function UserAccessPanel({ user }: UserAccessPanelProps) {
         </div>
 
         <div className="rounded-md bg-zinc-50 p-3">
-          <label className="block text-sm font-medium text-zinc-700">
+          <label htmlFor="admin-user-status" className="block text-sm font-medium text-zinc-700">
             アカウント状態
             <select
+              id="admin-user-status"
               className="mt-2 w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
               value={selectedStatus}
               onChange={(event) => setSelectedStatus(event.target.value as AccountStatus)}
