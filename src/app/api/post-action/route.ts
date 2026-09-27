@@ -54,7 +54,12 @@ export async function POST(request: Request) {
         }
         await prisma.user.update({
             where: { id: userId },
-            data: { status: AccountStatus.ACTIVE, suspendedUntil: null, restrictionReason: null },
+            data: {
+                status: AccountStatus.ACTIVE,
+                suspendedUntil: null,
+                restrictionUntil: null,
+                restrictionReason: null,
+            },
         });
     }
     if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) {
