@@ -38,11 +38,12 @@ function appealHref(
 export default async function AppealListPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; q?: string; page?: string };
+  searchParams?: Promise<{ status?: string; q?: string; page?: string }>;
 }) {
   const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
-  const statusFilter = selectedStatus(searchParams?.status);
-  const normalizedQuery = normalizeSearchQuery(searchParams?.q ?? '');
+  const resolvedSearchParams = await searchParams;
+  const statusFilter = selectedStatus(resolvedSearchParams?.status);
+  const normalizedQuery = normalizeSearchQuery(resolvedSearchParams?.q ?? '');
   const query = normalizedQuery.ok ? normalizedQuery.value : '';
   const baseFilters: Prisma.WarningAppealWhereInput[] = [];
 
@@ -87,7 +88,7 @@ export default async function AppealListPage({
     }),
   ]);
   const pagination = clampPage(
-    parsePageNumber(searchParams?.page),
+    parsePageNumber(resolvedSearchParams?.page),
     appealCount,
     50,
   );
