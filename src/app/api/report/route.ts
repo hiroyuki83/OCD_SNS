@@ -37,10 +37,10 @@ async function resolveViewerId() {
 }
 
 export async function POST(request: NextRequest) {
-const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
-if (!parsedRequest.ok) {
+  const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+  if (!parsedRequest.ok) {
     return NextResponse.json({ error: parsedRequest.error }, { status: parsedRequest.status });
-}
+  }
 
   const reporterId = await resolveViewerId();
   if (!reporterId) {
