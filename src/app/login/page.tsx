@@ -1,10 +1,11 @@
 ﻿'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { Suspense, useActionState } from 'react';
 import { authenticate } from '@/app/lib/actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useFormStatus } from 'react-dom';
+import { useSearchParams } from 'next/navigation';
 
 function SubmitButton() {
     const { pending } = useFormStatus();
@@ -16,13 +17,10 @@ function SubmitButton() {
     );
 }
 
-export default function LoginPage() {
+function LoginContent() {
+    const searchParams = useSearchParams();
     const [errorMessage, dispatch] = useActionState(authenticate, undefined);
-    const [accountDeleted, setAccountDeleted] = useState(false);
-
-    useEffect(() => {
-        setAccountDeleted(new URLSearchParams(window.location.search).get('account') === 'deleted');
-    }, []);
+    const accountDeleted = searchParams.get('account') === 'deleted';
 
     return (
         <div className="flex min-h-screen justify-center items-center bg-white text-black">
@@ -126,5 +124,14 @@ export default function LoginPage() {
                 </p>
             </div>
         </div>
+    );
+}
+
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-zinc-500">読み込み中...</div>}>
+            <LoginContent />
+        </Suspense>
     );
 }
