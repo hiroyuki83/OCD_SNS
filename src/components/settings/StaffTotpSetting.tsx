@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import {
   disableStaffTotp,
   enableStaffTotp,
@@ -53,17 +53,55 @@ export default function StaffTotpSetting({
     disableStaffTotp,
     undefined,
   );
-  const displayedRecoveryCodes =
-    enableState?.recoveryCodes ??
-    (recoveryResetState?.secret ? undefined : recoveryState?.recoveryCodes);
-  const enrollmentSecret = enableState?.ok
-    ? undefined
-    : recoveryResetState?.secret ?? setupState?.secret;
-  const enrollmentUri = enableState?.ok
-    ? undefined
-    : recoveryResetState?.uri ?? setupState?.uri;
+  const [phase, setPhase] = useState<'initial' | 'enrolling' | 'recovering' | 'enabled'>('initial');
+  const [displayedRecoveryCodes, setDisplayedRecoveryCodes] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (setupState?.secret) {
+      setPhase('enrolling');
+      setDisplayedRecoveryCodes(null);
+    }
+  }, [setupState]);
+
+  useEffect(() => {
+    if (recoveryResetState?.secret) {
+      setPhase('recovering');
+      setDisplayedRecoveryCodes(null);
+    }
+  }, [recoveryResetState]);
+
+  useEffect(() => {
+    if (enableState?.ok && enableState.recoveryCodes?.length) {
+      setPhase('enabled');
+      setDisplayedRecoveryCodes(enableState.recoveryCodes);
+    }
+  }, [enableState]);
+
+  useEffect(() => {
+    if (recoveryState?.ok && recoveryState.recoveryCodes?.length) {
+      setPhase('enabled');
+      setDisplayedRecoveryCodes(recoveryState.recoveryCodes);
+    }
+  }, [recoveryState]);
+
+  const enrollmentSecret =
+    phase === 'recovering'
+      ? recoveryResetState?.secret
+      : phase === 'enrolling'
+        ? setupState?.secret
+        : undefined;
+  const enrollmentUri =
+    phase === 'recovering'
+      ? recoveryResetState?.uri
+      : phase === 'enrolling'
+        ? setupState?.uri
+        : undefined;
   const effectiveEnabled =
-    Boolean(enableState?.ok) || (recoveryResetState?.secret ? false : enabled);
+    phase === 'enabled'
+      ? true
+      : phase === 'enrolling' || phase === 'recovering'
+        ? false
+        : enabled;
   const effectiveRecoveryCodeCount =
     displayedRecoveryCodes?.length ?? (effectiveEnabled ? unusedRecoveryCodeCount : 0);
 
