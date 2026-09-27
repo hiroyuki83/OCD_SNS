@@ -3,10 +3,16 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { unfollowUser } from '@/app/lib/actions';
 import { visibleAccountFilter } from '@/lib/accountStatus';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
 
-export default async function FollowingPage() {
+export default async function FollowingPage({
+    searchParams,
+}: {
+    searchParams?: { page?: string };
+}) {
     const session = await auth();
     let userId = session?.user?.id ?? null;
     if (!userId && session?.user?.email) {
@@ -26,12 +32,32 @@ export default async function FollowingPage() {
     }
 
     const now = new Date();
-    const [following, acceptedFollowingCount, pendingFollowingCount] = await Promise.all([
-        prisma.follow.findMany({
-        where: {
-            followerId: userId,
-            following: visibleAccountFilter(now),
-        },
+    const visibleFollowingWhere = {
+        followerId: userId,
+        following: visibleAccountFilter(now),
+    };
+    const [acceptedFollowingCount, pendingFollowingCount] = await Promise.all([
+        prisma.follow.count({
+            where: {
+                ...visibleFollowingWhere,
+                acceptedAt: { not: null },
+            },
+        }),
+        prisma.follow.count({
+            where: {
+                ...visibleFollowingWhere,
+                acceptedAt: null,
+            },
+        }),
+    ]);
+    const totalFollowingCount = acceptedFollowingCount + pendingFollowingCount;
+    const pagination = clampPage(
+        parsePageNumber(searchParams?.page),
+        totalFollowingCount,
+        50,
+    );
+    const following = await prisma.follow.findMany({
+        where: visibleFollowingWhere,
         select: {
             id: true,
             createdAt: true,
@@ -47,24 +73,10 @@ export default async function FollowingPage() {
                 },
             },
         },
-        orderBy: { createdAt: 'desc' },
-        take: 200,
-        }),
-        prisma.follow.count({
-            where: {
-                followerId: userId,
-                acceptedAt: { not: null },
-                following: visibleAccountFilter(now),
-            },
-        }),
-        prisma.follow.count({
-            where: {
-                followerId: userId,
-                acceptedAt: null,
-                following: visibleAccountFilter(now),
-            },
-        }),
-    ]);
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: pagination.skip,
+        take: pagination.pageSize,
+    });
 
     return (
         <div className="min-h-screen border-r border-border">
@@ -78,9 +90,9 @@ export default async function FollowingPage() {
                 </Link>
             </div>
             <div className="flex flex-col">
-                {acceptedFollowingCount + pendingFollowingCount > following.length && (
+                {totalFollowingCount > 0 && (
                     <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
-                        最新200件を表示しています
+                        全{totalFollowingCount}件・{pagination.page}/{pagination.totalPages}ページ
                     </div>
                 )}
                 {following.map((entry) => (
@@ -174,7 +186,23 @@ export default async function FollowingPage() {
                         </div>
                     </div>
                 ))}
-                {acceptedFollowingCount + pendingFollowingCount === 0 && (
+                {totalFollowingCount > 0 && (
+                    <PaginationLinks
+                        page={pagination.page}
+                        totalPages={pagination.totalPages}
+                        previousHref={
+                            pagination.hasPrevious
+                                ? `/profile/following?page=${pagination.page - 1}`
+                                : null
+                        }
+                        nextHref={
+                            pagination.hasNext
+                                ? `/profile/following?page=${pagination.page + 1}`
+                                : null
+                        }
+                    />
+                )}
+                {totalFollowingCount === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">フォロー一覧にユーザーがいません</div>
                 )}
             </div>
