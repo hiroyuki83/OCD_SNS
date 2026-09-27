@@ -5,9 +5,13 @@ on:
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - 'docs/**'
   push:
     branches:
       - security-integration-final-20260926
+    paths-ignore:
+      - 'docs/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
@@ -47,6 +51,7 @@ jobs:
       NEXTAUTH_URL: http://127.0.0.1:3000
       AUTH_URL: http://127.0.0.1:3000
       E2E_EMAIL_MODE: '1'
+      E2E_BLOB_MODE: '1'
       E2E_EMAIL_OUTBOX_FILE: /tmp/coco-e2e-mails.jsonl
     steps:
       - name: Checkout
