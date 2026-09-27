@@ -2,6 +2,8 @@ import { Prisma, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 import { normalizeSearchQuery } from "@/lib/searchInput";
+import PaginationLinks from "@/components/shared/PaginationLinks";
+import { clampPage, parsePageNumber } from "@/lib/pagination";
 
 
 export const dynamic = 'force-dynamic';
@@ -87,10 +89,7 @@ export default async function AdminAuditPage({
   const normalizedQuery = normalizeSearchQuery(searchParams?.q ?? "");
   const query = normalizedQuery.ok ? normalizedQuery.value : "";
   const actionFilter = selectedAction(searchParams?.action);
-  const rawPage = searchParams?.page ?? "1";
-  const parsedPage = /^\d+$/.test(rawPage) ? Number(rawPage) : 1;
-  const requestedPage =
-    Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const requestedPage = parsePageNumber(searchParams?.page);
   const pageSize = 100;
   const filters: Prisma.AuditLogWhereInput[] = [];
 
@@ -125,23 +124,18 @@ export default async function AdminAuditPage({
     prisma.auditLog.count({ where }),
   ]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredCount / pageSize));
-  const page = Math.min(requestedPage, totalPages);
-  const skip = (page - 1) * pageSize;
+  const pagination = clampPage(requestedPage, filteredCount, pageSize);
 
   const logs = await prisma.auditLog.findMany({
-    orderBy: { createdAt: "desc" },
-    skip,
-    take: pageSize,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: pagination.skip,
+    take: pagination.pageSize,
     where,
     include: {
       actorUser: { select: { id: true, email: true, name: true } },
       targetUser: { select: { id: true, email: true, name: true } },
     },
   });
-
-  const hasPrevious = page > 1;
-  const hasNext = page < totalPages;
 
   const filtersNav = [
     { label: "All", action: null },
@@ -156,7 +150,7 @@ export default async function AdminAuditPage({
           <p className="text-sm text-zinc-500 mt-1">
             {filteredCount === 0
               ? "0件"
-              : `${skip + 1}〜${Math.min(skip + logs.length, filteredCount)}件目を表示`} / 絞り込み ${filteredCount}件 / 全 ${totalCount}件
+              : `${pagination.skip + 1}〜${Math.min(pagination.skip + logs.length, filteredCount)}件目を表示`} / 絞り込み ${filteredCount}件 / 全 ${totalCount}件
           </p>
         </div>
       </div>
@@ -224,33 +218,22 @@ export default async function AdminAuditPage({
         })}
       </div>
 
-      <div className="mb-4 flex items-center justify-between text-sm">
-        <span className="text-zinc-500">
-          {page} / {totalPages} ページ
-        </span>
-        <div className="flex gap-2">
-          {hasPrevious ? (
-            <a
-              href={auditHref(actionFilter, query, page - 1)}
-              className="rounded-full border border-border px-3 py-1 text-zinc-700"
-            >
-              前へ
-            </a>
-          ) : (
-            <span className="rounded-full border border-border px-3 py-1 text-zinc-400">前へ</span>
-          )}
-          {hasNext ? (
-            <a
-              href={auditHref(actionFilter, query, page + 1)}
-              className="rounded-full border border-border px-3 py-1 text-zinc-700"
-            >
-              次へ
-            </a>
-          ) : (
-            <span className="rounded-full border border-border px-3 py-1 text-zinc-400">次へ</span>
-          )}
-        </div>
-      </div>
+      {filteredCount > 0 && (
+        <PaginationLinks
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          previousHref={
+            pagination.hasPrevious
+              ? auditHref(actionFilter, query, pagination.page - 1)
+              : null
+          }
+          nextHref={
+            pagination.hasNext
+              ? auditHref(actionFilter, query, pagination.page + 1)
+              : null
+          }
+        />
+      )}
 
       <div className="border border-border rounded-xl overflow-hidden">
         <div className="grid grid-cols-12 bg-zinc-50 px-4 py-2 text-xs font-semibold text-zinc-500">
