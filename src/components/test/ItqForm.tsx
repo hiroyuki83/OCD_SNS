@@ -113,8 +113,8 @@ export default function ItqForm() {
                 <label className="block text-xs text-zinc-500">
                     簡単にその経験について説明してください。（任意・この文章は保存されません）
                     <textarea
-                        name="eventDescription"
                         rows={3}
+                        maxLength={1000}
                         className="mt-1 w-full rounded-lg bg-zinc-100 border border-zinc-300 p-2 text-sm resize-none"
                     />
                 </label>
@@ -153,7 +153,7 @@ export default function ItqForm() {
                 items={dsoFunctional}
             />
 
-            {state?.message && <div className="text-sm text-zinc-400">{state.message}</div>}
+            {state?.message && <div className="text-sm text-zinc-400" aria-live="polite">{state.message}</div>}
             <SubmitButton />
             <div className="text-xs text-zinc-500 border border-border rounded-2xl p-4">
                 この結果は医学的な診断ではありません。正確な診断や治療については、専門の医療機関にご相談ください。
