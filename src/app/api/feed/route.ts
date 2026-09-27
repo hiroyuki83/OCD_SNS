@@ -18,6 +18,8 @@ export async function GET(request: Request) {
         userId = user?.id ?? null;
     }
 
+    const now = new Date();
+
     const [viewerProfile, followingIds, blockedIds, mutedIds, blockedByIds] = userId
         ? await Promise.all([
               prisma.user.findUnique({
@@ -29,6 +31,7 @@ export async function GET(request: Request) {
                       where: {
                           followerId: userId,
                           acceptedAt: { not: null },
+                          following: visibleAccountFilter(now),
                       },
                       select: { followingId: true },
                   })
@@ -58,7 +61,6 @@ export async function GET(request: Request) {
         ? Array.from(new Set([...blockedIds, ...mutedIds, ...blockedByIds]))
         : [];
 
-    const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     const posts =
@@ -91,15 +93,33 @@ export async function GET(request: Request) {
                   where: {
                       isHidden: false,
                       deletedAt: null,
-                      author: visibleAccountFilter(now),
                       createdAt: { gte: weekAgo },
-                      ...(userId
-                          ? {
-                                authorId: {
-                                    ...(excludedAuthorIds.length > 0 ? { notIn: excludedAuthorIds } : {}),
-                                },
-                            }
+                      ...(userId && excludedAuthorIds.length > 0
+                          ? { authorId: { notIn: excludedAuthorIds } }
                           : {}),
+                      author: userId
+                          ? {
+                                AND: [
+                                    visibleAccountFilter(now),
+                                    {
+                                        OR: [
+                                            { isPrivate: false },
+                                            { id: userId },
+                                            {
+                                                followers: {
+                                                    some: {
+                                                        followerId: userId,
+                                                        acceptedAt: { not: null },
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                ],
+                            }
+                          : {
+                                AND: [visibleAccountFilter(now), { isPrivate: false }],
+                            },
                   },
                   include: {
                       author: {
@@ -114,24 +134,17 @@ export async function GET(request: Request) {
                   orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
               });
 
-    const filtered =
-        tab === 'following'
-            ? posts
-            : userId
-              ? posts.filter((post) => !post.author.isPrivate || followingIds.includes(post.author.id))
-              : posts.filter((post) => !post.author.isPrivate);
-
     const shuffled =
         tab === 'for-you'
             ? (() => {
-                  const copy = [...filtered];
+                  const copy = [...posts];
                   for (let i = copy.length - 1; i > 0; i -= 1) {
                       const j = Math.floor(Math.random() * (i + 1));
                       [copy[i], copy[j]] = [copy[j], copy[i]];
                   }
                   return copy;
               })()
-            : filtered;
+            : posts;
 
     return privateJson({
         viewerId: userId,
