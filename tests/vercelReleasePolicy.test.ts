@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-test('integration Preview deploy is enabled after DB migration while main stays explicit', () => {
+test('Production and schema-changing Preview branches stay gated before explicit release', () => {
   const config = JSON.parse(readFileSync('vercel.json', 'utf8'));
   const enabled = config.git?.deploymentEnabled ?? {};
 
@@ -13,7 +13,12 @@ test('integration Preview deploy is enabled after DB migration while main stays 
   );
   assert.equal(
     enabled['security-integration-final-20260926'],
-    true,
-    'integration Preview deploy is enabled after Preview DB migration is complete',
+    false,
+    'completed integration branch must no longer auto-deploy',
+  );
+  assert.equal(
+    enabled['feature/sanction-records-20260928'],
+    false,
+    'sanction Preview deploy must stay disabled until its DB migration gate succeeds',
   );
 });
