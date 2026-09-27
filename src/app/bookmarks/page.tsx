@@ -14,8 +14,9 @@ export const dynamic = 'force-dynamic';
 export default async function BookmarksPage({
     searchParams,
 }: {
-    searchParams?: { page?: string };
+    searchParams?: Promise<{ page?: string }>;
 }) {
+  const params = await searchParams;
     const session = await auth();
     let userId = session?.user?.id ?? null;
     if (!userId && session?.user?.email) {
@@ -83,7 +84,7 @@ export default async function BookmarksPage({
 
     const bookmarkCount = await prisma.bookmark.count({ where: bookmarkWhere });
     const pagination = clampPage(
-        parsePageNumber(searchParams?.page),
+        parsePageNumber(params?.page),
         bookmarkCount,
         50,
     );
