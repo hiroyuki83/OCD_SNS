@@ -526,65 +526,70 @@ export async function setReportedUserStatus(
     }
   }
 
-  await prisma.$transaction(async (tx) => {
-    const currentTarget = await tx.user.findUnique({
-      where: { id: report.targetUserId },
-      select: { status: true, role: true },
-    });
-    if (!currentTarget || !canSanctionTarget(actor.role, currentTarget.role)) return;
-
-    const claimed = await tx.report.updateMany({
-      where: {
-        id: report.id,
-        status: { in: [ReportStatus.OPEN, ReportStatus.REVIEWING] },
-      },
-      data: {
-        status: ReportStatus.RESOLVED,
-        reviewedById: actor.id,
-        reviewedAt: new Date(),
-        resolutionNote: note,
-      },
-    });
-    if (claimed.count !== 1) return;
-
-    const updatedTarget = await tx.user.updateMany({
-      where: {
-        id: report.targetUserId,
-        status: currentTarget.status,
-        role: currentTarget.role,
-      },
-      data: {
-        status,
-        suspendedUntil,
-        restrictionUntil,
-        restrictionReason: status === AccountStatus.ACTIVE ? null : note,
-        ...(status === AccountStatus.SUSPENDED
-          ? { sessionVersion: { increment: 1 } }
-          : {}),
-      },
-    });
-    if (updatedTarget.count !== 1) throw new ModerationConflictError();
-
-    await tx.auditLog.create({
-      data: {
-        action: 'USER_STATUS_CHANGE',
-        actorUserId: actor.id,
-        targetUserId: report.targetUserId,
-        meta: {
-          reportId: report.id,
-          reason: report.reason,
-          fromStatus: currentTarget.status,
-          toStatus: status,
+  try {
+    await prisma.$transaction(async (tx) => {
+      const currentTarget = await tx.user.findUnique({
+        where: { id: report.targetUserId },
+        select: { status: true, role: true },
+      });
+      if (!currentTarget || !canSanctionTarget(actor.role, currentTarget.role)) return;
+  
+      const claimed = await tx.report.updateMany({
+        where: {
+          id: report.id,
+          status: { in: [ReportStatus.OPEN, ReportStatus.REVIEWING] },
+        },
+        data: {
+          status: ReportStatus.RESOLVED,
+          reviewedById: actor.id,
+          reviewedAt: new Date(),
+          resolutionNote: note,
+        },
+      });
+      if (claimed.count !== 1) return;
+  
+      const updatedTarget = await tx.user.updateMany({
+        where: {
+          id: report.targetUserId,
+          status: currentTarget.status,
+          role: currentTarget.role,
+        },
+        data: {
+          status,
           suspendedUntil,
           restrictionUntil,
-          suspensionDurationDays,
-          permanentSuspension,
-          note,
-          sessionsRevoked: status === AccountStatus.SUSPENDED,
+          restrictionReason: status === AccountStatus.ACTIVE ? null : note,
+          ...(status === AccountStatus.SUSPENDED
+            ? { sessionVersion: { increment: 1 } }
+            : {}),
         },
-      },
+      });
+      if (updatedTarget.count !== 1) throw new ModerationConflictError();
+  
+      await tx.auditLog.create({
+        data: {
+          action: 'USER_STATUS_CHANGE',
+          actorUserId: actor.id,
+          targetUserId: report.targetUserId,
+          meta: {
+            reportId: report.id,
+            reason: report.reason,
+            fromStatus: currentTarget.status,
+            toStatus: status,
+            suspendedUntil,
+            restrictionUntil,
+            suspensionDurationDays,
+            permanentSuspension,
+            note,
+            sessionsRevoked: status === AccountStatus.SUSPENDED,
+          },
+        },
+      });
     });
-  });
+  } catch (error) {
+    if (error instanceof ModerationConflictError) return;
+    throw error;
+  }
 
   revalidatePath('/');
   revalidatePath('/moderation');
