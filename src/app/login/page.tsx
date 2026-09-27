@@ -1,11 +1,10 @@
 ﻿'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { authenticate } from '@/app/lib/actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useFormStatus } from 'react-dom';
-import { useSearchParams } from 'next/navigation';
 
 function SubmitButton() {
     const { pending } = useFormStatus();
@@ -18,9 +17,12 @@ function SubmitButton() {
 }
 
 export default function LoginPage() {
-    const searchParams = useSearchParams();
     const [errorMessage, dispatch] = useActionState(authenticate, undefined);
-    const accountDeleted = searchParams.get('account') === 'deleted';
+    const [accountDeleted, setAccountDeleted] = useState(false);
+
+    useEffect(() => {
+        setAccountDeleted(new URLSearchParams(window.location.search).get('account') === 'deleted');
+    }, []);
 
     return (
         <div className="flex min-h-screen justify-center items-center bg-white text-black">
