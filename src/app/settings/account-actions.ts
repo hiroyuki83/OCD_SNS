@@ -8,6 +8,70 @@ import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { parseAccountDeletionInput } from '@/lib/accountDeletionInput';
 import { deleteManagedBlobs } from '@/lib/blobCleanup';
+import { parseEmailChangeInput } from '@/lib/emailChangeInput';
+import { isEmailDeliveryConfigured } from '@/lib/email';
+import { sendEmailChangeVerification } from '@/lib/emailVerification';
+import { logOperationalError } from '@/lib/operationalError';
+
+export type EmailChangeState =
+  | { ok?: boolean; message?: string }
+  | undefined;
+
+export async function requestEmailChange(
+  _prevState: EmailChangeState,
+  formData: FormData,
+): Promise<EmailChangeState> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { message: 'ログインしてください。' };
+
+  if (!(await rateLimit(`email-change:${userId}`, 3, 60 * 60 * 1000))) {
+    return { message: 'メール変更の試行が多すぎます。時間をおいて再度お試しください。' };
+  }
+
+  const parsed = parseEmailChangeInput(
+    formData.get('currentPassword'),
+    formData.get('newEmail'),
+  );
+  if (!parsed.ok) return { message: parsed.message };
+  if (!isEmailDeliveryConfigured()) {
+    return { message: '現在メール送信を利用できません。管理者にお問い合わせください。' };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, password: true },
+  });
+  if (!user || !(await bcrypt.compare(parsed.currentPassword, user.password))) {
+    return { message: '現在のパスワードを確認できませんでした。' };
+  }
+  if (parsed.newEmail === user.email.toLowerCase()) {
+    return { message: '現在とは異なるメールアドレスを入力してください。' };
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: { email: parsed.newEmail },
+    select: { id: true },
+  });
+  if (existing && existing.id !== userId) {
+    return { message: 'このメールアドレスは利用できません。' };
+  }
+
+  try {
+    await sendEmailChangeVerification({
+      id: userId,
+      newEmail: parsed.newEmail,
+    });
+  } catch (error) {
+    logOperationalError('EMAIL_CHANGE_DELIVERY_FAILED', error);
+    return { message: '確認メールを送信できませんでした。時間をおいて再度お試しください。' };
+  }
+
+  return {
+    ok: true,
+    message: '新しいメールアドレスへ確認メールを送信しました。リンクを開くまで変更は確定しません。',
+  };
+}
 
 export type AccountDeletionState =
   | { ok?: boolean; message?: string }
