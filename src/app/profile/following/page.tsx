@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { unfollowUser } from '@/app/lib/actions';
+import { UnfollowForm } from '@/components/profile/ProfileRelationActions';
 import { visibleAccountFilter } from '@/lib/accountStatus';
 import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
@@ -164,24 +164,10 @@ export default async function FollowingPage({
                                     <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
                                         申請中
                                     </span>
-                                    <form action={unfollowUser.bind(null, entry.following.id)}>
-                                        <button
-                                            type="submit"
-                                            className="text-xs font-semibold text-zinc-500 hover:text-red-500 hover:underline"
-                                        >
-                                            申請を取り消す
-                                        </button>
-                                    </form>
+                                    <UnfollowForm targetUserId={entry.following.id} pendingRequest />
                                 </>
                             ) : (
-                                <form action={unfollowUser.bind(null, entry.following.id)}>
-                                    <button
-                                        type="submit"
-                                        className="text-xs font-semibold text-zinc-500 hover:text-red-500 hover:underline"
-                                    >
-                                        フォロー解除
-                                    </button>
-                                </form>
+                                <UnfollowForm targetUserId={entry.following.id} pendingRequest={false} />
                             )}
                         </div>
                     </div>
