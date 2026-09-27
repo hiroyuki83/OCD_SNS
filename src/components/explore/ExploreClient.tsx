@@ -20,41 +20,108 @@ type SearchPost = {
 export default function ExploreClient() {
     const searchParams = useSearchParams();
     const query = (searchParams.get('q')?.trim() ?? '').slice(0, 100);
+    const rawPage = searchParams.get('page') ?? '1';
+    const requestedPage = /^\d+$/.test(rawPage) && Number.isSafeInteger(Number(rawPage))
+        ? Math.max(1, Number(rawPage))
+        : 1;
     const [result, setResult] = useState<{
         query: string;
+        requestedPage: number;
         posts: SearchPost[];
+        totalCount: number;
+        page: number;
+        totalPages: number;
+        hasPrevious: boolean;
+        hasNext: boolean;
         error: boolean;
-    }>({ query: '', posts: [], error: false });
+    }>({
+        query: '',
+        requestedPage: 1,
+        posts: [],
+        totalCount: 0,
+        page: 1,
+        totalPages: 1,
+        hasPrevious: false,
+        hasNext: false,
+        error: false,
+    });
 
     useEffect(() => {
         const current = (searchParams.get('q')?.trim() ?? '').slice(0, 100);
-        if (!current) return;
+        const currentRawPage = searchParams.get('page') ?? '1';
+        const currentPage =
+            /^\d+$/.test(currentRawPage) && Number.isSafeInteger(Number(currentRawPage))
+                ? Math.max(1, Number(currentRawPage))
+                : 1;
+        if (!current) {
+            setResult((prev) => ({
+                ...prev,
+                query: '',
+                requestedPage: 1,
+                posts: [],
+                totalCount: 0,
+                page: 1,
+                totalPages: 1,
+                hasPrevious: false,
+                hasNext: false,
+                error: false,
+            }));
+            return;
+        }
         const controller = new AbortController();
-        fetch(`/api/search-posts?q=${encodeURIComponent(current)}`, {
-            cache: 'no-store',
-            signal: controller.signal,
-        })
+        fetch(
+            `/api/search-posts?q=${encodeURIComponent(current)}&page=${currentPage}`,
+            {
+                cache: 'no-store',
+                signal: controller.signal,
+            },
+        )
             .then((res) => (res.ok ? res.json() : Promise.reject(res)))
             .then((data) => {
                 if (controller.signal.aborted) return;
                 setResult({
                     query: current,
+                    requestedPage: currentPage,
                     posts: Array.isArray(data?.posts) ? data.posts : [],
+                    totalCount: typeof data?.totalCount === 'number' ? data.totalCount : 0,
+                    page: typeof data?.page === 'number' ? data.page : 1,
+                    totalPages: typeof data?.totalPages === 'number' ? data.totalPages : 1,
+                    hasPrevious: data?.hasPrevious === true,
+                    hasNext: data?.hasNext === true,
                     error: false,
                 });
             })
             .catch(() => {
                 if (controller.signal.aborted) return;
-                setResult({ query: current, posts: [], error: true });
+                setResult({
+                    query: current,
+                    requestedPage: currentPage,
+                    posts: [],
+                    totalCount: 0,
+                    page: currentPage,
+                    totalPages: 1,
+                    hasPrevious: currentPage > 1,
+                    hasNext: false,
+                    error: true,
+                });
             });
         return () => {
             controller.abort();
         };
     }, [searchParams]);
 
-    const isLoading = Boolean(query) && result.query !== query;
-    const hasError = result.query === query && result.error;
-    const posts = result.query === query ? result.posts : [];
+    const resultMatches = result.query === query && result.requestedPage === requestedPage;
+    const isLoading = Boolean(query) && !resultMatches;
+    const hasError = resultMatches && result.error;
+    const posts = resultMatches ? result.posts : [];
+    const totalCount = resultMatches ? result.totalCount : 0;
+    const page = resultMatches ? result.page : requestedPage;
+    const totalPages = resultMatches ? result.totalPages : 1;
+    const hasPrevious = resultMatches && result.hasPrevious;
+    const hasNext = resultMatches && result.hasNext;
+
+    const searchHref = (nextPage: number) =>
+        `/explore?q=${encodeURIComponent(query)}&page=${nextPage}`;
 
     return (
         <div className="min-h-screen border-r border-border">
@@ -80,7 +147,9 @@ export default function ExploreClient() {
                 </form>
                 {query && (
                     <div className="mt-3 flex gap-3 text-xs text-zinc-500">
-                        <span>投稿 {posts.length}件</span>
+                        <span aria-live="polite">
+                            投稿 {totalCount}件・{page}/{totalPages}ページ
+                        </span>
                     </div>
                 )}
             </div>
@@ -137,6 +206,37 @@ export default function ExploreClient() {
                             </Link>
                         </div>
                     ))}
+                    {!isLoading && !hasError && totalCount > 0 && (
+                        <div className="flex items-center justify-between pt-2 text-sm">
+                            {hasPrevious ? (
+                                <Link
+                                    href={searchHref(page - 1)}
+                                    className="rounded-full border border-border px-4 py-2"
+                                >
+                                    前へ
+                                </Link>
+                            ) : (
+                                <span className="rounded-full border border-border px-4 py-2 text-zinc-400">
+                                    前へ
+                                </span>
+                            )}
+                            <span className="text-xs text-zinc-500">
+                                {page} / {totalPages}
+                            </span>
+                            {hasNext ? (
+                                <Link
+                                    href={searchHref(page + 1)}
+                                    className="rounded-full border border-border px-4 py-2"
+                                >
+                                    次へ
+                                </Link>
+                            ) : (
+                                <span className="rounded-full border border-border px-4 py-2 text-zinc-400">
+                                    次へ
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
 
