@@ -284,6 +284,16 @@ MODERATOR:
 
 Preview と Production の DB を分離する。
 
+### DB構成
+
+常設DBは原則として以下の2系統とする。
+
+- Production DB
+- 共有Preview DB（Neon project: `coco-preview`）
+
+PRごとに恒久DBを作成しない。
+schema変更・破壊的migrationの検証が必要な場合のみ一時的なNeon branchを作成し、検証完了またはPR終了後に削除する。
+
 Preview seed は以下の条件を満たす場合のみ実行する。
 
 - `VERCEL_ENV=preview`
@@ -291,6 +301,9 @@ Preview seed は以下の条件を満たす場合のみ実行する。
 - `DATABASE_URL === PREVIEW_DATABASE_URL`
 
 Production DB に Preview seed を実行してはならない。
+
+Neon project `coco-preview` 内のdefault branch名が `production` であっても、それはPreview専用project内のbranchであり、CoCo Production DBとは別物として扱う。
+運用上の誤認を減らすため、将来的にPreview側default branch名は `preview` へ変更する。
 
 ## 16. バックアップ・復旧
 
@@ -313,7 +326,56 @@ Release 前に以下を通す。
 
 主要な認証・ソーシャル・モデレーション・アカウントライフサイクルはE2Eで検証する。
 
-## 18. 仕様変更の管理
+
+## 18. ブランチ統合・リリース運用
+
+### main の位置づけ
+
+`main` は「コードとして承認済み」の基準ブランチとする。
+
+feature / integration branch上で実装・CI・E2E・Preview検証を完了した後にmainへmergeする。
+
+### main merge条件
+
+以下をすべて満たした場合のみmainへmergeする。
+
+1. GitHub CI / E2Eが成功
+2. 最新commitがVercel Previewへ同期済み
+3. Preview DB migrationが成功
+4. Preview seedが成功
+5. Preview smoke testが成功
+6. 主要機能のPreview受入確認が成功
+7. Preview runtime errorに重大な未解決エラーがない
+8. main mergeによるProduction自動deployの有無を確認済み
+9. 自動Production deployが有効な場合、意図しない本番反映を防止する措置を完了済み
+
+### main mergeとProduction releaseの分離
+
+mainへのmergeをProduction releaseとはみなさない。
+
+Production releaseは別工程とし、以下を明示的に実施する。
+
+1. Production DB backup / restore経路確認
+2. Production migration plan確認
+3. Production DB migration
+4. Production deploy
+5. post-deploy smoke test
+6. runtime error scan
+7. 問題があればrollback
+
+Production releaseは自動ではなく、明示的なrelease判断の後に実施する。
+
+### integration branchの終了
+
+main merge後に以下を行う。
+
+- main上のCI / E2E再確認
+- integration branchの役目終了を確認
+- 不要なintegration branchを削除
+- 不要な一時Neon branchを削除
+- Roadmapへmerge commit / PR番号 /検証結果を記録
+
+## 19. 仕様変更の管理
 
 仕様変更時は以下の順に更新する。
 
