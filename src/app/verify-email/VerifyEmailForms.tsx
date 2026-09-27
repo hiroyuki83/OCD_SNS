@@ -37,16 +37,23 @@ function StateMessage({ state }: { state: VerifyEmailState }) {
 
 export function ConfirmEmailForm({ token }: { token: string }) {
     const [state, action] = useActionState<VerifyEmailState, FormData>(verifyEmail, undefined);
+
+    if (state?.ok) {
+        return (
+            <div className="space-y-4">
+                <StateMessage state={state} />
+                <Link href="/login" className="block text-center text-sm font-semibold text-[#1d9bf0] hover:underline">
+                    ログインへ進む
+                </Link>
+            </div>
+        );
+    }
+
     return (
         <form action={action} className="space-y-4">
             <input type="hidden" name="token" value={token} />
             <StateMessage state={state} />
-            {!state?.ok && <SubmitButton label="メールアドレスを確認" pendingLabel="確認中..." />}
-            {state?.ok && (
-                <Link href="/login" className="block text-center text-sm font-semibold text-[#1d9bf0] hover:underline">
-                    ログインへ進む
-                </Link>
-            )}
+            <SubmitButton label="メールアドレスを確認" pendingLabel="確認中..." />
         </form>
     );
 }
