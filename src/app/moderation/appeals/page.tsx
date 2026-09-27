@@ -1,10 +1,11 @@
 import Link from 'next/link';
-import { Role, WarningAppealStatus } from '@prisma/client';
+import { Prisma, Role, WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
 import ModerationAppealReviewForm from '@/components/moderation/ModerationAppealReviewForm';
 import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
+import { normalizeSearchQuery } from '@/lib/searchInput';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,9 +22,14 @@ function selectedStatus(value?: string) {
   return appealStatuses.find((status) => status === value) ?? null;
 }
 
-function appealHref(status: WarningAppealStatus | null, page = 1) {
+function appealHref(
+  status: WarningAppealStatus | null,
+  query: string,
+  page = 1,
+) {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
+  if (query) params.set('q', query);
   if (page > 1) params.set('page', String(page));
   const suffix = params.toString();
   return suffix ? `/moderation/appeals?${suffix}` : '/moderation/appeals';
@@ -32,17 +38,66 @@ function appealHref(status: WarningAppealStatus | null, page = 1) {
 export default async function AppealListPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; page?: string };
+  searchParams?: { status?: string; q?: string; page?: string };
 }) {
   const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
   const statusFilter = selectedStatus(searchParams?.status);
-  const where = statusFilter ? { status: statusFilter } : undefined;
+  const normalizedQuery = normalizeSearchQuery(searchParams?.q ?? '');
+  const query = normalizedQuery.ok ? normalizedQuery.value : '';
+  const baseFilters: Prisma.WarningAppealWhereInput[] = [];
 
-  const appealCount = await prisma.warningAppeal.count({ where });
+  if (query) {
+    baseFilters.push({
+      OR: [
+        { id: { contains: query } },
+        { message: { contains: query, mode: 'insensitive' } },
+        { resolutionNote: { contains: query, mode: 'insensitive' } },
+        { warning: { reason: { contains: query, mode: 'insensitive' } } },
+        {
+          user: {
+            OR: [
+              { id: { contains: query } },
+              { handle: { contains: query, mode: 'insensitive' } },
+              { name: { contains: query, mode: 'insensitive' } },
+              ...(actor.role === Role.ADMIN
+                ? [{ email: { contains: query, mode: 'insensitive' as const } }]
+                : []),
+            ],
+          },
+        },
+      ],
+    });
+  }
+
+  const countWhere: Prisma.WarningAppealWhereInput | undefined =
+    baseFilters.length > 0 ? { AND: baseFilters } : undefined;
+  const where: Prisma.WarningAppealWhereInput = {
+    AND: [
+      ...(statusFilter ? [{ status: statusFilter }] : []),
+      ...baseFilters,
+    ],
+  };
+
+  const [appealCount, statusCounts] = await Promise.all([
+    prisma.warningAppeal.count({ where }),
+    prisma.warningAppeal.groupBy({
+      by: ['status'],
+      where: countWhere,
+      _count: { _all: true },
+    }),
+  ]);
   const pagination = clampPage(
     parsePageNumber(searchParams?.page),
     appealCount,
     50,
+  );
+
+  const appealCountMap = new Map(
+    statusCounts.map((item) => [item.status, item._count._all]),
+  );
+  const totalMatchingCount = statusCounts.reduce(
+    (sum, item) => sum + item._count._all,
+    0,
   );
 
   const appeals = await prisma.warningAppeal.findMany({
@@ -95,7 +150,7 @@ export default async function AppealListPage({
 
       <div className="mb-5 flex flex-wrap gap-2">
         <Link
-          href={appealHref(null)}
+          href={appealHref(null, query)}
           className={
             'rounded-full border px-3 py-1 text-xs font-semibold ' +
             (!statusFilter
@@ -103,12 +158,12 @@ export default async function AppealListPage({
               : 'border-border text-zinc-600')
           }
         >
-          すべて
+          すべて {totalMatchingCount}
         </Link>
         {appealStatuses.map((status) => (
           <Link
             key={status}
-            href={appealHref(status)}
+            href={appealHref(status, query)}
             className={
               'rounded-full border px-3 py-1 text-xs font-semibold ' +
               (statusFilter === status
@@ -120,10 +175,42 @@ export default async function AppealListPage({
               ? '未審査'
               : status === WarningAppealStatus.UPHELD
                 ? '警告維持'
-                : '警告取消'}
+                : '警告取消'}{' '}
+            {appealCountMap.get(status) ?? 0}
           </Link>
         ))}
       </div>
+
+      <form action="/moderation/appeals" className="mb-4 rounded-lg border border-border p-4">
+        {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className="flex-1 text-sm font-medium text-zinc-700">
+            検索
+            <input
+              name="q"
+              defaultValue={query}
+              maxLength={100}
+              placeholder={
+                actor.role === Role.ADMIN
+                  ? '異議内容、警告理由、ユーザー名、@handle、メール'
+                  : '異議内容、警告理由、ユーザー名、@handle'
+              }
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+            />
+          </label>
+          <div className="flex gap-2">
+            <button className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white">
+              検索
+            </button>
+            <Link
+              href={appealHref(statusFilter, '')}
+              className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-700"
+            >
+              解除
+            </Link>
+          </div>
+        </div>
+      </form>
 
       <div className="mb-4 text-xs text-zinc-500">
         {appealCount}件・{pagination.page}/{pagination.totalPages}ページ
@@ -212,8 +299,17 @@ export default async function AppealListPage({
                   </div>
                 )}
 
+                {appeal.warning.revokedAt && appeal.status === WarningAppealStatus.PENDING && (
+                  <div className="mt-3 rounded-md border border-green-200 bg-green-50 p-3 text-xs font-semibold text-green-800">
+                    元の警告は既に取り消されています。審査では「警告を取り消す」のみ選択できます。
+                  </div>
+                )}
+
                 {canReviewAppeal && (
-                  <ModerationAppealReviewForm appealId={appeal.id} />
+                  <ModerationAppealReviewForm
+                    appealId={appeal.id}
+                    allowUphold={!appeal.warning.revokedAt}
+                  />
                 )}
 
                 {appeal.status === WarningAppealStatus.PENDING && !canReviewAppeal && (
@@ -245,12 +341,12 @@ export default async function AppealListPage({
             totalPages={pagination.totalPages}
             previousHref={
               pagination.hasPrevious
-                ? appealHref(statusFilter, pagination.page - 1)
+                ? appealHref(statusFilter, query, pagination.page - 1)
                 : null
             }
             nextHref={
               pagination.hasNext
-                ? appealHref(statusFilter, pagination.page + 1)
+                ? appealHref(statusFilter, query, pagination.page + 1)
                 : null
             }
           />
