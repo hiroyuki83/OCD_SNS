@@ -5,6 +5,7 @@ import { Role } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireRole } from '@/lib/rbac';
 import { rateLimit } from '@/lib/rateLimit';
+import { parseTokyoDateTimeLocal } from '@/lib/tokyoDateTime';
 
 function formText(formData: FormData, key: string, maxLength: number) {
   const value = formData.get(key);
@@ -36,8 +37,7 @@ function optionalDate(formData: FormData, key: string) {
   const value = formData.get(key);
   if (typeof value !== 'string' || !value.trim()) return null;
   if (value.length > 64) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return parseTokyoDateTimeLocal(value);
 }
 
 function revalidateAnnouncementViews() {
@@ -67,6 +67,12 @@ export async function createAnnouncement(formData: FormData) {
   if (startsAt && endsAt && startsAt >= endsAt) return;
 
   await prisma.$transaction(async (tx) => {
+    const currentActor = await tx.user.findUnique({
+      where: { id: actor.id },
+      select: { role: true },
+    });
+    if (currentActor?.role !== Role.ADMIN) return;
+
     const announcement = await tx.announcement.create({
       data: {
         title,
@@ -111,6 +117,12 @@ export async function setAnnouncementActive(announcementId: string, isActive: bo
   if (!announcement || announcement.isActive === isActive) return;
 
   await prisma.$transaction(async (tx) => {
+    const currentActor = await tx.user.findUnique({
+      where: { id: actor.id },
+      select: { role: true },
+    });
+    if (currentActor?.role !== Role.ADMIN) return;
+
     const changed = await tx.announcement.updateMany({
       where: {
         id: announcement.id,
