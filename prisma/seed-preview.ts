@@ -65,6 +65,22 @@ const TEST_USERS = [
     isPrivate: false,
     bio: 'Preview環境の管理者確認用です。',
   },
+  {
+    email: 'coco.preview.moderator2@example.com',
+    handle: 'preview-moderator-2',
+    name: 'Preview Moderator 2',
+    role: Role.MODERATOR,
+    isPrivate: false,
+    bio: 'E2E分離用のモデレーターです。',
+  },
+  {
+    email: 'coco.preview.admin2@example.com',
+    handle: 'preview-admin-2',
+    name: 'Preview Admin 2',
+    role: Role.ADMIN,
+    isPrivate: false,
+    bio: 'E2E分離用の管理者です。',
+  },
 ] as const;
 
 async function run() {
