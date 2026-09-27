@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { visibleAccountFilter } from '@/lib/accountStatus';
 import { normalizeSearchQuery } from '@/lib/searchInput';
 import { privateJson } from '@/lib/apiResponse';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,9 +16,17 @@ export async function GET(request: Request) {
         return privateJson({ posts: [], error: normalizedQuery.error }, { status: 400 });
     }
     if (!normalizedQuery.value) {
-        return privateJson({ posts: [] });
+        return privateJson({
+            posts: [],
+            totalCount: 0,
+            page: 1,
+            totalPages: 1,
+            hasPrevious: false,
+            hasNext: false,
+        });
     }
     const query = normalizedQuery.value;
+    const requestedPage = parsePageNumber(searchParams.get('page'));
     const insensitive: Prisma.QueryMode = 'insensitive';
 
     const session = await auth();
@@ -70,20 +79,26 @@ export async function GET(request: Request) {
               AND: [visibleAccountFilter(now), { isPrivate: false }],
           };
 
+    const where: Prisma.PostWhereInput = {
+        isHidden: false,
+        deletedAt: null,
+        content: { contains: query, mode: insensitive },
+        author: authorVisibility,
+    };
+
+    const totalCount = await prisma.post.count({ where });
+    const pagination = clampPage(requestedPage, totalCount, 20);
+
     const posts = await prisma.post.findMany({
-        where: {
-            isHidden: false,
-            deletedAt: null,
-            content: { contains: query, mode: insensitive },
-            author: authorVisibility,
-        },
-        orderBy: { createdAt: 'desc' },
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: pagination.skip,
+        take: pagination.pageSize,
         include: {
             author: {
                 select: { id: true, name: true, handle: true },
             },
         },
-        take: 20,
     });
 
     return privateJson({
@@ -97,5 +112,10 @@ export async function GET(request: Request) {
                 handle: post.author.handle,
             },
         })),
+        totalCount,
+        page: pagination.page,
+        totalPages: pagination.totalPages,
+        hasPrevious: pagination.hasPrevious,
+        hasNext: pagination.hasNext,
     });
 }
