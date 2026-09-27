@@ -3,6 +3,7 @@ import { login, PREVIEW_PASSWORD, USERS, totpCode } from './helpers.mjs';
 
 test.describe.serial('staff MFA gate', () => {
   let secret = '';
+  let recoveryCode = '';
 
   test('redirects admin to MFA setup before privileged access', async ({ page }) => {
     await login(page, USERS.admin);
@@ -42,11 +43,13 @@ test.describe.serial('staff MFA gate', () => {
     await expect(
       section.getByText('リカバリーコードを保存してください'),
     ).toBeVisible();
+    recoveryCode = (await section.locator('code').first().textContent())?.trim() ?? '';
+    expect(recoveryCode.length).toBeGreaterThan(10);
 
     await page.goto('/login');
     await page.getByLabel('メールアドレス').fill(USERS.admin);
     await page.getByLabel('パスワード').fill(PREVIEW_PASSWORD);
-    await page.getByLabel('認証アプリの6桁コード').fill(totpCode(secret, 1));
+    await page.getByLabel('リカバリーコード').fill(recoveryCode);
     await page.getByRole('button', { name: 'ログイン', exact: true }).click();
     await expect(page).toHaveURL(/\/$/);
 
