@@ -12,7 +12,8 @@
     "seed:preview": "npx --yes tsx prisma/seed-preview.ts",
     "create-admin": "npx --yes tsx prisma/seed.ts",
     "vercel-build": "node scripts/vercel-build.mjs",
-    "smoke:preview": "node scripts/preview-smoke.mjs"
+    "smoke:preview": "node scripts/preview-smoke.mjs",
+    "test:e2e": "npm --prefix e2e test"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
