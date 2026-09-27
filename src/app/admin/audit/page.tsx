@@ -1,6 +1,7 @@
 import { Prisma, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
+import { normalizeSearchQuery } from "@/lib/searchInput";
 
 const formatDate = (date: Date) =>
   date.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
@@ -48,16 +49,27 @@ const actionOptions = [
   "REPORT_REJECT",
   "ANNOUNCEMENT_CREATE",
   "ANNOUNCEMENT_STATUS",
+  "ACCOUNT_PRIVACY_CHANGE",
+  "USER_WARNING",
+  "WARNING_APPEAL_SUBMITTED",
+  "WARNING_APPEAL_REVIEWED",
+  "STAFF_TOTP_SETUP_STARTED",
+  "STAFF_TOTP_ENABLED",
+  "STAFF_TOTP_DISABLED",
+  "STAFF_TOTP_RECOVERY_STARTED",
+  "STAFF_RECOVERY_CODES_REGENERATED",
+  "STAFF_RECOVERY_CODE_USED",
 ] as const;
 
 function selectedAction(value?: string) {
   return actionOptions.find((action) => action === value) ?? null;
 }
 
-function auditHref(action: string | null, query: string) {
+function auditHref(action: string | null, query: string, page = 1) {
   const params = new URLSearchParams();
   if (action) params.set("action", action);
   if (query) params.set("q", query);
+  if (page > 1) params.set("page", String(page));
   const suffix = params.toString();
   return suffix ? `/admin/audit?${suffix}` : "/admin/audit";
 }
@@ -65,12 +77,17 @@ function auditHref(action: string | null, query: string) {
 export default async function AdminAuditPage({
   searchParams,
 }: {
-  searchParams?: { action?: string; q?: string };
+  searchParams?: { action?: string; q?: string; page?: string };
 }) {
   await requireRole(Role.ADMIN);
 
-  const query = (searchParams?.q?.trim() ?? "").slice(0, 100);
+  const normalizedQuery = normalizeSearchQuery(searchParams?.q ?? "");
+  const query = normalizedQuery.ok ? normalizedQuery.value : "";
   const actionFilter = selectedAction(searchParams?.action);
+  const rawPage = searchParams?.page ?? "1";
+  const page = /^\d+$/.test(rawPage) ? Math.max(1, Number(rawPage)) : 1;
+  const pageSize = 100;
+  const skip = (page - 1) * pageSize;
   const filters: Prisma.AuditLogWhereInput[] = [];
 
   if (actionFilter) {
@@ -109,19 +126,25 @@ export default async function AdminAuditPage({
 
   const where: Prisma.AuditLogWhereInput | undefined = filters.length ? { AND: filters } : undefined;
 
-  const [logs, totalCount, filteredCount] = await Promise.all([
-    prisma.auditLog.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 200,
-      where,
-      include: {
-        actorUser: { select: { id: true, email: true, name: true } },
-        targetUser: { select: { id: true, email: true, name: true } },
-      },
-    }),
+  const [totalCount, filteredCount] = await Promise.all([
     prisma.auditLog.count(),
     prisma.auditLog.count({ where }),
   ]);
+
+  const logs = await prisma.auditLog.findMany({
+    orderBy: { createdAt: "desc" },
+    skip,
+    take: pageSize,
+    where,
+    include: {
+      actorUser: { select: { id: true, email: true, name: true } },
+      targetUser: { select: { id: true, email: true, name: true } },
+    },
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredCount / pageSize));
+  const hasPrevious = page > 1;
+  const hasNext = page < totalPages;
 
   const filtersNav = [
     { label: "All", action: null },
@@ -134,7 +157,9 @@ export default async function AdminAuditPage({
         <div>
           <h1 className="text-2xl font-semibold">監査ログ</h1>
           <p className="text-sm text-zinc-500 mt-1">
-            最新200件まで表示します。{filteredCount} / {totalCount} 件
+            {filteredCount === 0
+              ? "0件"
+              : `${skip + 1}〜${Math.min(skip + logs.length, filteredCount)}件目を表示`} / 絞り込み ${filteredCount}件 / 全 ${totalCount}件
           </p>
         </div>
       </div>
@@ -188,7 +213,7 @@ export default async function AdminAuditPage({
           return (
             <a
               key={filter.label}
-              href={auditHref(filter.action, query)}
+              href={auditHref(filter.action, query, 1)}
               className={
                 "px-3 py-1 rounded-full text-xs font-semibold border transition-colors " +
                 (isActive
@@ -200,6 +225,34 @@ export default async function AdminAuditPage({
             </a>
           );
         })}
+      </div>
+
+      <div className="mb-4 flex items-center justify-between text-sm">
+        <span className="text-zinc-500">
+          {page} / {totalPages} ページ
+        </span>
+        <div className="flex gap-2">
+          {hasPrevious ? (
+            <a
+              href={auditHref(actionFilter, query, page - 1)}
+              className="rounded-full border border-border px-3 py-1 text-zinc-700"
+            >
+              前へ
+            </a>
+          ) : (
+            <span className="rounded-full border border-border px-3 py-1 text-zinc-400">前へ</span>
+          )}
+          {hasNext ? (
+            <a
+              href={auditHref(actionFilter, query, page + 1)}
+              className="rounded-full border border-border px-3 py-1 text-zinc-700"
+            >
+              次へ
+            </a>
+          ) : (
+            <span className="rounded-full border border-border px-3 py-1 text-zinc-400">次へ</span>
+          )}
+        </div>
       </div>
 
       <div className="border border-border rounded-xl overflow-hidden">
