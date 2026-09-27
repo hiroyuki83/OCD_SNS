@@ -1,7 +1,9 @@
-import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { visibleAccountFilter } from '@/lib/accountStatus';
+import { privateJson } from '@/lib/apiResponse';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
@@ -131,7 +133,7 @@ export async function GET(request: Request) {
               })()
             : filtered;
 
-    return NextResponse.json({
+    return privateJson({
         viewerId: userId,
         viewerAvatarUrl: viewerProfile?.avatarUrl ?? null,
         followingIds,
