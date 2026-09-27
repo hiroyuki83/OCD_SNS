@@ -1,6 +1,6 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { isSuspensionActive } from '@/lib/accountStatus';
+import { isSuspensionActive, visibleAccountFilter } from '@/lib/accountStatus';
 import { privateJson } from '@/lib/apiResponse';
 
 export const dynamic = 'force-dynamic';
@@ -75,6 +75,7 @@ export async function GET(request: Request) {
         if (!isFollowing) canViewPosts = false;
     }
 
+    const now = new Date();
     const [posts, followerCount, followingCount] = await Promise.all([
         canViewPosts
             ? prisma.post.findMany({
@@ -88,12 +89,14 @@ export async function GET(request: Request) {
             where: {
                 followingId: user.id,
                 acceptedAt: { not: null },
+                follower: visibleAccountFilter(now),
             },
         }),
         prisma.follow.count({
             where: {
                 followerId: user.id,
                 acceptedAt: { not: null },
+                following: visibleAccountFilter(now),
             },
         }),
     ]);
