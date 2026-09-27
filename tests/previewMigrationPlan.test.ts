@@ -19,7 +19,7 @@ test('Preview migration plan exactly matches repository migrations', () => {
 });
 
 test('Preview historical and pending migration sets do not overlap', () => {
-  const historical = new Set(PREVIEW_HISTORICAL_MIGRATIONS);
+  const historical = new Set<string>(PREVIEW_HISTORICAL_MIGRATIONS);
   const duplicates = PREVIEW_PENDING_MIGRATIONS.filter((name) => historical.has(name));
   assert.deepEqual(duplicates, []);
 });
