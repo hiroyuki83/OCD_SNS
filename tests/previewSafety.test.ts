@@ -46,3 +46,25 @@ test('requires a bounded Preview test password', () => {
   assert.equal(validatePreviewSeedSafety({ ...valid, testPassword: 'short' }).ok, false);
   assert.equal(validatePreviewSeedSafety({ ...valid, testPassword: 'a'.repeat(129) }).ok, false);
 });
+
+
+test('allows another git ref only for isolated loopback E2E seeding', () => {
+  const loopback = 'postgresql://postgres:postgres@127.0.0.1:5432/coco_e2e';
+  const result = validatePreviewSeedSafety({
+    ...valid,
+    gitRef: 'main',
+    databaseUrl: loopback,
+    previewDatabaseUrl: loopback,
+    e2eMode: '1',
+  });
+  assert.equal(result.ok, true);
+});
+
+test('does not let E2E mode bypass the branch guard for a shared database', () => {
+  const result = validatePreviewSeedSafety({
+    ...valid,
+    gitRef: 'main',
+    e2eMode: '1',
+  });
+  assert.equal(result.ok, false);
+});
