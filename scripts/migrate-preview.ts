@@ -80,6 +80,7 @@ function runPrisma(args: string[]) {
 }
 
 const client = new Client({ connectionString: safety.previewDatabaseUrl });
+let clientClosed = false;
 await client.connect();
 
 try {
@@ -96,6 +97,7 @@ try {
     }
 
     await client.end();
+    clientClosed = true;
 
     console.log('Baselining historical Preview migrations without re-running their SQL.');
     for (const migration of HISTORICAL_MIGRATIONS) {
@@ -119,10 +121,11 @@ try {
       process.exit(1);
     }
     await client.end();
+    clientClosed = true;
   }
 
   console.log('Applying pending migrations to approved Preview DB only.');
   runPrisma(['migrate', 'deploy']);
 } finally {
-  if (!client.ended) await client.end().catch(() => undefined);
+  if (!clientClosed) await client.end().catch(() => undefined);
 }
