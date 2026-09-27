@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
-import { ReportReason, ReportStatus } from "@prisma/client";
+import { Prisma, ReportReason, ReportStatus } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rateLimit";
 import { getAccessiblePostForViewer } from "@/lib/postAccess";
 import { parseJsonMutationRequest } from "@/lib/requestSecurity";
+import { normalizeReportDetail } from "@/lib/reportInput";
 
 const reportReasons = [
   ReportReason.HARASSMENT,
@@ -20,7 +21,7 @@ const BodySchema = z.object({
   postId: z.string().trim().min(1).max(128).optional(),
   targetUserId: z.string().trim().min(1).max(128).optional(),
   reason: z.enum(reportReasons).default(ReportReason.OTHER),
-  detail: z.string().trim().max(500).optional(),
+  detail: z.unknown().optional(),
 });
 
 async function resolveViewerId() {
@@ -61,7 +62,11 @@ export async function POST(request: NextRequest) {
   }
 
   const { postId, reason } = parsed.data;
-  const detail = parsed.data.detail || null;
+  const detailResult = normalizeReportDetail(parsed.data.detail, reason);
+  if (!detailResult.ok) {
+    return NextResponse.json({ error: detailResult.error }, { status: 400 });
+  }
+  const detail = detailResult.value;
   let targetUserId = parsed.data.targetUserId ?? null;
 
   if (!postId && !targetUserId) {
@@ -95,28 +100,72 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "自分自身は通報できません。" }, { status: 400 });
   }
 
-  const existing = await prisma.report.findFirst({
-    where: {
-      reporterId,
-      status: { in: [ReportStatus.OPEN, ReportStatus.REVIEWING] },
-      ...(postId ? { postId } : { targetUserId, postId: null }),
-    },
-    select: { id: true },
-  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const result = await prisma.$transaction(
+        async (tx) => {
+          if (postId) {
+            const currentPost = await tx.post.findUnique({
+              where: { id: postId },
+              select: { authorId: true, deletedAt: true, isHidden: true },
+            });
+            if (
+              !currentPost ||
+              currentPost.deletedAt ||
+              currentPost.isHidden ||
+              currentPost.authorId !== targetUserId
+            ) {
+              return { kind: "not-found" as const };
+            }
+          }
 
-  if (existing) {
-    return NextResponse.json({ ok: true, duplicate: true });
+          const existing = await tx.report.findFirst({
+            where: {
+              reporterId,
+              status: { in: [ReportStatus.OPEN, ReportStatus.REVIEWING] },
+              ...(postId ? { postId } : { targetUserId, postId: null }),
+            },
+            select: { id: true },
+          });
+
+          if (existing) {
+            return { kind: "duplicate" as const };
+          }
+
+          await tx.report.create({
+            data: {
+              reporterId,
+              targetUserId,
+              postId: postId ?? null,
+              reason,
+              detail,
+            },
+          });
+          return { kind: "created" as const };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+
+      if (result.kind === "not-found") {
+        return NextResponse.json({ error: "通報対象が見つかりません。" }, { status: 404 });
+      }
+      if (result.kind === "duplicate") {
+        return NextResponse.json({ ok: true, duplicate: true });
+      }
+      return NextResponse.json({ ok: true });
+    } catch (error) {
+      const retryable =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2034";
+      if (!retryable) throw error;
+      if (attempt === 2) {
+        return NextResponse.json(
+          { error: "同時に通報処理が行われました。再度お試しください。" },
+          { status: 409 },
+        );
+      }
+    }
   }
 
-  await prisma.report.create({
-    data: {
-      reporterId,
-      targetUserId,
-      postId: postId ?? null,
-      reason,
-      detail,
-    },
-  });
-
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ error: "通報に失敗しました。" }, { status: 409 });
 }
