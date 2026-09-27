@@ -49,9 +49,15 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white text-black`}
       >
+        <a
+          href="#main-content"
+          className="sr-only fixed left-3 top-3 z-[100] rounded bg-white px-3 py-2 text-sm font-semibold text-black shadow focus:not-sr-only"
+        >
+          本文へ移動
+        </a>
         <div className="flex flex-col lg:flex-row justify-center min-h-screen max-w-[1265px] mx-auto">
           <Sidebar />
-          <main className="flex-1 min-w-0 w-full border-b border-border lg:border-b-0 lg:border-r-0 lg:border-x min-h-screen">
+          <main id="main-content" tabIndex={-1} className="flex-1 min-w-0 w-full border-b border-border lg:border-b-0 lg:border-r-0 lg:border-x min-h-screen">
             {children}
           </main>
           <RightSection />
