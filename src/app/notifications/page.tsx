@@ -165,7 +165,9 @@ export default async function NotificationsPage() {
                                     {item.warning.reason}
                                 </div>
                                 <div className="text-xs text-zinc-500">
-                                    今後同様の行為が続く場合、投稿制限やアカウント停止の対象となる場合があります。
+                                    {item.warning.revokedAt
+                                        ? "この警告は取り消されており、現在は有効ではありません。"
+                                        : "今後同様の行為が続く場合、投稿制限やアカウント停止の対象となる場合があります。"}
                                 </div>
                                 {item.warning.appeal ? (
                                     <div className="rounded-md border border-amber-200 bg-white/70 p-3">
@@ -187,6 +189,10 @@ export default async function NotificationsPage() {
                                                 </span>
                                             </div>
                                         )}
+                                    </div>
+                                ) : item.warning.revokedAt ? (
+                                    <div className="rounded-md border border-green-200 bg-green-50 p-3 text-xs text-green-800">
+                                        警告が取り消されているため、異議申立ては不要です。
                                     </div>
                                 ) : (
                                     <form
