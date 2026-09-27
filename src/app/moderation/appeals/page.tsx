@@ -231,7 +231,12 @@ export default async function AppealListPage({
               (actor.role === Role.ADMIN || appeal.user.role === Role.USER);
 
             return (
-              <article key={appeal.id} className="rounded-lg border border-border p-4">
+              <article
+                key={appeal.id}
+                data-appeal-card
+                data-appeal-id={appeal.id}
+                className="rounded-lg border border-border p-4"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="font-semibold text-zinc-900">{userLabel}</div>
