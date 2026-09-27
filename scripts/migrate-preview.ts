@@ -5,9 +5,7 @@ import {
   validatePreviewMigrationSafety,
 } from '../src/lib/previewMigrationSafety';
 
-import { PREVIEW_PREVIEW_HISTORICAL_MIGRATIONS } from '../src/lib/previewMigrationPlan';
-
-
+import { PREVIEW_HISTORICAL_MIGRATIONS } from '../src/lib/previewMigrationPlan';
 
 const safety = validatePreviewMigrationSafety({
   vercelEnv: process.env.VERCEL_ENV,
