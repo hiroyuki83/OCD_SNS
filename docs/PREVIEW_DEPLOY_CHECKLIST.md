@@ -148,3 +148,24 @@ Preview migrationがそれらを先に選ばないようにする。
 - `PREVIEW_DATABASE_URL`
 - `POSTGRES_URL_NON_POOLING`
 - `POSTGRES_PRISMA_URL`
+
+
+## Vercel deploymentEnabled 切替手順
+
+`vercel.json` では、release gate完了前の誤deployを防ぐ。
+
+通常状態:
+
+- `security-integration-final-20260926: false`
+- `main: false`
+
+Preview DB migration / seed / schema verifyが完了した後にのみ、
+`security-integration-final-20260926` を一時的に `true` にして最新Preview deploymentを作る。
+
+Preview acceptance完了後:
+
+- integration branchをmainへmergeする
+- `main` の自動deployは `false` のまま維持する
+- Production releaseは別工程で明示的に行う
+
+mainへmergeしただけでProduction deployが開始される設定へ戻してはならない。
