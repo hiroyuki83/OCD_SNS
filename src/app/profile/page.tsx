@@ -238,7 +238,7 @@ export default async function ProfilePage({
                                     count={post._count.bookmarks}
                                 />
                                 <Link
-                                    href={`/post?id=${encodeURIComponent(post.id)}`}
+                                    href={`/post/${encodeURIComponent(post.id)}`}
                                     className="text-xs text-[#1d9bf0] hover:underline"
                                 >
                                     投稿を開く
