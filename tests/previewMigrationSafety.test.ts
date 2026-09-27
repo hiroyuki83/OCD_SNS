@@ -10,7 +10,7 @@ const validUrl =
 
 const valid = {
   vercelEnv: 'preview',
-  gitRef: 'security-integration-final-20260926',
+  gitRef: 'feature/sanction-records-20260928',
   databaseUrl: validUrl,
   previewDatabaseUrl: validUrl,
   confirmation: PREVIEW_MIGRATION_CONFIRMATION,
