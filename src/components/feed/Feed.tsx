@@ -9,6 +9,7 @@ import HashtagText from '@/components/shared/HashtagText';
 import { formatPostTime } from '@/lib/formatTime';
 import { REPORT_REASONS, type ReportReasonValue } from '@/lib/reportReasons';
 import { DeletePostForm } from '@/components/profile/ProfileDangerActions';
+import PaginationLinks from '@/components/shared/PaginationLinks';
 
 type FeedPost = {
     id: string;
@@ -35,6 +36,11 @@ type FeedResponse = {
     posts: FeedPost[];
     viewerId: string | null;
     viewerAvatarUrl: string | null;
+    totalCount: number;
+    page: number;
+    totalPages: number;
+    hasPrevious: boolean;
+    hasNext: boolean;
 };
 
 type AnnouncementNotice = {
@@ -63,6 +69,11 @@ export default function Feed({
         posts: [],
         viewerId: initialViewerId,
         viewerAvatarUrl: initialViewerAvatarUrl,
+        totalCount: 0,
+        page: 1,
+        totalPages: 1,
+        hasPrevious: false,
+        hasNext: false,
     });
     const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
     const [hasLoaded, setHasLoaded] = useState(false);
@@ -81,16 +92,20 @@ export default function Feed({
         () => async (signal?: AbortSignal) => {
             setStatus('loading');
             setData((prev) => ({
+                ...prev,
                 posts: [],
-                viewerId: prev.viewerId,
-                viewerAvatarUrl: prev.viewerAvatarUrl,
             }));
             try {
-                const res = await fetch(`/api/feed?tab=${encodeURIComponent(tab)}`, {
+                const requestedPage =
+                    tab === 'following' ? searchParams.get('page') ?? '1' : '1';
+                const res = await fetch(
+                    `/api/feed?tab=${encodeURIComponent(tab)}&page=${encodeURIComponent(requestedPage)}`,
+                    {
                     cache: 'no-store',
                     credentials: 'include',
-                    signal,
-                });
+                        signal,
+                    },
+                );
                 if (!res.ok) throw new Error('failed');
                 const payload = await res.json();
                 if (signal?.aborted) return;
@@ -100,17 +115,31 @@ export default function Feed({
                     posts: rawPosts,
                     viewerId,
                     viewerAvatarUrl: payload?.viewerAvatarUrl ?? null,
+                    totalCount: typeof payload?.totalCount === 'number' ? payload.totalCount : rawPosts.length,
+                    page: typeof payload?.page === 'number' ? payload.page : 1,
+                    totalPages: typeof payload?.totalPages === 'number' ? payload.totalPages : 1,
+                    hasPrevious: Boolean(payload?.hasPrevious),
+                    hasNext: Boolean(payload?.hasNext),
                 });
                 setStatus('idle');
                 setHasLoaded(true);
             } catch {
                 if (signal?.aborted) return;
-                setData({ posts: [], viewerId: null, viewerAvatarUrl: null });
+                setData({
+                    posts: [],
+                    viewerId: null,
+                    viewerAvatarUrl: null,
+                    totalCount: 0,
+                    page: 1,
+                    totalPages: 1,
+                    hasPrevious: false,
+                    hasNext: false,
+                });
                 setStatus('error');
                 setHasLoaded(true);
             }
         },
-        [tab],
+        [tab, searchParams],
     );
 
     useEffect(() => {
@@ -517,12 +546,33 @@ export default function Feed({
                         </div>
                     );
                 })}
+                {status === 'idle' && tab === 'following' && data.totalCount > 0 && (
+                    <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
+                        フォロー中の投稿 {data.totalCount}件
+                    </div>
+                )}
                 {status === 'idle' && data.posts.length === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">
                         {tab === 'following'
                             ? 'フォロー中の投稿がありません'
                             : '投稿がまだありません'}
                     </div>
+                )}
+                {status === 'idle' && tab === 'following' && data.totalCount > 0 && (
+                    <PaginationLinks
+                        page={data.page}
+                        totalPages={data.totalPages}
+                        previousHref={
+                            data.hasPrevious
+                                ? `/?tab=following&page=${data.page - 1}`
+                                : null
+                        }
+                        nextHref={
+                            data.hasNext
+                                ? `/?tab=following&page=${data.page + 1}`
+                                : null
+                        }
+                    />
                 )}
             </div>
         </div>
