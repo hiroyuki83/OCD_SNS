@@ -2,11 +2,12 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
-import { addGanbatta, addWakaru, deletePost, toggleBookmark, toggleLike, togglePrivateAccount } from '@/app/lib/actions';
+import { addGanbatta, addWakaru, toggleBookmark, toggleLike } from '@/app/lib/actions';
 import HashtagText from '@/components/shared/HashtagText';
 import { visibleAccountFilter } from '@/lib/accountStatus';
 import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
+import { DeletePostForm, PrivacyToggleForm } from '@/components/profile/ProfileDangerActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -129,20 +130,16 @@ export default async function ProfilePage({
                     <div className="flex flex-col gap-1">
                         <span className="text-lg font-bold">{user?.name ?? 'ユーザー'}</span>
                         <span className="text-sm text-zinc-500">@{user?.handle}</span>
-                        {user?.bio && <p className="text-sm text-zinc-300">{user.bio}</p>}
+                        {user?.bio && <p className="text-sm text-zinc-600">{user.bio}</p>}
                         <div className="flex gap-4 text-sm text-zinc-400 mt-2" />
                     </div>
                     <div className="ml-auto flex flex-col items-end gap-2">
-                        <form action={togglePrivateAccount}>
-                            <button
-                                type="submit"
-                                className={`text-xs hover:underline ${
-                                    user?.isPrivate ? 'text-red-500' : 'text-[#1d9bf0]'
-                                }`}
-                            >
-                                {user?.isPrivate ? '鍵を外す' : '鍵をかける'}
-                            </button>
-                        </form>
+                        {user && (
+                            <PrivacyToggleForm
+                                isPrivate={user.isPrivate}
+                                pendingRequestCount={pendingFollowRequestCount}
+                            />
+                        )}
                         <Link href="/profile/followers" className="text-xs text-[#1d9bf0] hover:underline">
                             フォロワー {followerCount}
                             {pendingFollowRequestCount > 0 ? `（承認待ち ${pendingFollowRequestCount}）` : ''}
@@ -178,11 +175,7 @@ export default async function ProfilePage({
                             key={post.id}
                             className="p-4 border-b border-border hover:bg-zinc-50 transition-colors flex gap-4 relative"
                         >
-                            <Link
-                                href={`/post?id=${post.id}`}
-                                className="absolute inset-0 z-0 pointer-events-none"
-                                aria-label="投稿を開く"
-                            />
+
                             {user?.avatarUrl ? (
                                 <img
                                     src={user.avatarUrl}
@@ -211,6 +204,7 @@ export default async function ProfilePage({
                                 <form action={toggleLike.bind(null, post.id)}>
                                     <button
                                         type="submit"
+                                        aria-pressed={liked}
                                         className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors ${
                                             liked ? 'text-red-500' : 'hover:text-red-500'
                                         }`}
@@ -222,6 +216,7 @@ export default async function ProfilePage({
                                 <form action={addWakaru.bind(null, post.id)}>
                                     <button
                                         type="submit"
+                                        aria-pressed={wakaruReacted}
                                         className={`text-xs rounded-full px-3 py-1 transition-colors ${
                                             wakaruReacted ? 'text-yellow-400' : 'hover:text-yellow-400'
                                         }`}
@@ -232,6 +227,7 @@ export default async function ProfilePage({
                                 <form action={addGanbatta.bind(null, post.id)}>
                                     <button
                                         type="submit"
+                                        aria-pressed={ganbattaReacted}
                                         className={`text-xs rounded-full px-3 py-1 transition-colors ${
                                             ganbattaReacted ? 'text-green-400' : 'hover:text-green-400'
                                         }`}
@@ -242,6 +238,7 @@ export default async function ProfilePage({
                                 <form action={toggleBookmark.bind(null, post.id)}>
                                     <button
                                         type="submit"
+                                        aria-pressed={bookmarked}
                                         className={`text-xs rounded-full px-3 py-1 transition-colors ${
                                             bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
                                         }`}
@@ -249,11 +246,13 @@ export default async function ProfilePage({
                                         ブックマーク <span>{post._count.bookmarks}</span>
                                     </button>
                                 </form>
-                                <form action={deletePost.bind(null, post.id)}>
-                                    <button type="submit" className="text-xs text-red-500 hover:underline">
-                                        削除
-                                    </button>
-                                </form>
+                                <Link
+                                    href={`/post?id=${encodeURIComponent(post.id)}`}
+                                    className="text-xs text-[#1d9bf0] hover:underline"
+                                >
+                                    投稿を開く
+                                </Link>
+                                <DeletePostForm postId={post.id} />
                             </div>
                         </div>
                     </div>
