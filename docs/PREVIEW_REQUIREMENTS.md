@@ -60,9 +60,11 @@ CoCo は、メンタルヘルス領域の当事者コミュニティを想定し
 
 - メールアドレス＋パスワード
 - メール確認
+- ログイン中ユーザーによるメールアドレス変更（新アドレスで再確認後に切替・既存セッション失効）
 - パスワード再設定
 - ログイン中ユーザーによる通常のパスワード変更（変更後は既存セッションを失効）
 - ユーザーデータのJSONエクスポート
+- 本人によるアカウント削除（監査整合性を保つ匿名化方式。詳細は `ACCOUNT_LIFECYCLE.md`）
 - 公開識別子として email と分離した `@handle` を使用
 - ADMIN / MODERATOR / USER の3ロール
 - ADMIN / MODERATOR は TOTP 2段階認証を必須とする
@@ -129,10 +131,9 @@ CoCo は、メンタルヘルス領域の当事者コミュニティを想定し
 - リアクション
 - フォロー承認関連
 - 運営警告
+- 異議申立て結果（審査後に警告を再度未読化して通知）
 
 今後検討:
-
-- 異議申立て結果
 - 投稿制限解除
 - アカウント停止解除
 - 通知カテゴリごとの ON / OFF
@@ -232,7 +233,7 @@ AccountStatus:
 - 自分が出した警告の異議申立てを自分で審査しない
 - 必要な操作は Audit Log に記録
 
-将来的には警告以外の処分についても共通 Appeal モデルへの拡張を検討する。
+警告以外の処分への拡張方針は `APPEAL_MODEL_DESIGN.md` を正本とする。投稿制限・停止を第一級の Sanction レコードとして表現してから共通 Appeal を導入する。
 
 ## 13. 管理画面
 
@@ -277,6 +278,7 @@ MODERATOR:
 - sessionVersion による session revoke
 - 管理操作の Audit Log
 - アプリ障害時は privacy-safe な incident ID / digest を使い、例外本文や機微情報を画面・ログへ露出しない
+- Next.js `instrumentation.ts` の `onRequestError` で未処理のサーバーエラーを privacy-safe logger へ集約する
 
 ## 15. Preview / Production
 
@@ -307,8 +309,9 @@ Release 前に以下を通す。
 - unit test
 - TypeScript typecheck
 - Next.js build
+- Playwright E2E
 
-今後 E2E test を追加する。
+主要な認証・ソーシャル・モデレーション・アカウントライフサイクルはE2Eで検証する。
 
 ## 18. 仕様変更の管理
 
