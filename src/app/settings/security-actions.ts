@@ -370,7 +370,6 @@ export async function recoverStaffTotpWithRecoveryCode(
           staffTotpSecretEncrypted: encrypted,
           staffTotpEnabledAt: null,
           staffTotpLastUsedStep: null,
-          sessionVersion: { increment: 1 },
         },
       });
       if (changed.count !== 1) throw new TotpStateChangedError();
@@ -388,7 +387,8 @@ export async function recoverStaffTotpWithRecoveryCode(
             recoveryCodeId: recovery.id,
             resetAt,
             previousRecoveryCodesRevoked: true,
-            sessionsRevoked: true,
+            sessionsRevoked: false,
+            sessionsWillBeRevokedOnEnable: true,
           },
         },
       });
