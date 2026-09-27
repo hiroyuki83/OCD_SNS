@@ -51,6 +51,6 @@ test.describe.serial('staff MFA gate', () => {
     await expect(page).toHaveURL(/\/$/);
 
     await page.goto('/admin');
-    await expect(page.getByText('管理')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '管理トップ' })).toBeVisible();
   });
 });
