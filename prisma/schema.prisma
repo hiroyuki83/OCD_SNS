@@ -455,8 +455,9 @@ model PasswordResetToken {
   createdAt DateTime  @default(now())
   expiresAt DateTime
   usedAt    DateTime?
-  tokenHash String    @unique
-  userId    String
+  tokenHash    String    @unique
+  pendingEmail String?
+  userId       String
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
