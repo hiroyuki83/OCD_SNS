@@ -13,6 +13,7 @@ type SearchPost = {
     id: string;
     content: string;
     imageUrl: string | null;
+    imageAlt: string | null;
     createdAt: string;
     author: {
         name: string | null;
@@ -186,7 +187,7 @@ export default function ExploreClient() {
                             {post.imageUrl && (
                                 <img
                                     src={post.imageUrl}
-                                    alt="投稿画像"
+                                    alt={post.imageAlt ?? ''}
                                     className="rounded-xl border border-border max-h-[320px] object-cover"
                                 />
                             )}
