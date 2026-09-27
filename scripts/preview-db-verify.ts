@@ -1,4 +1,3 @@
-// @ts-expect-error -- pg does not ship project-local TypeScript declarations here.
 import { Client } from 'pg';
 import {
   validatePreviewMigrationSafety,
