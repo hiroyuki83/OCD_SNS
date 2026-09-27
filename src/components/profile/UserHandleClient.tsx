@@ -13,6 +13,7 @@ type ProfilePost = {
     id: string;
     content: string;
     imageUrl: string | null;
+    imageAlt: string | null;
     createdAt: string;
     likeCount: number;
     bookmarkCount: number;
@@ -505,7 +506,7 @@ export default function UserHandleClient() {
                             {post.imageUrl && (
                                 <img
                                     src={post.imageUrl}
-                                    alt="投稿画像"
+                                    alt={post.imageAlt ?? ''}
                                     className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
                                 />
                             )}
