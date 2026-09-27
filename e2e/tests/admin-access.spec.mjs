@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   enrollStaffMfa,
-  loginStaffWithTotp,
+  loginStaffWithRecoveryCode,
   PREVIEW_PASSWORD,
   USERS,
 } from './helpers.mjs';
