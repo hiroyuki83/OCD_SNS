@@ -5,10 +5,21 @@ import { AccountStatus, ReportPriority, ReportStatus, Role } from '@prisma/clien
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
 import { rateLimit } from '@/lib/rateLimit';
+import { visibleAccountFilter } from '@/lib/accountStatus';
+
+function normalizeModerationText(value: string, maxLength: number) {
+  return value
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim()
+    .slice(0, maxLength);
+}
 
 function noteFromFormData(formData: FormData) {
   const value = formData.get('note');
-  return typeof value === 'string' && value.trim() ? value.trim().slice(0, 500) : null;
+  if (typeof value !== 'string') return null;
+  const normalized = normalizeModerationText(value, 500);
+  return normalized || null;
 }
 
 function priorityFromFormData(formData: FormData) {
@@ -23,8 +34,8 @@ function priorityFromFormData(formData: FormData) {
 function optionalText(formData: FormData, key: string) {
   const value = formData.get(key);
   if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
+  const normalized = normalizeModerationText(value, 2048);
+  return normalized || null;
 }
 
 function optionalDate(formData: FormData, key: string) {
@@ -98,6 +109,7 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
       where: {
         id: assignedToId,
         role: { in: [Role.ADMIN, Role.MODERATOR] },
+        AND: [visibleAccountFilter(new Date())],
       },
       select: { id: true, role: true },
     });
@@ -130,6 +142,7 @@ export async function updateReportRouting(reportId: string, formData: FormData) 
         where: {
           id: assignedToId,
           role: { in: [Role.ADMIN, Role.MODERATOR] },
+          AND: [visibleAccountFilter(new Date())],
         },
         select: { role: true },
       });
@@ -534,15 +547,23 @@ export async function setReportedUserStatus(
     });
     if (claimed.count !== 1) return;
 
-    await tx.user.update({
-      where: { id: report.targetUserId },
+    const updatedTarget = await tx.user.updateMany({
+      where: {
+        id: report.targetUserId,
+        status: currentTarget.status,
+        role: currentTarget.role,
+      },
       data: {
         status,
         suspendedUntil,
         restrictionUntil,
         restrictionReason: status === AccountStatus.ACTIVE ? null : note,
+        ...(status === AccountStatus.SUSPENDED
+          ? { sessionVersion: { increment: 1 } }
+          : {}),
       },
     });
+    if (updatedTarget.count !== 1) throw new ModerationConflictError();
 
     await tx.auditLog.create({
       data: {
@@ -559,6 +580,7 @@ export async function setReportedUserStatus(
           suspensionDurationDays,
           permanentSuspension,
           note,
+          sessionsRevoked: status === AccountStatus.SUSPENDED,
         },
       },
     });
