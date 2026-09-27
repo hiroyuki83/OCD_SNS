@@ -2,12 +2,12 @@ import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
-import { toggleBookmark } from '@/app/lib/actions';
 import HashtagText from '@/components/shared/HashtagText';
 import { visibleAccountFilter } from '@/lib/accountStatus';
 import type { Prisma } from '@prisma/client';
 import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
+import ProfilePostActionForm from '@/components/profile/ProfilePostActionForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -172,14 +172,12 @@ export default async function BookmarksPage({
                                     >
                                         投稿を開く
                                     </Link>
-                                    <form action={toggleBookmark.bind(null, post.id)}>
-                                        <button
-                                            type="submit"
-                                            className="text-xs rounded-full px-3 py-1 transition-colors text-[#1d9bf0]"
-                                        >
-                                            ブックマーク解除
-                                        </button>
-                                    </form>
+                                    <ProfilePostActionForm
+                                        postId={post.id}
+                                        action="bookmark"
+                                        active
+                                        compactLabel="ブックマーク解除"
+                                    />
                                 </div>
                             </div>
                         </div>
