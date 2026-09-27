@@ -21,6 +21,24 @@ function SubmitButton() {
 export default function ResetPasswordForm({ token }: { token: string }) {
   const [state, dispatch] = useActionState<ResetPasswordState, FormData>(resetPassword, undefined);
 
+  if (state?.ok) {
+    return (
+      <div className="w-full max-w-sm p-8 space-y-6 text-center">
+        <h1 className="text-3xl font-bold">パスワードを再設定しました</h1>
+        <div
+          role="status"
+          aria-live="polite"
+          className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700"
+        >
+          {state.message}
+        </div>
+        <Link href="/login" className="inline-block text-sm font-semibold text-[#1d9bf0] hover:underline">
+          ログインへ進む
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full max-w-sm p-8 space-y-6">
       <div>
@@ -91,13 +109,6 @@ export default function ResetPasswordForm({ token }: { token: string }) {
         <SubmitButton />
       </form>
 
-      {state?.ok && (
-        <p className="text-center text-sm text-zinc-500">
-          <Link href="/login" className="text-[#1d9bf0] hover:underline">
-            ログインへ進む
-          </Link>
-        </p>
-      )}
     </div>
   );
 }
