@@ -9,6 +9,21 @@ export type ImageDimensions = {
   height: number;
 };
 
+export const MAX_SAFE_IMAGE_DIMENSION = 12000;
+export const MAX_SAFE_IMAGE_PIXELS = 50_000_000;
+
+export function isSafeImageDimensions(dimensions: ImageDimensions) {
+  return (
+    Number.isSafeInteger(dimensions.width) &&
+    Number.isSafeInteger(dimensions.height) &&
+    dimensions.width > 0 &&
+    dimensions.height > 0 &&
+    dimensions.width <= MAX_SAFE_IMAGE_DIMENSION &&
+    dimensions.height <= MAX_SAFE_IMAGE_DIMENSION &&
+    dimensions.width * dimensions.height <= MAX_SAFE_IMAGE_PIXELS
+  );
+}
+
 function readUInt24LE(bytes: Uint8Array, offset: number) {
   if (offset < 0 || offset + 2 >= bytes.length) return null;
   return bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16);
@@ -17,6 +32,9 @@ function readUInt24LE(bytes: Uint8Array, offset: number) {
 function readPngDimensions(bytes: Uint8Array): ImageDimensions | null {
   if (bytes.length < 24) return null;
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const ihdrLength = view.getUint32(8, false);
+  const chunkType = String.fromCharCode(...bytes.slice(12, 16));
+  if (ihdrLength !== 13 || chunkType !== 'IHDR') return null;
   const width = view.getUint32(16, false);
   const height = view.getUint32(20, false);
   return width > 0 && height > 0 ? { width, height } : null;
