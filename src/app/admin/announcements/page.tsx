@@ -160,7 +160,7 @@ export default async function AdminAnnouncementsPage() {
                   <a
                     href={announcement.href}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener noreferrer"
                     className="mt-2 inline-block text-sm font-semibold text-[#1d9bf0] hover:underline"
                   >
                     リンクを開く
