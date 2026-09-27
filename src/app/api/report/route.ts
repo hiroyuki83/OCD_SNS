@@ -6,7 +6,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/rateLimit";
 import { getAccessiblePostForViewer } from "@/lib/postAccess";
-import { validateJsonMutationRequest } from "@/lib/requestSecurity";
+import { parseJsonMutationRequest } from "@/lib/requestSecurity";
 
 const reportReasons = [
   ReportReason.HARASSMENT,
@@ -37,10 +37,10 @@ async function resolveViewerId() {
 }
 
 export async function POST(request: NextRequest) {
-  const requestCheck = validateJsonMutationRequest(request);
-  if (!requestCheck.ok) {
-    return NextResponse.json({ error: requestCheck.error }, { status: requestCheck.status });
-  }
+const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+if (!parsedRequest.ok) {
+    return NextResponse.json({ error: parsedRequest.error }, { status: parsedRequest.status });
+}
 
   const reporterId = await resolveViewerId();
   if (!reporterId) {
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const body = await request.json().catch(() => null);
+  const body = parsedRequest.data;
   const parsed = BodySchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "通報内容が不正です。" }, { status: 400 });
