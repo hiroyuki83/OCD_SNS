@@ -21,6 +21,9 @@ model User {
   headerUrl               String?
   autoHashtag             String?
   isPrivate               Boolean              @default(false)
+  notifyLikes             Boolean              @default(true)
+  notifyReactions         Boolean              @default(true)
+  notifyFollows           Boolean              @default(true)
   role                    Role                 @default(USER)
   status                  AccountStatus        @default(ACTIVE)
   restrictionReason       String?
