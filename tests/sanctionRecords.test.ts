@@ -12,6 +12,10 @@ const adminUserPage = readFileSync(
   join(process.cwd(), 'src', 'app', 'admin', 'users', '[id]', 'page.tsx'),
   'utf8',
 );
+const adminStatusRoute = readFileSync(
+  join(process.cwd(), 'src', 'app', 'api', 'admin', 'users', '[id]', 'status', 'route.ts'),
+  'utf8',
+);
 
 test('schema contains first-class sanction records with target actor and report links', () => {
   assert.match(schema, /model Sanction \{/);
@@ -40,4 +44,13 @@ test('admin user detail reads and displays sanction history', () => {
   assert.match(adminUserPage, /prisma\.sanction\.findMany/);
   assert.match(adminUserPage, />処分履歴<\/h2>/);
   assert.match(adminUserPage, /sanctionStatusLabels/);
+});
+
+
+test('direct ADMIN account status changes also persist sanctions', () => {
+  assert.match(adminStatusRoute, /tx\.sanction\.create/);
+  assert.match(adminStatusRoute, /SanctionType\.POST_RESTRICTION/);
+  assert.match(adminStatusRoute, /SanctionType\.SUSPENSION/);
+  assert.match(adminStatusRoute, /sanctionId,/);
+  assert.match(adminStatusRoute, /status:\s*SanctionStatus\.REVOKED/);
 });
