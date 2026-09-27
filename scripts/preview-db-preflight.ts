@@ -65,6 +65,8 @@ try {
     quotePostId: await columnExists('Post', 'quotePostId'),
     imageAlt: await columnExists('Post', 'imageAlt'),
     notifyLikes: await columnExists('User', 'notifyLikes'),
+    notifyReactions: await columnExists('User', 'notifyReactions'),
+    notifyFollows: await columnExists('User', 'notifyFollows'),
     pendingEmail: await columnExists('EmailVerificationToken', 'pendingEmail'),
   };
 
@@ -82,6 +84,23 @@ try {
     throw new Error(`Preview DB is missing expected pre-baseline schema: ${missing.join(', ')}`);
   }
 
+  const expectedPendingState = [
+    ['Reply table still present', signatures.reply],
+    ['Post.quotePostId still present', signatures.quotePostId],
+    ['Post.imageAlt not yet present', !signatures.imageAlt],
+    ['User.notifyLikes not yet present', !signatures.notifyLikes],
+    ['User.notifyReactions not yet present', !signatures.notifyReactions],
+    ['User.notifyFollows not yet present', !signatures.notifyFollows],
+    ['EmailVerificationToken.pendingEmail not yet present', !signatures.pendingEmail],
+  ] as const;
+
+  const drift = expectedPendingState.filter(([, ok]) => !ok).map(([name]) => name);
+  if (drift.length) {
+    throw new Error(
+      `Preview DB is not in the expected pre-migration state; manual reconciliation required: ${drift.join(', ')}`,
+    );
+  }
+
   console.log('Preview DB connection safety check passed.');
   console.log({
     database: safety.databaseName,
@@ -91,6 +110,8 @@ try {
       quotePostIdPresent: signatures.quotePostId,
       imageAltPresent: signatures.imageAlt,
       notifyLikesPresent: signatures.notifyLikes,
+      notifyReactionsPresent: signatures.notifyReactions,
+      notifyFollowsPresent: signatures.notifyFollows,
       pendingEmailPresent: signatures.pendingEmail,
     },
   });
