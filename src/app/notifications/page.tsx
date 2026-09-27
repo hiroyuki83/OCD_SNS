@@ -8,8 +8,29 @@ import { visibleAccountFilter } from '@/lib/accountStatus';
 import { submitWarningAppeal } from './actions';
 import { acceptFollowRequest, rejectFollowRequest } from '@/app/lib/actions';
 import NotificationsReadMarker from '@/components/layout/NotificationsReadMarker';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
 
-export default async function NotificationsPage() {
+const notificationFilters = ['all', 'social', 'warnings'] as const;
+type NotificationFilter = (typeof notificationFilters)[number];
+
+function selectedFilter(value?: string): NotificationFilter {
+    return notificationFilters.find((filter) => filter === value) ?? 'all';
+}
+
+function notificationsHref(filter: NotificationFilter, page = 1) {
+    const params = new URLSearchParams();
+    if (filter !== 'all') params.set('filter', filter);
+    if (page > 1) params.set('page', String(page));
+    const suffix = params.toString();
+    return suffix ? `/notifications?${suffix}` : '/notifications';
+}
+
+export default async function NotificationsPage({
+    searchParams,
+}: {
+    searchParams?: { filter?: string; page?: string };
+}) {
     const session = await auth();
     const userId = session?.user?.id;
 
@@ -45,87 +66,97 @@ export default async function NotificationsPage() {
         ],
     };
 
-    const [notifications, warnings, notificationCount, warningCount] = await Promise.all([
-        prisma.notification.findMany({
-            where: {
-                userId: resolvedUserId,
-                actor: notificationActorFilter,
-                OR: [
-                    { type: 'FOLLOW' },
-                    {
-                        post: {
-                            is: {
-                                deletedAt: null,
-                                isHidden: false,
-                            },
-                        },
-                    },
-                ],
-            },
-            orderBy: { createdAt: 'desc' },
-            select: {
-                id: true,
-                type: true,
-                actorId: true,
-                createdAt: true,
-                actor: {
-                    select: {
-                        id: true,
-                        name: true,
-                        handle: true,
-                        avatarUrl: true,
-                    },
-                },
+    const filter = selectedFilter(searchParams?.filter);
+    const notificationWhere: Prisma.NotificationWhereInput = {
+        userId: resolvedUserId,
+        actor: notificationActorFilter,
+        OR: [
+            { type: 'FOLLOW' },
+            {
                 post: {
-                    select: {
-                        id: true,
-                        content: true,
+                    is: {
+                        deletedAt: null,
+                        isHidden: false,
                     },
                 },
             },
-            take: 50,
-        }),
-        prisma.moderationWarning.findMany({
-            where: { targetUserId: resolvedUserId },
-            orderBy: { createdAt: 'desc' },
-            select: {
-                id: true,
-                reason: true,
-                createdAt: true,
-                revokedAt: true,
-                appeal: {
-                    select: {
-                        id: true,
-                        message: true,
-                        createdAt: true,
-                        status: true,
-                        resolutionNote: true,
-                        reviewedAt: true,
-                    },
+        ],
+    };
+    const warningWhere: Prisma.ModerationWarningWhereInput = {
+        targetUserId: resolvedUserId,
+    };
+
+    const [notificationCount, warningCount] = await Promise.all([
+        prisma.notification.count({ where: notificationWhere }),
+        prisma.moderationWarning.count({ where: warningWhere }),
+    ]);
+
+    const filteredCount =
+        filter === 'social'
+            ? notificationCount
+            : filter === 'warnings'
+              ? warningCount
+              : notificationCount + warningCount;
+    const pagination = clampPage(
+        parsePageNumber(searchParams?.page),
+        filteredCount,
+        50,
+    );
+
+    const notificationQuery = prisma.notification.findMany({
+        where: notificationWhere,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: {
+            id: true,
+            type: true,
+            actorId: true,
+            createdAt: true,
+            actor: {
+                select: {
+                    id: true,
+                    name: true,
+                    handle: true,
+                    avatarUrl: true,
                 },
             },
-            take: 50,
-        }),
-        prisma.notification.count({
-            where: {
-                userId: resolvedUserId,
-                actor: notificationActorFilter,
-                OR: [
-                    { type: 'FOLLOW' },
-                    {
-                        post: {
-                            is: {
-                                deletedAt: null,
-                                isHidden: false,
-                            },
-                        },
-                    },
-                ],
+            post: {
+                select: {
+                    id: true,
+                    content: true,
+                },
             },
-        }),
-        prisma.moderationWarning.count({
-            where: { targetUserId: resolvedUserId },
-        }),
+        },
+        ...(filter === 'social'
+            ? { skip: pagination.skip, take: pagination.pageSize }
+            : { take: 50 }),
+    });
+    const warningQuery = prisma.moderationWarning.findMany({
+        where: warningWhere,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: {
+            id: true,
+            reason: true,
+            createdAt: true,
+            revokedAt: true,
+            appeal: {
+                select: {
+                    id: true,
+                    message: true,
+                    createdAt: true,
+                    status: true,
+                    resolutionNote: true,
+                    reviewedAt: true,
+                },
+            },
+        },
+        ...(filter === 'warnings'
+            ? { skip: pagination.skip, take: pagination.pageSize }
+            : { take: 50 }),
+    });
+
+    const [notifications, warnings] = await Promise.all([
+        filter === 'warnings' ? Promise.resolve([]) : notificationQuery,
+        filter === 'social' ? Promise.resolve([]) : warningQuery,
     ]);
 
     const totalItemCount = notificationCount + warningCount;
@@ -151,7 +182,7 @@ export default async function NotificationsPage() {
             : [];
     const pendingFollowerIds = new Set(pendingFollowRows.map((row) => row.followerId));
 
-    const items = [
+    const mergedItems = [
         ...notifications.map((notification) => ({
             kind: 'notification' as const,
             id: `notification-${notification.id}`,
@@ -164,9 +195,16 @@ export default async function NotificationsPage() {
             createdAt: warning.createdAt,
             warning,
         })),
-    ]
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-        .slice(0, 50);
+    ].sort((a, b) => {
+        const timeDiff = b.createdAt.getTime() - a.createdAt.getTime();
+        if (timeDiff !== 0) return timeDiff;
+        return b.id.localeCompare(a.id);
+    });
+
+    const items =
+        filter === 'all'
+            ? mergedItems.slice(0, 50)
+            : mergedItems;
 
     const renderedNotificationIds = items
         .filter((item) => item.kind === 'notification')
@@ -186,11 +224,33 @@ export default async function NotificationsPage() {
                 <h1 className="font-bold text-base">通知</h1>
             </div>
             <div className="flex flex-col">
-                {totalItemCount > 0 && (
+                <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3 text-xs font-semibold">
+                    <Link
+                        href={notificationsHref('all')}
+                        className={filter === 'all' ? 'text-black' : 'text-zinc-500 hover:text-zinc-900'}
+                    >
+                        すべて {totalItemCount}
+                    </Link>
+                    <Link
+                        href={notificationsHref('social')}
+                        className={filter === 'social' ? 'text-black' : 'text-zinc-500 hover:text-zinc-900'}
+                    >
+                        通常通知 {notificationCount}
+                    </Link>
+                    <Link
+                        href={notificationsHref('warnings')}
+                        className={filter === 'warnings' ? 'text-black' : 'text-zinc-500 hover:text-zinc-900'}
+                    >
+                        運営警告 {warningCount}
+                    </Link>
+                </div>
+                {filteredCount > 0 && (
                     <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
-                        {totalItemCount > items.length
-                            ? `最新${items.length}件を表示しています（全${totalItemCount}件）`
-                            : `全${totalItemCount}件`}
+                        {filter === 'all'
+                            ? (totalItemCount > items.length
+                                ? `最新${items.length}件を表示しています（全${totalItemCount}件）`
+                                : `全${totalItemCount}件`)
+                            : `全${filteredCount}件・${pagination.page}/${pagination.totalPages}ページ`}
                     </div>
                 )}
                 {items.map((item) => {
@@ -371,7 +431,25 @@ export default async function NotificationsPage() {
                     );
                 })}
                 {items.length === 0 && (
-                    <div className="p-6 text-sm text-zinc-500 text-center">通知はまだありません</div>
+                    <div className="p-6 text-sm text-zinc-500 text-center">
+                        {filter === 'warnings' ? '運営警告はありません' : filter === 'social' ? '通常通知はありません' : '通知はまだありません'}
+                    </div>
+                )}
+                {filter !== 'all' && filteredCount > 0 && (
+                    <PaginationLinks
+                        page={pagination.page}
+                        totalPages={pagination.totalPages}
+                        previousHref={
+                            pagination.hasPrevious
+                                ? notificationsHref(filter, pagination.page - 1)
+                                : null
+                        }
+                        nextHref={
+                            pagination.hasNext
+                                ? notificationsHref(filter, pagination.page + 1)
+                                : null
+                        }
+                    />
                 )}
             </div>
             </div>
