@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 import { normalizeSearchQuery } from "@/lib/searchInput";
 
+
+export const dynamic = 'force-dynamic';
 const formatDate = (date: Date) =>
   date.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
 
