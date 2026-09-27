@@ -193,8 +193,15 @@ Production releaseは `NEXT-039/040` の別工程とし、明示的に実施す�
 - DB `neondb` を確認
 - schema差分を確認
 - migration前snapshot `before-preview-schema-sync-2026-09-28` を作成
+- Prisma Preview migration接続先を `PREVIEW_DATABASE_URL` 最優先へ修正
+- 承認済みNeon host / DB名 / branch / 確認文字列を検証するmigration guardを追加
+- Preview DB preflight / schema verify / guarded migration scriptを追加
+- 手動専用 `preview-db-release.yml` workflowを追加
+- `_prisma_migrations` 不在時のhistorical baseline手順を実装
 
 未完了:
+- 手動Preview DB release workflowの実行
+- historical migration baseline登録（初回のみ）
 - 4本のPreview migration適用
 - Preview seed
 - 最新commitのVercel Preview同期
