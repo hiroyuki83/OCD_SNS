@@ -71,6 +71,7 @@ model Post {
   id            String         @id @default(cuid())
   content       String
   imageUrl      String?
+  imageAlt      String?
   createdAt     DateTime       @default(now())
   wakaruCount   Int            @default(0)
   ganbattaCount Int            @default(0)
