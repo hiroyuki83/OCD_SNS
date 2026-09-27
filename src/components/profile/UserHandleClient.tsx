@@ -2,15 +2,18 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import HashtagText from '@/components/shared/HashtagText';
 import { formatPostTime } from '@/lib/formatTime';
-import { REPORT_REASONS, type ReportReasonValue } from '@/lib/reportReasons';
+import { promptForReport, submitReport } from '@/lib/reportClient';
+import { parsePageNumber } from '@/lib/pagination';
+import PaginationLinks from '@/components/shared/PaginationLinks';
 
 type ProfilePost = {
     id: string;
     content: string;
     imageUrl: string | null;
+    imageAlt: string | null;
     createdAt: string;
     likeCount: number;
     bookmarkCount: number;
@@ -22,6 +25,21 @@ type ProfilePost = {
     ganbattaReacted: boolean;
 };
 
+async function apiFailureMessage(response: Response, fallback: string) {
+    try {
+        const payload = await response.json();
+        if (typeof payload?.error === 'string' && payload.error.trim()) {
+            return payload.error;
+        }
+    } catch {
+        // Use the fallback message.
+    }
+    if (response.status === 409) return '同時に別の操作が行われました。もう一度お試しください。';
+    if (response.status === 403) return 'この操作は現在の関係では実行できません。';
+    if (response.status === 404) return '対象のユーザーまたは投稿が見つかりません。';
+    return fallback;
+}
+
 type ProfileResponse = {
     user: {
         id: string;
@@ -31,18 +49,26 @@ type ProfileResponse = {
         avatarUrl: string | null;
         headerUrl: string | null;
         isPrivate?: boolean;
+        followerCount: number;
+        followingCount: number;
     };
     posts: ProfilePost[];
     isFollowing: boolean;
+    isFollowPending: boolean;
     isBlocked: boolean;
     isMuted: boolean;
     isBlockedBy: boolean;
     viewerId: string | null;
+    postCount: number;
+    page: number;
+    totalPages: number;
+    hasPrevious: boolean;
+    hasNext: boolean;
 };
 
 export default function UserHandleClient() {
     const params = useParams();
-    const router = useRouter();
+    const searchParams = useSearchParams();
     const rawHandle = useMemo(() => {
         const value = params?.handle;
         return Array.isArray(value) ? value[0] ?? '' : (value ?? '');
@@ -51,93 +77,159 @@ export default function UserHandleClient() {
         const trimmed = rawHandle.trim();
         return trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
     }, [rawHandle]);
+    const requestedPage = parsePageNumber(searchParams.get('page'));
 
     const [profile, setProfile] = useState<ProfileResponse | null>(null);
     const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
     const [localFollowing, setLocalFollowing] = useState(false);
+    const [localFollowPending, setLocalFollowPending] = useState(false);
     const [localBlocked, setLocalBlocked] = useState(false);
     const [localMuted, setLocalMuted] = useState(false);
     const [localBlockedBy, setLocalBlockedBy] = useState(false);
     const [reportingUser, setReportingUser] = useState(false);
+    const [pendingRelationAction, setPendingRelationAction] = useState<'follow' | 'block' | 'mute' | null>(null);
+    const [pendingPostAction, setPendingPostAction] = useState<string | null>(null);
+    const [relationMessage, setRelationMessage] = useState<string | null>(null);
+    const [postActionMessage, setPostActionMessage] = useState<string | null>(null);
 
     const fetchProfile = useMemo(
-        () => async () => {
-            if (!handle) return;
+        () => async (signal?: AbortSignal) => {
+            if (!handle || handle.length > 64) {
+                setStatus('error');
+                return;
+            }
             setStatus('loading');
             try {
-                const res = await fetch(`/api/user-handle?handle=${encodeURIComponent(handle)}`, {
-                    cache: 'no-store',
-                });
+                const res = await fetch(
+                    `/api/user-handle?handle=${encodeURIComponent(handle)}&page=${requestedPage}`,
+                    {
+                        cache: 'no-store',
+                        signal,
+                    },
+                );
                 if (!res.ok) throw new Error('failed');
                 const data = await res.json();
                 if (!data?.user) throw new Error('not found');
+                if (signal?.aborted) return;
                 setProfile(data);
                 setStatus('idle');
             } catch {
+                if (signal?.aborted) return;
                 setStatus('error');
             }
         },
-        [handle],
+        [handle, requestedPage],
     );
 
     useEffect(() => {
-        let active = true;
         if (!handle) return;
-        fetchProfile().catch(() => {
-            if (active) setStatus('error');
-        });
+        const controller = new AbortController();
+        fetchProfile(controller.signal);
         return () => {
-            active = false;
+            controller.abort();
         };
-    }, [handle, fetchProfile]);
+    }, [handle, requestedPage, fetchProfile]);
 
     useEffect(() => {
         if (profile) {
             setLocalFollowing(profile.isFollowing);
+            setLocalFollowPending(profile.isFollowPending);
             setLocalBlocked(profile.isBlocked);
             setLocalMuted(profile.isMuted);
             setLocalBlockedBy(profile.isBlockedBy);
         }
     }, [profile]);
 
-    const runPostAction = async (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
-        await fetch('/api/post-action', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ postId, action }),
+    const reconcilePostAction = (
+        postId: string,
+        action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark',
+        active: boolean,
+        count: number | undefined,
+    ) => {
+        setProfile((current) => {
+            if (!current) return current;
+            return {
+                ...current,
+                posts: current.posts.map((post) => {
+                    if (post.id !== postId) return post;
+                    if (action === 'like') {
+                        return {
+                            ...post,
+                            liked: active,
+                            likeCount: typeof count === 'number' ? Math.max(0, count) : post.likeCount,
+                        };
+                    }
+                    if (action === 'bookmark') {
+                        return {
+                            ...post,
+                            bookmarked: active,
+                            bookmarkCount:
+                                typeof count === 'number' ? Math.max(0, count) : post.bookmarkCount,
+                        };
+                    }
+                    if (action === 'wakaru') {
+                        return {
+                            ...post,
+                            wakaruReacted: active,
+                            wakaruCount:
+                                typeof count === 'number' ? Math.max(0, count) : post.wakaruCount,
+                        };
+                    }
+                    return {
+                        ...post,
+                        ganbattaReacted: active,
+                        ganbattaCount:
+                            typeof count === 'number' ? Math.max(0, count) : post.ganbattaCount,
+                    };
+                }),
+            };
         });
-        await fetchProfile();
+    };
+
+    const runPostAction = async (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
+        const actionKey = `${postId}:${action}`;
+        if (pendingPostAction) return;
+        setPendingPostAction(actionKey);
+        setPostActionMessage(null);
+        try {
+            const res = await fetch('/api/post-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ postId, action }),
+            });
+            if (!res.ok) {
+                setPostActionMessage(
+                    await apiFailureMessage(res, '投稿への操作に失敗しました。'),
+                );
+                await fetchProfile();
+                return;
+            }
+            const payload = await res.json();
+            if (typeof payload?.active !== 'boolean') throw new Error('invalid response');
+            reconcilePostAction(
+                postId,
+                action,
+                payload.active,
+                typeof payload?.count === 'number' ? payload.count : undefined,
+            );
+        } catch {
+            setPostActionMessage('通信エラーのため操作を完了できませんでした。');
+            await fetchProfile();
+        } finally {
+            setPendingPostAction(null);
+        }
     };
 
     const reportUser = async () => {
         if (!profile?.viewerId || !profile.user.id || reportingUser) return;
-        const reasonGuide = REPORT_REASONS.map((reason, index) => `${index + 1}. ${reason.label}`).join('\n');
-        const selected = window.prompt(`通報理由を番号で選んでください。\n${reasonGuide}`);
-        if (selected === null) return;
-        const selectedIndex = Number.parseInt(selected, 10) - 1;
-        const reason: ReportReasonValue = REPORT_REASONS[selectedIndex]?.value ?? 'OTHER';
-        const detail = window.prompt('通報理由を入力してください。空欄でも送信できます。');
-        if (detail === null) return;
+
+        const report = promptForReport();
+        if (!report) return;
 
         setReportingUser(true);
         try {
-            const res = await fetch('/api/report', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ targetUserId: profile.user.id, reason, detail }),
-            });
-            if (!res.ok) {
-                let message = '通報に失敗しました。';
-                try {
-                    const payload = await res.json();
-                    if (payload?.error) message = payload.error;
-                } catch {
-                    // ignore
-                }
-                alert(message);
-                return;
-            }
-            alert('通報を受け付けました。');
+            const result = await submitReport({ targetUserId: profile.user.id }, report);
+            window.alert(result.message);
         } finally {
             setReportingUser(false);
         }
@@ -165,44 +257,111 @@ export default function UserHandleClient() {
         );
     }
 
-    const { user, posts, viewerId } = profile;
+    const {
+        user,
+        posts,
+        viewerId,
+        postCount,
+        page,
+        totalPages,
+        hasPrevious,
+        hasNext,
+    } = profile;
     const isPrivate = !!user.isPrivate;
     const canViewPosts = !isPrivate || viewerId === user.id || localFollowing;
 
     const toggleFollow = async () => {
-        if (!viewerId) return;
-        await fetch('/api/follow-action', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetUserId: user.id, action: localFollowing ? 'unfollow' : 'follow' }),
-        });
-        setLocalFollowing((prev) => !prev);
-        await fetchProfile();
+        if (!viewerId || pendingRelationAction) return;
+        setPendingRelationAction('follow');
+        setRelationMessage(null);
+        const action = localFollowing || localFollowPending ? 'unfollow' : 'follow';
+        try {
+            const res = await fetch('/api/follow-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetUserId: user.id, action }),
+            });
+            if (!res.ok) {
+                setRelationMessage(await apiFailureMessage(res, 'フォロー操作に失敗しました。'));
+                return;
+            }
+            const payload = await res.json();
+            setRelationMessage(
+                action === 'unfollow'
+                    ? 'フォローを解除しました。'
+                    : payload?.followState === 'PENDING'
+                      ? 'フォロー申請を送信しました。'
+                      : 'フォローしました。',
+            );
+            await fetchProfile();
+        } catch {
+            setRelationMessage('通信エラーのためフォロー操作を完了できませんでした。');
+        } finally {
+            setPendingRelationAction(null);
+        }
     };
 
     const toggleBlock = async () => {
-        if (!viewerId) return;
-        await fetch('/api/block-action', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetUserId: user.id, action: localBlocked ? 'unblock' : 'block' }),
-        });
-        setLocalBlocked((prev) => !prev);
-        if (!localBlocked) {
-            setLocalFollowing(false);
+        if (!viewerId || pendingRelationAction) return;
+        if (
+            !localBlocked &&
+            !window.confirm(
+                'このユーザーをブロックしますか？相互のフォロー関係が解除され、互いの通知も削除されます。',
+            )
+        ) {
+            return;
         }
-        await fetchProfile();
+
+        setPendingRelationAction('block');
+        setRelationMessage(null);
+        const action = localBlocked ? 'unblock' : 'block';
+        try {
+            const res = await fetch('/api/block-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetUserId: user.id, action }),
+            });
+            if (!res.ok) {
+                setRelationMessage(await apiFailureMessage(res, 'ブロック操作に失敗しました。'));
+                return;
+            }
+            setLocalBlocked(action === 'block');
+            if (action === 'block') {
+                setLocalFollowing(false);
+                setLocalFollowPending(false);
+            }
+            setRelationMessage(action === 'block' ? 'ブロックしました。' : 'ブロックを解除しました。');
+            await fetchProfile();
+        } catch {
+            setRelationMessage('通信エラーのためブロック操作を完了できませんでした。');
+        } finally {
+            setPendingRelationAction(null);
+        }
     };
 
     const toggleMute = async () => {
-        if (!viewerId) return;
-        await fetch('/api/mute-action', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ targetUserId: user.id, action: localMuted ? 'unmute' : 'mute' }),
-        });
-        setLocalMuted((prev) => !prev);
-        await fetchProfile();
+        if (!viewerId || pendingRelationAction) return;
+        setPendingRelationAction('mute');
+        setRelationMessage(null);
+        const action = localMuted ? 'unmute' : 'mute';
+        try {
+            const res = await fetch('/api/mute-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ targetUserId: user.id, action }),
+            });
+            if (!res.ok) {
+                setRelationMessage(await apiFailureMessage(res, 'ミュート操作に失敗しました。'));
+                return;
+            }
+            setLocalMuted(action === 'mute');
+            setRelationMessage(action === 'mute' ? 'ミュートしました。' : 'ミュートを解除しました。');
+            await fetchProfile();
+        } catch {
+            setRelationMessage('通信エラーのためミュート操作を完了できませんでした。');
+        } finally {
+            setPendingRelationAction(null);
+        }
     };
 
     return (
@@ -233,6 +392,10 @@ export default function UserHandleClient() {
                             <span className="text-lg font-bold">{user.name ?? 'ユーザー'}</span>
                             <span className="text-sm text-zinc-500">@{user.handle}</span>
                             {user.bio && <p className="text-sm text-zinc-500">{user.bio}</p>}
+                            <div className="mt-1 flex gap-4 text-xs text-zinc-500">
+                                <span>フォロー {user.followingCount}</span>
+                                <span>フォロワー {user.followerCount}</span>
+                            </div>
                         </div>
                     </div>
                     {isPrivate && (
@@ -244,23 +407,32 @@ export default function UserHandleClient() {
                                 <button
                                     type="button"
                                     onClick={toggleFollow}
-                                    className="text-xs text-[#1d9bf0] hover:underline"
+                                    className="text-xs text-[#1d9bf0] hover:underline disabled:opacity-50"
+                                    disabled={pendingRelationAction !== null}
+                                    aria-pressed={localFollowing || localFollowPending}
                                 >
-                                    {localFollowing ? 'フォロー中' : 'フォローする'}
+                                    {localFollowing
+                                        ? 'フォロー中'
+                                        : localFollowPending
+                                          ? '申請中（取り消す）'
+                                          : 'フォローする'}
                                 </button>
                             )}
                             <button
                                 type="button"
                                 onClick={toggleMute}
-                                className={`text-xs ${localMuted ? 'text-zinc-500' : 'text-[#1d9bf0]'} hover:underline`}
-                                disabled={localBlockedBy}
+                                className={`text-xs ${localMuted ? 'text-zinc-500' : 'text-[#1d9bf0]'} hover:underline disabled:opacity-50`}
+                                disabled={localBlockedBy || pendingRelationAction !== null}
+                                aria-pressed={localMuted}
                             >
                                 {localMuted ? 'ミュート解除' : 'ミュート'}
                             </button>
                             <button
                                 type="button"
                                 onClick={toggleBlock}
-                                className={`text-xs ${localBlocked ? 'text-red-500' : 'text-[#1d9bf0]'} hover:underline`}
+                                className={`text-xs ${localBlocked ? 'text-red-500' : 'text-[#1d9bf0]'} hover:underline disabled:opacity-50`}
+                                disabled={pendingRelationAction !== null}
+                                aria-pressed={localBlocked}
                             >
                                 {localBlocked ? 'ブロック解除' : 'ブロック'}
                             </button>
@@ -277,8 +449,22 @@ export default function UserHandleClient() {
                         </div>
                     )}
                 </div>
+                {(relationMessage || postActionMessage) && (
+                    <div
+                        role="status"
+                        aria-live="polite"
+                        className="px-4 pb-3 text-xs text-zinc-600"
+                    >
+                        {relationMessage ?? postActionMessage}
+                    </div>
+                )}
             </div>
             <div className="flex flex-col">
+                {!localBlocked && !localMuted && !localBlockedBy && canViewPosts && postCount > 0 && (
+                    <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
+                        投稿 {postCount}件・{page}/{totalPages}ページ
+                    </div>
+                )}
                 {(localBlocked || localMuted || localBlockedBy) && (
                     <div className="p-4 text-sm text-zinc-500 border-b border-border">
                         {localBlockedBy
@@ -290,33 +476,16 @@ export default function UserHandleClient() {
                 )}
                 {!localBlocked && !localMuted && !localBlockedBy && !canViewPosts && (
                     <div className="p-4 text-sm text-zinc-500 border-b border-border">
-                        このアカウントは非公開です。フォロー中のみ投稿を表示できます。
+                        {localFollowPending
+                            ? 'フォロー申請を送信済みです。承認されると投稿を表示できます。'
+                            : 'このアカウントは非公開です。承認されたフォロワーのみ投稿を表示できます。'}
                     </div>
                 )}
                 {posts.map((post) => (
                     <div
                         key={post.id}
                         className="p-4 border-b border-border hover:bg-zinc-50 transition-colors flex gap-4 relative"
-                        role="button"
-                        tabIndex={0}
-                        onClick={(event) => {
-                            const target = event.target as HTMLElement;
-                            if (target.closest('button') || target.closest('a') || target.closest('[data-action-area]')) {
-                                return;
-                            }
-                            router.push(`/post?id=${post.id}`);
-                        }}
-                        onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                                router.push(`/post?id=${post.id}`);
-                            }
-                        }}
                     >
-                        <Link
-                            href={`/post?id=${post.id}`}
-                            className="absolute inset-0 z-0 pointer-events-none"
-                            aria-label="投稿を開く"
-                        />
                         {user.avatarUrl ? (
                             <img
                                 src={user.avatarUrl}
@@ -337,16 +506,18 @@ export default function UserHandleClient() {
                             {post.imageUrl && (
                                 <img
                                     src={post.imageUrl}
-                                    alt="投稿画像"
+                                    alt={post.imageAlt ?? ''}
                                     className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
                                 />
                             )}
-                            <div className="flex items-center gap-3 text-zinc-500 flex-wrap relative z-30 feed-action-area" data-action-area>
+                            <div className="flex items-center gap-3 text-zinc-500 flex-wrap relative z-30 feed-action-area">
                                 {viewerId ? (
                                     <button
                                         type="button"
                                         onClick={(event) => { event.stopPropagation(); runPostAction(post.id, 'like'); }}
-                                        className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors ${
+                                        aria-pressed={post.liked}
+                                        disabled={pendingPostAction !== null}
+                                        className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors disabled:opacity-50 ${
                                             post.liked ? 'text-red-500' : 'hover:text-red-500'
                                         }`}
                                     >
@@ -360,7 +531,9 @@ export default function UserHandleClient() {
                                     <button
                                         type="button"
                                         onClick={(event) => { event.stopPropagation(); runPostAction(post.id, 'wakaru'); }}
-                                        className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                                        aria-pressed={post.wakaruReacted}
+                                        disabled={pendingPostAction !== null}
+                                        className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                             post.wakaruReacted ? 'text-yellow-400' : 'hover:text-yellow-400'
                                         }`}
                                     >
@@ -373,7 +546,9 @@ export default function UserHandleClient() {
                                     <button
                                         type="button"
                                         onClick={(event) => { event.stopPropagation(); runPostAction(post.id, 'ganbatta'); }}
-                                        className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                                        aria-pressed={post.ganbattaReacted}
+                                        disabled={pendingPostAction !== null}
+                                        className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                             post.ganbattaReacted ? 'text-green-400' : 'hover:text-green-400'
                                         }`}
                                     >
@@ -386,7 +561,9 @@ export default function UserHandleClient() {
                                     <button
                                         type="button"
                                         onClick={(event) => { event.stopPropagation(); runPostAction(post.id, 'bookmark'); }}
-                                        className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                                        aria-pressed={post.bookmarked}
+                                        disabled={pendingPostAction !== null}
+                                        className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                             post.bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
                                         }`}
                                     >
@@ -395,10 +572,32 @@ export default function UserHandleClient() {
                                 ) : (
                                     <div className="text-xs">ブックマーク {post.bookmarkCount}</div>
                                 )}
+                                <Link
+                                    href={`/post/${encodeURIComponent(post.id)}`}
+                                    className="text-xs text-[#1d9bf0] hover:underline"
+                                >
+                                    投稿を開く
+                                </Link>
                             </div>
                         </div>
                     </div>
                 ))}
+                {!localBlocked && !localMuted && !localBlockedBy && canViewPosts && postCount > 0 && (
+                    <PaginationLinks
+                        page={page}
+                        totalPages={totalPages}
+                        previousHref={
+                            hasPrevious
+                                ? `/user/${encodeURIComponent(handle)}?page=${page - 1}`
+                                : null
+                        }
+                        nextHref={
+                            hasNext
+                                ? `/user/${encodeURIComponent(handle)}?page=${page + 1}`
+                                : null
+                        }
+                    />
+                )}
                 {posts.length === 0 && !localBlocked && !localMuted && !localBlockedBy && canViewPosts && (
                     <div className="p-6 text-sm text-zinc-500 text-center">まだ投稿がありません</div>
                 )}

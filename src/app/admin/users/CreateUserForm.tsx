@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { createAdminUser, type CreateUserState } from './actions';
 
@@ -19,7 +19,7 @@ function SubmitButton() {
       className="rounded-full bg-black px-5 py-2 text-sm font-semibold text-white disabled:bg-zinc-400"
       disabled={pending}
     >
-      {pending ? '作成中' : 'ユーザーを作成'}
+      {pending ? '送信中' : '招待を送信'}
     </button>
   );
 }
@@ -31,6 +31,7 @@ function FieldError({ messages }: { messages?: string[] }) {
 
 export default function CreateUserForm() {
   const [state, dispatch] = useActionState<CreateUserState, FormData>(createAdminUser, undefined);
+  const [selectedRole, setSelectedRole] = useState<'USER' | 'MODERATOR' | 'ADMIN'>('USER');
   const errors = state?.errors;
 
   return (
@@ -60,36 +61,6 @@ export default function CreateUserForm() {
         </label>
       </div>
 
-      <div className="mb-4 grid gap-4 lg:grid-cols-2">
-        <label className="block text-sm font-medium text-zinc-700">
-          初期パスワード
-          <input
-            name="password"
-            type="password"
-            required
-            minLength={8}
-            maxLength={128}
-            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-            placeholder="8文字以上"
-          />
-          <FieldError messages={errors?.password} />
-        </label>
-
-        <label className="block text-sm font-medium text-zinc-700">
-          初期パスワード確認
-          <input
-            name="confirmPassword"
-            type="password"
-            required
-            minLength={8}
-            maxLength={128}
-            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-            placeholder="もう一度入力"
-          />
-          <FieldError messages={errors?.confirmPassword} />
-        </label>
-      </div>
-
       <fieldset className="mb-4">
         <legend className="text-sm font-medium text-zinc-700">権限</legend>
         <div className="mt-2 grid gap-3 lg:grid-cols-3">
@@ -102,7 +73,8 @@ export default function CreateUserForm() {
                 name="role"
                 type="radio"
                 value={role.value}
-                defaultChecked={role.value === 'USER'}
+                checked={selectedRole === role.value}
+                onChange={() => setSelectedRole(role.value)}
                 className="mr-2"
               />
               <span className="font-semibold text-zinc-900">{role.label}</span>
@@ -113,6 +85,40 @@ export default function CreateUserForm() {
         <FieldError messages={errors?.role} />
       </fieldset>
 
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        <label className="block text-sm font-medium text-zinc-700">
+          操作確認用のADMINパスワード
+          <input
+            name="currentPassword"
+            type="password"
+            required
+            maxLength={128}
+            autoComplete="current-password"
+            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+            placeholder="あなた自身のADMINパスワード"
+          />
+          <FieldError messages={errors?.currentPassword} />
+        </label>
+
+        {selectedRole === 'ADMIN' && (
+          <label className="block text-sm font-medium text-zinc-700">
+            ADMIN作成確認
+            <input
+              name="adminConfirmation"
+              required
+              maxLength={64}
+              autoComplete="off"
+              className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+              placeholder="CREATE ADMIN"
+            />
+            <span className="mt-1 block text-xs text-zinc-500">
+              ADMINを作成する場合は「CREATE ADMIN」と入力してください。
+            </span>
+            <FieldError messages={errors?.adminConfirmation} />
+          </label>
+        )}
+      </div>
+
       {state?.message && (
         <div className="mb-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
           {state.message}
@@ -121,7 +127,7 @@ export default function CreateUserForm() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-zinc-500">
-          作成後、対象ユーザーの詳細画面へ移動します。初期パスワードは本人に安全な経路で共有してください。
+          本人の登録メールアドレスへ招待リンクを送ります。管理者が初期パスワードを知ることはありません。
         </p>
         <SubmitButton />
       </div>

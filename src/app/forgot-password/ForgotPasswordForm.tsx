@@ -35,18 +35,30 @@ export default function ForgotPasswordForm() {
 
       <form action={dispatch} className="space-y-4">
         <div>
+          <label htmlFor="forgot-email" className="sr-only">メールアドレス</label>
           <input
+            id="forgot-email"
             name="email"
             type="email"
+            maxLength={254}
+            autoComplete="email"
+            aria-invalid={Boolean(state?.errors?.email)}
+            aria-describedby={state?.errors?.email ? 'forgot-email-error' : undefined}
             placeholder="メールアドレス"
             className="w-full rounded-md border border-zinc-300 bg-white p-3 focus:border-[#1d9bf0] focus:outline-none"
             required
           />
-          {state?.errors?.email && <p className="mt-1 text-sm text-red-500">{state.errors.email[0]}</p>}
+          {state?.errors?.email && (
+            <p id="forgot-email-error" className="mt-1 text-sm text-red-600" role="alert">
+              {state.errors.email.join(' ')}
+            </p>
+          )}
         </div>
 
         {state?.message && (
           <div
+            role={state.ok ? 'status' : 'alert'}
+            aria-live="polite"
             className={
               'rounded-md px-3 py-2 text-sm ' +
               (state.ok ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700')

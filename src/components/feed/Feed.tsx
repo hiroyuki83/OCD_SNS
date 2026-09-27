@@ -1,19 +1,21 @@
 ﻿'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
-import { deletePost } from '@/app/lib/actions';
 import CreatePostForm from '@/components/feed/CreatePostForm';
 import HashtagText from '@/components/shared/HashtagText';
 import { formatPostTime } from '@/lib/formatTime';
-import { REPORT_REASONS, type ReportReasonValue } from '@/lib/reportReasons';
+import { promptForReport, submitReport } from '@/lib/reportClient';
+import { DeletePostForm } from '@/components/profile/ProfileDangerActions';
+import PaginationLinks from '@/components/shared/PaginationLinks';
 
 type FeedPost = {
     id: string;
     content: string;
     imageUrl: string | null;
+    imageAlt: string | null;
     createdAt: string;
     wakaruCount: number;
     ganbattaCount: number;
@@ -33,9 +35,13 @@ type FeedPost = {
 
 type FeedResponse = {
     posts: FeedPost[];
-    followingIds: string[];
     viewerId: string | null;
     viewerAvatarUrl: string | null;
+    totalCount: number;
+    page: number;
+    totalPages: number;
+    hasPrevious: boolean;
+    hasNext: boolean;
 };
 
 type AnnouncementNotice = {
@@ -62,13 +68,21 @@ export default function Feed({
     const [tab, setTab] = useState<'for-you' | 'following'>(initialTab);
     const [data, setData] = useState<FeedResponse>({
         posts: [],
-        followingIds: [],
         viewerId: initialViewerId,
         viewerAvatarUrl: initialViewerAvatarUrl,
+        totalCount: 0,
+        page: 1,
+        totalPages: 1,
+        hasPrevious: false,
+        hasNext: false,
     });
     const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
     const [hasLoaded, setHasLoaded] = useState(false);
     const [reportingPostId, setReportingPostId] = useState<string | null>(null);
+    const pendingPostActionKeys = useRef(new Set<string>());
+    const [pendingPostActions, setPendingPostActions] = useState<Set<string>>(
+        () => new Set(),
+    );
 
     useEffect(() => {
         const nextTab = searchParams.get('tab') === 'following' ? 'following' : 'for-you';
@@ -76,48 +90,64 @@ export default function Feed({
     }, [searchParams]);
 
     const fetchFeed = useMemo(
-        () => async () => {
+        () => async (signal?: AbortSignal) => {
             setStatus('loading');
             setData((prev) => ({
+                ...prev,
                 posts: [],
-                followingIds: prev.followingIds,
-                viewerId: prev.viewerId,
-                viewerAvatarUrl: prev.viewerAvatarUrl,
             }));
             try {
-                const res = await fetch(`/api/feed?tab=${encodeURIComponent(tab)}`, {
+                const requestedPage =
+                    tab === 'following' ? searchParams.get('page') ?? '1' : '1';
+                const res = await fetch(
+                    `/api/feed?tab=${encodeURIComponent(tab)}&page=${encodeURIComponent(requestedPage)}`,
+                    {
                     cache: 'no-store',
                     credentials: 'include',
-                });
+                        signal,
+                    },
+                );
                 if (!res.ok) throw new Error('failed');
                 const payload = await res.json();
+                if (signal?.aborted) return;
                 const viewerId = payload?.viewerId ?? null;
                 const rawPosts = Array.isArray(payload?.posts) ? payload.posts : [];
-                const filteredPosts = rawPosts;
                 setData({
-                    posts: filteredPosts,
-                    followingIds: Array.isArray(payload?.followingIds) ? payload.followingIds : [],
+                    posts: rawPosts,
                     viewerId,
                     viewerAvatarUrl: payload?.viewerAvatarUrl ?? null,
+                    totalCount: typeof payload?.totalCount === 'number' ? payload.totalCount : rawPosts.length,
+                    page: typeof payload?.page === 'number' ? payload.page : 1,
+                    totalPages: typeof payload?.totalPages === 'number' ? payload.totalPages : 1,
+                    hasPrevious: Boolean(payload?.hasPrevious),
+                    hasNext: Boolean(payload?.hasNext),
                 });
                 setStatus('idle');
                 setHasLoaded(true);
             } catch {
-                setData({ posts: [], followingIds: [], viewerId: null, viewerAvatarUrl: null });
+                if (signal?.aborted) return;
+                setData({
+                    posts: [],
+                    viewerId: null,
+                    viewerAvatarUrl: null,
+                    totalCount: 0,
+                    page: 1,
+                    totalPages: 1,
+                    hasPrevious: false,
+                    hasNext: false,
+                });
                 setStatus('error');
                 setHasLoaded(true);
             }
         },
-        [tab],
+        [tab, searchParams],
     );
 
     useEffect(() => {
-        let active = true;
-        fetchFeed().catch(() => {
-            if (active) setStatus('error');
-        });
+        const controller = new AbortController();
+        fetchFeed(controller.signal);
         return () => {
-            active = false;
+            controller.abort();
         };
     }, [fetchFeed]);
 
@@ -160,11 +190,59 @@ export default function Feed({
         }));
     };
 
+    const reconcileLocalPostAction = (
+        postId: string,
+        action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark',
+        active: boolean,
+        count: number | undefined,
+    ) => {
+        setData((prev) => ({
+            ...prev,
+            posts: prev.posts.map((post) => {
+                if (post.id !== postId) return post;
+                if (action === 'like') {
+                    return {
+                        ...post,
+                        liked: active,
+                        likeCount: typeof count === 'number' ? Math.max(0, count) : post.likeCount,
+                    };
+                }
+                if (action === 'bookmark') {
+                    return {
+                        ...post,
+                        bookmarked: active,
+                        bookmarkCount:
+                            typeof count === 'number' ? Math.max(0, count) : post.bookmarkCount,
+                    };
+                }
+                if (action === 'wakaru') {
+                    return {
+                        ...post,
+                        wakaruReacted: active,
+                        wakaruCount: typeof count === 'number' ? Math.max(0, count) : post.wakaruCount,
+                    };
+                }
+                return {
+                    ...post,
+                    ganbattaReacted: active,
+                    ganbattaCount:
+                        typeof count === 'number' ? Math.max(0, count) : post.ganbattaCount,
+                };
+            }),
+        }));
+    };
+
     const runPostAction = async (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
-        if (!data.viewerId) return;
-        if (tab === 'for-you') {
-            applyLocalPostAction(postId, action);
-        }
+        if (!data.viewerId || !postId || postId.length > 128) return;
+        const actionKey = `${postId}:${action}`;
+        if (pendingPostActionKeys.current.has(actionKey)) return;
+        pendingPostActionKeys.current.add(actionKey);
+        setPendingPostActions((prev) => {
+            const next = new Set(prev);
+            next.add(actionKey);
+            return next;
+        });
+        applyLocalPostAction(postId, action);
         try {
             const res = await fetch('/api/post-action', {
                 method: 'POST',
@@ -172,13 +250,23 @@ export default function Feed({
                 body: JSON.stringify({ postId, action }),
             });
             if (!res.ok) throw new Error('failed');
-            if (tab === 'following') {
-                await fetchFeed();
-            }
+            const payload = await res.json();
+            if (typeof payload?.active !== 'boolean') throw new Error('invalid response');
+            reconcileLocalPostAction(
+                postId,
+                action,
+                payload.active,
+                typeof payload?.count === 'number' ? payload.count : undefined,
+            );
         } catch {
-            if (tab === 'for-you') {
-                await fetchFeed();
-            }
+            await fetchFeed();
+        } finally {
+            pendingPostActionKeys.current.delete(actionKey);
+            setPendingPostActions((prev) => {
+                const next = new Set(prev);
+                next.delete(actionKey);
+                return next;
+            });
         }
     };
 
@@ -196,34 +284,15 @@ export default function Feed({
         postId: string,
     ) => {
         event.stopPropagation();
-        if (!data.viewerId || reportingPostId) return;
-        const reasonGuide = REPORT_REASONS.map((reason, index) => `${index + 1}. ${reason.label}`).join('\n');
-        const selected = window.prompt(`通報理由を番号で選んでください。\n${reasonGuide}`);
-        if (selected === null) return;
-        const selectedIndex = Number.parseInt(selected, 10) - 1;
-        const reason: ReportReasonValue = REPORT_REASONS[selectedIndex]?.value ?? 'OTHER';
-        const detail = window.prompt('通報理由を入力してください。空欄でも送信できます。');
-        if (detail === null) return;
+        if (!data.viewerId || reportingPostId || !postId || postId.length > 128) return;
+
+        const report = promptForReport();
+        if (!report) return;
 
         setReportingPostId(postId);
         try {
-            const res = await fetch('/api/report', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ postId, reason, detail }),
-            });
-            if (!res.ok) {
-                let message = '通報に失敗しました。';
-                try {
-                    const payload = await res.json();
-                    if (payload?.error) message = payload.error;
-                } catch {
-                    // ignore
-                }
-                alert(message);
-                return;
-            }
-            alert('通報を受け付けました。');
+            const result = await submitReport({ postId }, report);
+            window.alert(result.message);
         } finally {
             setReportingPostId(null);
         }
@@ -275,7 +344,7 @@ export default function Feed({
                                 <a
                                     href={announcement.href}
                                     target="_blank"
-                                    rel="noreferrer"
+                                    rel="noopener noreferrer"
                                     className="mt-2 inline-block text-sm font-semibold text-[#1d9bf0] hover:underline"
                                 >
                                     詳しく見る
@@ -318,11 +387,12 @@ export default function Feed({
                                 if (target.closest('button') || target.closest('a') || target.closest('[data-action-area]')) {
                                     return;
                                 }
-                                router.push(`/post?id=${post.id}`);
+                                router.push(`/post/${encodeURIComponent(post.id)}`);
                             }}
                             onKeyDown={(event) => {
-                                if (event.key === 'Enter') {
-                                    router.push(`/post?id=${post.id}`);
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    router.push(`/post/${encodeURIComponent(post.id)}`);
                                 }
                             }}
                         >
@@ -355,7 +425,7 @@ export default function Feed({
                                 {post.imageUrl && (
                                     <img
                                         src={post.imageUrl}
-                                        alt="投稿画像"
+                                        alt={post.imageAlt ?? ''}
                                         className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
                                     />
                                 )}
@@ -364,7 +434,9 @@ export default function Feed({
                                         <button
                                             type="button"
                                             onClick={(event) => handleAction(event, post.id, 'like')}
-                                            className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors ${
+                                            aria-pressed={post.liked}
+                                            disabled={pendingPostActions.has(`${post.id}:like`)}
+                                            className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors disabled:opacity-50 ${
                                                 post.liked ? 'text-red-500' : 'hover:text-red-500'
                                             }`}
                                         >
@@ -378,7 +450,9 @@ export default function Feed({
                                         <button
                                             type="button"
                                             onClick={(event) => handleAction(event, post.id, 'wakaru')}
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                                            aria-pressed={post.wakaruReacted}
+                                            disabled={pendingPostActions.has(`${post.id}:wakaru`)}
+                                            className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                                 post.wakaruReacted ? 'text-yellow-400' : 'hover:text-yellow-400'
                                             }`}
                                         >
@@ -391,7 +465,9 @@ export default function Feed({
                                         <button
                                             type="button"
                                             onClick={(event) => handleAction(event, post.id, 'ganbatta')}
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                                            aria-pressed={post.ganbattaReacted}
+                                            disabled={pendingPostActions.has(`${post.id}:ganbatta`)}
+                                            className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                                 post.ganbattaReacted ? 'text-green-400' : 'hover:text-green-400'
                                             }`}
                                         >
@@ -404,7 +480,9 @@ export default function Feed({
                                         <button
                                             type="button"
                                             onClick={(event) => handleAction(event, post.id, 'bookmark')}
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors ${
+                                            aria-pressed={post.bookmarked}
+                                            disabled={pendingPostActions.has(`${post.id}:bookmark`)}
+                                            className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
                                                 post.bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
                                             }`}
                                         >
@@ -414,14 +492,7 @@ export default function Feed({
                                         <div className="text-xs">ブックマーク {post.bookmarkCount}</div>
                                     )}
                                     {data.viewerId && post.author.id === data.viewerId && (
-                                        <form action={deletePost.bind(null, post.id)}>
-                                            <button
-                                                type="submit"
-                                                className="text-xs text-red-500 hover:underline"
-                                            >
-                                                削除
-                                            </button>
-                                        </form>
+                                        <DeletePostForm postId={post.id} />
                                     )}
                                     {data.viewerId && post.author.id !== data.viewerId && (
                                         <button
@@ -438,12 +509,33 @@ export default function Feed({
                         </div>
                     );
                 })}
+                {status === 'idle' && tab === 'following' && data.totalCount > 0 && (
+                    <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
+                        フォロー中の投稿 {data.totalCount}件
+                    </div>
+                )}
                 {status === 'idle' && data.posts.length === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">
                         {tab === 'following'
                             ? 'フォロー中の投稿がありません'
                             : '投稿がまだありません'}
                     </div>
+                )}
+                {status === 'idle' && tab === 'following' && data.totalCount > 0 && (
+                    <PaginationLinks
+                        page={data.page}
+                        totalPages={data.totalPages}
+                        previousHref={
+                            data.hasPrevious
+                                ? `/?tab=following&page=${data.page - 1}`
+                                : null
+                        }
+                        nextHref={
+                            data.hasNext
+                                ? `/?tab=following&page=${data.page + 1}`
+                                : null
+                        }
+                    />
                 )}
             </div>
         </div>

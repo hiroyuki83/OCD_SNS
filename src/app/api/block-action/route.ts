@@ -2,19 +2,23 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
-import { validateJsonMutationRequest } from '@/lib/requestSecurity';
+import { mutateBlockRelation } from '@/lib/userPrivacyRelations';
+import { parseJsonMutationRequest } from '@/lib/requestSecurity';
+
+const BLOCK_ACTIONS = ['block', 'unblock'] as const;
+type BlockAction = (typeof BLOCK_ACTIONS)[number];
 
 export async function POST(request: Request) {
-    const requestCheck = validateJsonMutationRequest(request);
-    if (!requestCheck.ok) {
-        return NextResponse.json({ ok: false, error: requestCheck.error }, { status: requestCheck.status });
+    const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+    if (!parsedRequest.ok) {
+        return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
     }
 
-    const body = await request.json().catch(() => ({}));
-    const targetUserId = typeof body?.targetUserId === 'string' ? body.targetUserId : '';
-    const action = body?.action === 'unblock' ? 'unblock' : 'block';
-    if (!targetUserId) {
-        return NextResponse.json({ ok: false }, { status: 400 });
+    const body = parsedRequest.data;
+    const targetUserId = typeof body?.targetUserId === 'string' ? body.targetUserId.trim() : '';
+    const action = typeof body?.action === 'string' ? body.action : '';
+    if (!targetUserId || targetUserId.length > 128 || !BLOCK_ACTIONS.includes(action as BlockAction)) {
+        return NextResponse.json({ ok: false, error: '不正な操作です。' }, { status: 400 });
     }
 
     const session = await auth();
@@ -26,46 +30,31 @@ export async function POST(request: Request) {
         });
         userId = user?.id ?? null;
     }
-    if (!userId || userId === targetUserId) {
+    if (!userId) {
         return NextResponse.json({ ok: false }, { status: 401 });
     }
-    const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } });
-    if (!targetUser) {
-        return NextResponse.json({ ok: false }, { status: 404 });
+    if (userId === targetUserId) {
+        return NextResponse.json({ ok: false, error: '自分自身はブロックできません。' }, { status: 400 });
     }
+
     if (!(await rateLimit(`block-action:${userId}`, 60, 60 * 1000))) {
         return NextResponse.json({ ok: false }, { status: 429 });
     }
 
-    if (action === 'unblock') {
-        await prisma.block.deleteMany({
-            where: { blockerId: userId, blockedId: targetUserId },
-        });
-        return NextResponse.json({ ok: true });
+    const result = await mutateBlockRelation(userId, targetUserId, action as BlockAction);
+    if (!result.ok) {
+        return NextResponse.json(
+            { ok: false },
+            {
+                status:
+                    result.reason === 'NOT_FOUND'
+                        ? 404
+                        : result.reason === 'CONFLICT'
+                          ? 409
+                          : 400,
+            },
+        );
     }
 
-    await prisma.block.upsert({
-        where: {
-            blockerId_blockedId: {
-                blockerId: userId,
-                blockedId: targetUserId,
-            },
-        },
-        update: {},
-        create: {
-            blockerId: userId,
-            blockedId: targetUserId,
-        },
-    });
-
-    await prisma.follow.deleteMany({
-        where: {
-            OR: [
-                { followerId: userId, followingId: targetUserId },
-                { followerId: targetUserId, followingId: userId },
-            ],
-        },
-    });
-
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, active: result.active });
 }

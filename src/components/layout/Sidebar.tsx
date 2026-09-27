@@ -7,6 +7,7 @@ import MobileMenu from "@/components/layout/MobileMenu";
 import NotificationsLink from "@/components/layout/NotificationsLink";
 import { prisma } from "@/lib/db";
 import { Role } from "@prisma/client";
+import { visibleAccountFilter } from "@/lib/accountStatus";
 
 const LABEL_HOME = "ホーム";
 const LABEL_TEST = "心理検査";
@@ -44,7 +45,29 @@ export default async function Sidebar() {
     if (resolvedUserId) {
       const [socialUnread, warningUnread] = await Promise.all([
         prisma.notification.count({
-          where: { userId: resolvedUserId, readAt: null },
+          where: {
+            userId: resolvedUserId,
+            readAt: null,
+            actor: {
+              AND: [
+                visibleAccountFilter(new Date()),
+                { blockedBy: { none: { blockerId: resolvedUserId } } },
+                { blocksInitiated: { none: { blockedId: resolvedUserId } } },
+                { mutedBy: { none: { muterId: resolvedUserId } } },
+              ],
+            },
+            OR: [
+              { type: "FOLLOW" },
+              {
+                post: {
+                  is: {
+                    deletedAt: null,
+                    isHidden: false,
+                  },
+                },
+              },
+            ],
+          },
         }),
         prisma.moderationWarning.count({
           where: { targetUserId: resolvedUserId, readAt: null },
@@ -94,14 +117,14 @@ export default async function Sidebar() {
           >
             <Image
               src="/icon/logo.png"
-              alt="Logo"
+              alt="CoCo ホーム"
               width={56}
               height={56}
               className="h-full w-full rounded-full object-cover"
               priority
             />
           </Link>
-          <nav className="flex flex-col gap-1">
+          <nav aria-label="主要ナビゲーション" className="flex flex-col gap-1">
             {allNavItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -152,7 +175,7 @@ export default async function Sidebar() {
           </div>
           {session?.user ? (
             <div className="flex items-center justify-between gap-2">
-              <button className="flex items-center gap-3 p-3 flex-1 rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors text-left overflow-hidden">
+              <div className="flex items-center gap-3 p-3 flex-1 rounded-full text-left overflow-hidden">
                 {userProfile?.avatarUrl ? (
                   <img
                     src={userProfile.avatarUrl}
@@ -166,7 +189,7 @@ export default async function Sidebar() {
                   <p className="font-bold text-sm truncate">{userProfile?.name ?? session.user.name}</p>
                   <p className="text-zinc-500 text-sm truncate">{userProfile?.email ?? session.user.email}</p>
                 </div>
-              </button>
+              </div>
               <form
                 action={async () => {
                   "use server";
@@ -185,15 +208,17 @@ export default async function Sidebar() {
             </div>
           ) : (
             <div className="flex flex-col gap-2 p-2">
-              <Link href="/login">
-                <Button variant="outline" className="w-full rounded-full font-bold">
-                  {LABEL_LOGIN}
-                </Button>
+              <Link
+                href="/login"
+                className="inline-flex h-9 w-full items-center justify-center rounded-full border border-input bg-background px-4 text-sm font-bold shadow-xs hover:bg-accent hover:text-accent-foreground"
+              >
+                {LABEL_LOGIN}
               </Link>
-              <Link href="/register">
-                <Button className="w-full rounded-full font-bold bg-white text-black hover:bg-zinc-200">
-                  {LABEL_REGISTER}
-                </Button>
+              <Link
+                href="/register"
+                className="inline-flex h-9 w-full items-center justify-center rounded-full bg-black px-4 text-sm font-bold text-white hover:bg-zinc-800"
+              >
+                {LABEL_REGISTER}
               </Link>
             </div>
           )}

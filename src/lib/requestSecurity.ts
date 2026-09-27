@@ -1,8 +1,20 @@
 import 'server-only';
 
+import {
+  MAX_JSON_MUTATION_BYTES,
+  parseJsonText,
+  validateContentLength,
+} from '@/lib/requestPayload';
+
+type MutationStatus = 400 | 403 | 413 | 415;
+
 type MutationCheck =
   | { ok: true }
-  | { ok: false; status: 400 | 403 | 415; error: string };
+  | { ok: false; status: MutationStatus; error: string };
+
+type ParsedMutation<T> =
+  | { ok: true; data: T }
+  | { ok: false; status: MutationStatus; error: string };
 
 function expectedOrigins(request: Request) {
   const requestUrl = new URL(request.url);
@@ -19,7 +31,10 @@ function expectedOrigins(request: Request) {
   return origins;
 }
 
-export function validateJsonMutationRequest(request: Request): MutationCheck {
+export function validateJsonMutationRequest(
+  request: Request,
+  maxBytes: number = MAX_JSON_MUTATION_BYTES,
+): MutationCheck {
   const secFetchSite = request.headers.get('sec-fetch-site');
   if (secFetchSite === 'cross-site') {
     return { ok: false, status: 403, error: 'Cross-site request blocked.' };
@@ -46,5 +61,25 @@ export function validateJsonMutationRequest(request: Request): MutationCheck {
     return { ok: false, status: 415, error: 'Content-Type must be application/json.' };
   }
 
+  const contentLengthCheck = validateContentLength(request.headers.get('content-length'), maxBytes);
+  if (!contentLengthCheck.ok) return contentLengthCheck;
+
   return { ok: true };
+}
+
+export async function parseJsonMutationRequest<T = unknown>(
+  request: Request,
+  maxBytes: number = MAX_JSON_MUTATION_BYTES,
+): Promise<ParsedMutation<T>> {
+  const requestCheck = validateJsonMutationRequest(request, maxBytes);
+  if (!requestCheck.ok) return requestCheck;
+
+  let rawText: string;
+  try {
+    rawText = await request.text();
+  } catch {
+    return { ok: false, status: 400, error: 'Unable to read request body.' };
+  }
+
+  return parseJsonText<T>(rawText, maxBytes);
 }

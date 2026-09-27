@@ -1,14 +1,19 @@
-import { NextResponse } from 'next/server';
+import type { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { AccountStatus } from '@prisma/client';
+import { isSuspensionActive, visibleAccountFilter } from '@/lib/accountStatus';
+import { privateJson } from '@/lib/apiResponse';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const rawHandle = searchParams.get('handle')?.trim() ?? '';
     const handle = rawHandle.startsWith('@') ? rawHandle.slice(1) : rawHandle;
-    if (!handle) {
-        return NextResponse.json({ user: null }, { status: 400 });
+    const requestedPage = parsePageNumber(searchParams.get('page'));
+    if (!handle || handle.length > 64) {
+        return privateJson({ user: null }, { status: 400 });
     }
 
     const session = await auth();
@@ -23,46 +28,152 @@ export async function GET(request: Request) {
 
     const user = await prisma.user.findUnique({
         where: { handle },
-        select: { id: true, name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true, status: true },
+        select: { id: true, name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true, status: true, suspendedUntil: true },
     });
-    if (!user) {
-        return NextResponse.json({ user: null }, { status: 404 });
+    if (!user || isSuspensionActive(user.status, user.suspendedUntil)) {
+        return privateJson({ user: null }, { status: 404 });
     }
 
-    const [isFollowing, isBlocked, isMuted, isBlockedBy] = viewerId
-        ? await Promise.all([
-              prisma.follow
-                  .findFirst({
-                      where: { followerId: viewerId, followingId: user.id },
-                      select: { id: true },
-                  })
-                  .then((result) => !!result),
-              prisma.block
-                  .findFirst({
-                      where: { blockerId: viewerId, blockedId: user.id },
-                      select: { id: true },
-                  })
-                  .then((result) => !!result),
-              prisma.mute
-                  .findFirst({
-                      where: { muterId: viewerId, mutedId: user.id },
-                      select: { id: true },
-                  })
-                  .then((result) => !!result),
-              prisma.block
-                  .findFirst({
-                      where: { blockerId: user.id, blockedId: viewerId },
-                      select: { id: true },
-                  })
-                  .then((result) => !!result),
-          ])
-        : [false, false, false, false];
+    const now = new Date();
 
-    const posts = isBlocked || isMuted || isBlockedBy || user.status === AccountStatus.SUSPENDED
+    const [
+        followerCount,
+        followingCount,
+        followRelation,
+        blockedRow,
+        mutedRow,
+        blockedByRow,
+    ] = await Promise.all([
+        prisma.follow.count({
+            where: {
+                followingId: user.id,
+                acceptedAt: { not: null },
+                follower: visibleAccountFilter(now),
+            },
+        }),
+        prisma.follow.count({
+            where: {
+                followerId: user.id,
+                acceptedAt: { not: null },
+                following: visibleAccountFilter(now),
+            },
+        }),
+        viewerId
+            ? prisma.follow.findUnique({
+                  where: {
+                      followerId_followingId: {
+                          followerId: viewerId,
+                          followingId: user.id,
+                      },
+                  },
+                  select: { id: true, acceptedAt: true },
+              })
+            : Promise.resolve(null),
+        viewerId
+            ? prisma.block.findUnique({
+                  where: {
+                      blockerId_blockedId: {
+                          blockerId: viewerId,
+                          blockedId: user.id,
+                      },
+                  },
+                  select: { id: true },
+              })
+            : Promise.resolve(null),
+        viewerId
+            ? prisma.mute.findUnique({
+                  where: {
+                      muterId_mutedId: {
+                          muterId: viewerId,
+                          mutedId: user.id,
+                      },
+                  },
+                  select: { id: true },
+              })
+            : Promise.resolve(null),
+        viewerId
+            ? prisma.block.findUnique({
+                  where: {
+                      blockerId_blockedId: {
+                          blockerId: user.id,
+                          blockedId: viewerId,
+                      },
+                  },
+                  select: { id: true },
+              })
+            : Promise.resolve(null),
+    ]);
+    const isBlocked = Boolean(blockedRow);
+    const isMuted = Boolean(mutedRow);
+    const isBlockedBy = Boolean(blockedByRow);
+    const isBlockRestricted = isBlocked || isBlockedBy;
+
+    const isFollowing = Boolean(followRelation?.acceptedAt);
+    const isFollowPending = Boolean(followRelation && !followRelation.acceptedAt);
+    const canViewPosts =
+        !user.isPrivate || viewerId === user.id || isFollowing;
+    const postAuthorVisibility: Prisma.UserWhereInput = viewerId
+        ? {
+              AND: [
+                  visibleAccountFilter(now),
+                  {
+                      blocksInitiated: {
+                          none: { blockedId: viewerId },
+                      },
+                  },
+                  {
+                      blockedBy: {
+                          none: { blockerId: viewerId },
+                      },
+                  },
+                  {
+                      mutedBy: {
+                          none: { muterId: viewerId },
+                      },
+                  },
+                  {
+                      OR: [
+                          { isPrivate: false },
+                          { id: viewerId },
+                          {
+                              followers: {
+                                  some: {
+                                      followerId: viewerId,
+                                      acceptedAt: { not: null },
+                                  },
+                              },
+                          },
+                      ],
+                  },
+              ],
+          }
+        : {
+              AND: [visibleAccountFilter(now), { isPrivate: false }],
+          };
+
+    const canReadPosts =
+        canViewPosts && !isBlocked && !isMuted && !isBlockedBy;
+
+    const postWhere: Prisma.PostWhereInput = {
+        authorId: user.id,
+        isHidden: false,
+        deletedAt: null,
+        author: postAuthorVisibility,
+    };
+
+    const postCount = canReadPosts
+        ? await prisma.post.count({ where: postWhere })
+        : 0;
+    const postPagination = clampPage(requestedPage, postCount, 50);
+
+    const posts =
+        !canReadPosts
         ? []
         : await prisma.post.findMany({
-              where: { authorId: user.id, isHidden: false, deletedAt: null },
-              orderBy: { createdAt: 'desc' },
+              where: postWhere,
+              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+              skip: postPagination.skip,
+              take: postPagination.pageSize,
               select: {
                   id: true,
                   content: true,
@@ -84,24 +195,30 @@ export async function GET(request: Request) {
               },
           });
 
-    const canViewPosts = !user.isPrivate || viewerId === user.id || isFollowing;
-
-    return NextResponse.json({
+    return privateJson({
         user: {
             id: user.id,
             name: user.name,
             handle: user.handle,
-            bio: user.bio,
+            bio: isBlockRestricted ? null : user.bio,
             avatarUrl: user.avatarUrl,
-            headerUrl: user.headerUrl,
+            headerUrl: isBlockRestricted ? null : user.headerUrl,
             isPrivate: user.isPrivate,
+            followerCount: isBlockRestricted ? 0 : followerCount,
+            followingCount: isBlockRestricted ? 0 : followingCount,
         },
         viewerId,
         isFollowing,
+        isFollowPending,
         isBlocked,
         isMuted,
         isBlockedBy,
-        posts: canViewPosts
+        postCount,
+        page: postPagination.page,
+        totalPages: postPagination.totalPages,
+        hasPrevious: postPagination.hasPrevious,
+        hasNext: postPagination.hasNext,
+        posts: canReadPosts
             ? posts.map((post) => {
                 const types = new Set(post.reactions.map((reaction) => reaction.type));
                 return {

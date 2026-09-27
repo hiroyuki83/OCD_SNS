@@ -3,6 +3,11 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 import UsersTable from "./UsersTable";
+import PaginationLinks from "@/components/shared/PaginationLinks";
+import { normalizeSearchQuery } from "@/lib/searchInput";
+import { clampPage, parsePageNumber } from "@/lib/pagination";
+
+export const dynamic = "force-dynamic";
 
 const roleOptions = [Role.USER, Role.MODERATOR, Role.ADMIN] as const;
 const statusOptions = [AccountStatus.ACTIVE, AccountStatus.POST_RESTRICTED, AccountStatus.SUSPENDED] as const;
@@ -18,13 +23,15 @@ function selectedStatus(value?: string) {
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams?: { q?: string; role?: string; status?: string };
+  searchParams?: Promise<{ q?: string; role?: string; status?: string; page?: string }>;
 }) {
+  const params = await searchParams;
   await requireRole(Role.ADMIN);
 
-  const query = searchParams?.q?.trim() ?? "";
-  const roleFilter = selectedRole(searchParams?.role);
-  const statusFilter = selectedStatus(searchParams?.status);
+  const normalizedQuery = normalizeSearchQuery(params?.q ?? "");
+  const query = normalizedQuery.ok ? normalizedQuery.value : "";
+  const roleFilter = selectedRole(params?.role);
+  const statusFilter = selectedStatus(params?.status);
   const filters: Prisma.UserWhereInput[] = [];
 
   if (query) {
@@ -32,6 +39,7 @@ export default async function AdminUsersPage({
       OR: [
         { id: { contains: query } },
         { email: { contains: query, mode: "insensitive" } },
+        { handle: { contains: query.replace(/^@/, ""), mode: "insensitive" } },
         { name: { contains: query, mode: "insensitive" } },
       ],
     });
@@ -45,28 +53,38 @@ export default async function AdminUsersPage({
 
   const where: Prisma.UserWhereInput | undefined = filters.length ? { AND: filters } : undefined;
 
-  const [users, totalCount, filteredCount] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        status: true,
-        suspendedUntil: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    }),
+  const [totalCount, filteredCount] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where }),
   ]);
 
+  const pagination = clampPage(
+    parsePageNumber(params?.page),
+    filteredCount,
+    100,
+  );
+
+  const users = await prisma.user.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      handle: true,
+      email: true,
+      role: true,
+      status: true,
+      suspendedUntil: true,
+      createdAt: true,
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: pagination.skip,
+    take: pagination.pageSize,
+  });
+
   const viewUsers = users.map((user) => ({
     id: user.id,
     name: user.name,
+    handle: user.handle,
     email: user.email,
     role: user.role,
     status: user.status,
@@ -76,10 +94,12 @@ export default async function AdminUsersPage({
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">ユーザー管理</h1>
-          <p className="text-sm text-zinc-500 mt-1">権限とアカウント状態の変更は監査ログに記録されます。</p>
+          <p className="mt-1 text-sm text-zinc-500">
+            一覧は閲覧専用です。権限・状態の変更は各ユーザーの詳細画面で再認証して実行します。
+          </p>
         </div>
         <Link
           href="/admin/users/new"
@@ -96,8 +116,9 @@ export default async function AdminUsersPage({
             <input
               name="q"
               defaultValue={query}
+              maxLength={100}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-              placeholder="名前、メール、ユーザーID"
+              placeholder="名前、@handle、メール、ユーザーID"
             />
           </label>
           <label className="block text-sm font-medium text-zinc-700 xl:col-span-2">
@@ -143,11 +164,47 @@ export default async function AdminUsersPage({
           </div>
         </div>
         <div className="mt-3 text-xs text-zinc-500">
-          {filteredCount} / {totalCount} 件を表示しています。最大200件まで表示します。
+          {filteredCount === 0
+            ? "0件"
+            : `${pagination.skip + 1}〜${Math.min(
+                pagination.skip + users.length,
+                filteredCount,
+              )}件目`} / 絞り込み {filteredCount}件 / 全 {totalCount}件
         </div>
       </form>
 
       <UsersTable users={viewUsers} />
+
+      {filteredCount > 0 && (
+        <PaginationLinks
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          previousHref={
+            pagination.hasPrevious
+              ? (() => {
+                  const params = new URLSearchParams();
+                  if (query) params.set("q", query);
+                  if (roleFilter) params.set("role", roleFilter);
+                  if (statusFilter) params.set("status", statusFilter);
+                  params.set("page", String(pagination.page - 1));
+                  return `/admin/users?${params.toString()}`;
+                })()
+              : null
+          }
+          nextHref={
+            pagination.hasNext
+              ? (() => {
+                  const params = new URLSearchParams();
+                  if (query) params.set("q", query);
+                  if (roleFilter) params.set("role", roleFilter);
+                  if (statusFilter) params.set("status", statusFilter);
+                  params.set("page", String(pagination.page + 1));
+                  return `/admin/users?${params.toString()}`;
+                })()
+              : null
+          }
+        />
+      )}
     </div>
   );
 }

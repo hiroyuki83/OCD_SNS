@@ -2,10 +2,20 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
-import { addGanbatta, addWakaru, deletePost, toggleBookmark, toggleLike, togglePrivateAccount } from '@/app/lib/actions';
 import HashtagText from '@/components/shared/HashtagText';
+import { visibleAccountFilter } from '@/lib/accountStatus';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
+import { DeletePostForm, PrivacyToggleForm } from '@/components/profile/ProfileDangerActions';
+import ProfilePostActionForm from '@/components/profile/ProfilePostActionForm';
 
-export default async function ProfilePage() {
+export const dynamic = 'force-dynamic';
+
+export default async function ProfilePage({
+    searchParams,
+}: {
+    searchParams?: { page?: string };
+}) {
     const session = await auth();
     let userId = session?.user?.id ?? null;
     if (!userId && session?.user?.email) {
@@ -29,11 +39,81 @@ export default async function ProfilePage() {
         select: { name: true, handle: true, bio: true, avatarUrl: true, headerUrl: true, isPrivate: true },
     });
 
-    const [posts] = await Promise.all([
+    if (!user) {
+        return (
+            <div className="p-6 text-sm text-zinc-500">
+                アカウント情報を取得できませんでした。{' '}
+                <Link href="/login" className="text-[#1d9bf0] hover:underline">
+                    ログインし直す
+                </Link>
+                ことをお試しください。
+            </div>
+        );
+    }
+
+    const now = new Date();
+    const postCount = await prisma.post.count({
+        where: { authorId: userId, deletedAt: null, isHidden: false },
+    });
+    const postPagination = clampPage(
+        parsePageNumber(searchParams?.page),
+        postCount,
+        50,
+    );
+
+    const [posts, followerCount, followingCount, pendingFollowingCount, pendingFollowRequestCount, blockCount, muteCount] = await Promise.all([
         prisma.post.findMany({
-            where: { authorId: userId, deletedAt: null },
-            orderBy: { createdAt: 'desc' },
-            include: { likes: true, bookmarks: true, reactions: true },
+            where: { authorId: userId, deletedAt: null, isHidden: false },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            skip: postPagination.skip,
+            take: postPagination.pageSize,
+            select: {
+                id: true,
+                content: true,
+                imageUrl: true,
+                imageAlt: true,
+                createdAt: true,
+                wakaruCount: true,
+                ganbattaCount: true,
+                likes: { where: { userId }, select: { id: true } },
+                bookmarks: { where: { userId }, select: { id: true } },
+                reactions: { where: { userId }, select: { type: true } },
+                _count: { select: { likes: true, bookmarks: true } },
+            },
+        }),
+        prisma.follow.count({
+            where: {
+                followingId: userId,
+                acceptedAt: { not: null },
+                follower: visibleAccountFilter(now),
+            },
+        }),
+        prisma.follow.count({
+            where: {
+                followerId: userId,
+                acceptedAt: { not: null },
+                following: visibleAccountFilter(now),
+            },
+        }),
+        prisma.follow.count({
+            where: {
+                followerId: userId,
+                acceptedAt: null,
+                following: visibleAccountFilter(now),
+            },
+        }),
+        prisma.follow.count({
+            where: {
+                followingId: userId,
+                acceptedAt: null,
+                follower: visibleAccountFilter(now),
+            },
+        }),
+        prisma.block.count({
+            where: { blockerId: userId },
+        }),
+        prisma.mute.count({
+            where: { muterId: userId },
         }),
     ]);
 
@@ -44,13 +124,13 @@ export default async function ProfilePage() {
             </div>
             <div className="border-b border-border">
                 <div className="h-32 bg-zinc-900">
-                    {user?.headerUrl && (
+                    {user.headerUrl && (
                         <img src={user.headerUrl} alt="ヘッダー画像" className="h-32 w-full object-cover" />
                     )}
                 </div>
                 <div className="p-4 flex items-start justify-between gap-4">
                     <div className="-mt-10">
-                        {user?.avatarUrl ? (
+                        {user.avatarUrl ? (
                             <img
                                 src={user.avatarUrl}
                                 alt="プロフィール画像"
@@ -61,53 +141,55 @@ export default async function ProfilePage() {
                         )}
                     </div>
                     <div className="flex flex-col gap-1">
-                        <span className="text-lg font-bold">{user?.name ?? 'ユーザー'}</span>
-                        <span className="text-sm text-zinc-500">@{user?.handle}</span>
-                        {user?.bio && <p className="text-sm text-zinc-300">{user.bio}</p>}
+                        <span className="text-lg font-bold">{user.name ?? 'ユーザー'}</span>
+                        <span className="text-sm text-zinc-500">@{user.handle}</span>
+                        {user.bio && <p className="text-sm text-zinc-600">{user.bio}</p>}
                         <div className="flex gap-4 text-sm text-zinc-400 mt-2" />
                     </div>
                     <div className="ml-auto flex flex-col items-end gap-2">
-                        <form action={togglePrivateAccount}>
-                            <button
-                                type="submit"
-                                className={`text-xs hover:underline ${
-                                    user?.isPrivate ? 'text-red-500' : 'text-[#1d9bf0]'
-                                }`}
-                            >
-                                {user?.isPrivate ? '鍵を外す' : '鍵をかける'}
-                            </button>
-                        </form>
+                        {user && (
+                            <PrivacyToggleForm
+                                isPrivate={user.isPrivate}
+                                pendingRequestCount={pendingFollowRequestCount}
+                            />
+                        )}
+                        <Link href="/profile/followers" className="text-xs text-[#1d9bf0] hover:underline">
+                            フォロワー {followerCount}
+                            {pendingFollowRequestCount > 0 ? `（承認待ち ${pendingFollowRequestCount}）` : ''}
+                        </Link>
                         <Link href="/profile/following" className="text-xs text-[#1d9bf0] hover:underline">
-                            フォロー一覧
+                            フォロー {followingCount}
+                            {pendingFollowingCount > 0 ? `（申請中 ${pendingFollowingCount}）` : ''}
                         </Link>
                         <Link href="/profile/mutes" className="text-xs text-[#1d9bf0] hover:underline">
-                            ミュート一覧
+                            ミュート {muteCount}
                         </Link>
                         <Link href="/profile/blocks" className="text-xs text-[#1d9bf0] hover:underline">
-                            ブロック一覧
+                            ブロック {blockCount}
                         </Link>
                     </div>
                 </div>
             </div>
             <div className="flex flex-col">
+                {postCount > 0 && (
+                    <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
+                        投稿 {postCount}件・{postPagination.page}/{postPagination.totalPages}ページ
+                    </div>
+                )}
                 {posts.map((post) => {
-                    const liked = !!userId && post.likes.some((like) => like.userId === userId);
-                    const likeCount = post.likes.length;
-                    const bookmarked = !!userId && post.bookmarks.some((bookmark) => bookmark.userId === userId);
-                    const wakaruReacted = !!userId && post.reactions.some((reaction) => reaction.userId === userId && reaction.type === 'WAKARU');
-                    const ganbattaReacted = !!userId && post.reactions.some((reaction) => reaction.userId === userId && reaction.type === 'GANBATTA');
+                    const liked = post.likes.length > 0;
+                    const likeCount = post._count.likes;
+                    const bookmarked = post.bookmarks.length > 0;
+                    const wakaruReacted = post.reactions.some((reaction) => reaction.type === 'WAKARU');
+                    const ganbattaReacted = post.reactions.some((reaction) => reaction.type === 'GANBATTA');
 
                     return (
                         <div
                             key={post.id}
                             className="p-4 border-b border-border hover:bg-zinc-50 transition-colors flex gap-4 relative"
                         >
-                            <Link
-                                href={`/post?id=${post.id}`}
-                                className="absolute inset-0 z-0 pointer-events-none"
-                                aria-label="投稿を開く"
-                            />
-                            {user?.avatarUrl ? (
+
+                            {user.avatarUrl ? (
                                 <img
                                     src={user.avatarUrl}
                                     alt="プロフィール画像"
@@ -118,8 +200,8 @@ export default async function ProfilePage() {
                             )}
                             <div className="flex-1 flex flex-col gap-2 relative z-10">
                             <div className="flex items-center gap-2 text-sm">
-                                <span className="font-bold">{user?.name ?? 'ユーザー'}</span>
-                                <span className="text-zinc-500">@{user?.handle}</span>
+                                <span className="font-bold">{user.name ?? 'ユーザー'}</span>
+                                <span className="text-zinc-500">@{user.handle}</span>
                                 <span className="text-zinc-500">・</span>
                                 <span className="text-zinc-500">{formatPostTime(post.createdAt)}</span>
                             </div>
@@ -127,63 +209,56 @@ export default async function ProfilePage() {
                             {post.imageUrl && (
                                 <img
                                     src={post.imageUrl}
-                                    alt="投稿画像"
+                                    alt={post.imageAlt ?? ''}
                                     className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
                                 />
                             )}
                             <div className="flex items-center gap-3 text-zinc-500 flex-wrap relative z-30 feed-action-area">
-                                <form action={toggleLike.bind(null, post.id)}>
-                                    <button
-                                        type="submit"
-                                        className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors ${
-                                            liked ? 'text-red-500' : 'hover:text-red-500'
-                                        }`}
-                                    >
-                                        いいね
-                                        <span>{likeCount}</span>
-                                    </button>
-                                </form>
-                                <form action={addWakaru.bind(null, post.id)}>
-                                    <button
-                                        type="submit"
-                                        className={`text-xs rounded-full px-3 py-1 transition-colors ${
-                                            wakaruReacted ? 'text-yellow-400' : 'hover:text-yellow-400'
-                                        }`}
-                                    >
-                                        わかる <span>{post.wakaruCount}</span>
-                                    </button>
-                                </form>
-                                <form action={addGanbatta.bind(null, post.id)}>
-                                    <button
-                                        type="submit"
-                                        className={`text-xs rounded-full px-3 py-1 transition-colors ${
-                                            ganbattaReacted ? 'text-green-400' : 'hover:text-green-400'
-                                        }`}
-                                    >
-                                        頑張った！ <span>{post.ganbattaCount}</span>
-                                    </button>
-                                </form>
-                                <form action={toggleBookmark.bind(null, post.id)}>
-                                    <button
-                                        type="submit"
-                                        className={`text-xs rounded-full px-3 py-1 transition-colors ${
-                                            bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
-                                        }`}
-                                    >
-                                        ブックマーク <span>{post.bookmarks.length}</span>
-                                    </button>
-                                </form>
-                                <form action={deletePost.bind(null, post.id)}>
-                                    <button type="submit" className="text-xs text-red-500 hover:underline">
-                                        削除
-                                    </button>
-                                </form>
+                                <ProfilePostActionForm
+                                    postId={post.id}
+                                    action="like"
+                                    active={liked}
+                                    count={likeCount}
+                                />
+                                <ProfilePostActionForm
+                                    postId={post.id}
+                                    action="wakaru"
+                                    active={wakaruReacted}
+                                    count={post.wakaruCount}
+                                />
+                                <ProfilePostActionForm
+                                    postId={post.id}
+                                    action="ganbatta"
+                                    active={ganbattaReacted}
+                                    count={post.ganbattaCount}
+                                />
+                                <ProfilePostActionForm
+                                    postId={post.id}
+                                    action="bookmark"
+                                    active={bookmarked}
+                                    count={post._count.bookmarks}
+                                />
+                                <Link
+                                    href={`/post/${encodeURIComponent(post.id)}`}
+                                    className="text-xs text-[#1d9bf0] hover:underline"
+                                >
+                                    投稿を開く
+                                </Link>
+                                <DeletePostForm postId={post.id} />
                             </div>
                         </div>
                     </div>
                     );
                 })}
-                {posts.length === 0 && (
+                {postCount > 0 && (
+                    <PaginationLinks
+                        page={postPagination.page}
+                        totalPages={postPagination.totalPages}
+                        previousHref={postPagination.hasPrevious ? `/profile?page=${postPagination.page - 1}` : null}
+                        nextHref={postPagination.hasNext ? `/profile?page=${postPagination.page + 1}` : null}
+                    />
+                )}
+                {postCount === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">まだ投稿がありません</div>
                 )}
             </div>

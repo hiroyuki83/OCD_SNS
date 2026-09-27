@@ -8,14 +8,14 @@ import { rateLimit } from '@/lib/rateLimit';
 import { isEmailDeliveryConfigured, sendTransactionalEmail } from '@/lib/email';
 
 const requestSchema = z.object({
-  email: z.string().trim().toLowerCase().email('正しいメールアドレスを入力してください。'),
+  email: z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます。').email('正しいメールアドレスを入力してください。'),
 });
 
 const resetSchema = z
   .object({
-    token: z.string().min(32),
+    token: z.string().min(32).max(256),
     password: z.string().min(10, 'パスワードは10文字以上です。').max(128, 'パスワードは128文字以内です。'),
-    confirmPassword: z.string(),
+    confirmPassword: z.string().max(128, '確認用パスワードが長すぎます。'),
   })
   .refine((data) => data.password === data.confirmPassword, {
     path: ['confirmPassword'],
@@ -49,7 +49,11 @@ function tokenHash(token: string) {
 }
 
 function appOrigin() {
-  if (process.env.NEXTAUTH_URL) return process.env.NEXTAUTH_URL.replace(/\/$/, '');
+  const configuredOrigin = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL;
+  if (configuredOrigin) return configuredOrigin.replace(/\/$/, '');
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return 'http://localhost:3000';
 }
@@ -119,6 +123,13 @@ export async function requestPasswordReset(
     await sendPasswordResetEmail(user.email, resetUrl);
   } catch (error) {
     console.error(error);
+    await prisma.passwordResetToken.updateMany({
+      where: {
+        tokenHash: tokenHash(token),
+        usedAt: null,
+      },
+      data: { usedAt: new Date() },
+    });
   }
 
   return { ok: true, message: genericRequestMessage };
@@ -141,14 +152,19 @@ export async function resetPassword(
     };
   }
 
+  const resetTokenHash = tokenHash(parsed.data.token);
+  if (!(await rateLimit(`password-reset-token:${resetTokenHash.slice(0, 16)}`, 10, 15 * 60 * 1000))) {
+    return { message: '再設定の試行が多すぎます。しばらくしてから再度お試しください。' };
+  }
+
   const resetToken = await prisma.passwordResetToken.findUnique({
-    where: { tokenHash: tokenHash(parsed.data.token) },
+    where: { tokenHash: resetTokenHash },
     select: {
       id: true,
       userId: true,
       expiresAt: true,
       usedAt: true,
-      user: { select: { email: true } },
+      user: { select: { email: true, password: true } },
     },
   });
 
@@ -156,29 +172,65 @@ export async function resetPassword(
     return { message: 'この再設定リンクは無効または期限切れです。' };
   }
 
+  if (await bcrypt.compare(parsed.data.password, resetToken.user.password)) {
+    return { message: '現在と異なるパスワードを設定してください。' };
+  }
+
   const hashedPassword = await bcrypt.hash(parsed.data.password, 10);
-  await prisma.$transaction([
-    prisma.user.update({
+  const usedAt = new Date();
+
+  const completed = await prisma.$transaction(async (tx) => {
+    const consumed = await tx.passwordResetToken.updateMany({
+      where: {
+        id: resetToken.id,
+        userId: resetToken.userId,
+        usedAt: null,
+        expiresAt: { gt: usedAt },
+      },
+      data: { usedAt },
+    });
+    if (consumed.count !== 1) return false;
+
+    await tx.user.update({
       where: { id: resetToken.userId },
-      data: { password: hashedPassword, emailVerifiedAt: new Date() },
-    }),
-    prisma.passwordResetToken.updateMany({
-      where: { userId: resetToken.userId, usedAt: null },
-      data: { usedAt: new Date() },
-    }),
-    prisma.passwordResetToken.update({
-      where: { id: resetToken.id },
-      data: { usedAt: new Date() },
-    }),
-    prisma.auditLog.create({
+      data: {
+        password: hashedPassword,
+        emailVerifiedAt: usedAt,
+        sessionVersion: { increment: 1 },
+      },
+    });
+
+    await tx.passwordResetToken.updateMany({
+      where: {
+        userId: resetToken.userId,
+        usedAt: null,
+      },
+      data: { usedAt },
+    });
+
+    await tx.emailVerificationToken.updateMany({
+      where: {
+        userId: resetToken.userId,
+        usedAt: null,
+      },
+      data: { usedAt },
+    });
+
+    await tx.auditLog.create({
       data: {
         action: 'PASSWORD_RESET_SELF',
         actorUserId: resetToken.userId,
         targetUserId: resetToken.userId,
-        meta: {},
+        meta: { sessionsRevoked: true },
       },
-    }),
-  ]);
+    });
+
+    return true;
+  });
+
+  if (!completed) {
+    return { message: 'この再設定リンクは無効または既に使用されています。' };
+  }
 
   return { ok: true, message: 'パスワードを再設定しました。新しいパスワードでログインしてください。' };
 }

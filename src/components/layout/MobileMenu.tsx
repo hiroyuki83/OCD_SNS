@@ -79,10 +79,11 @@ export default function MobileMenu({
                     className="flex items-center gap-2"
                     aria-expanded={open}
                     aria-controls="mobile-nav-panel"
+                    aria-label={open ? "メニューを閉じる" : "メニューを開く"}
                 >
                     <Image
                         src="/icon/logo.png"
-                        alt="Menu"
+                        alt=""
                         width={44}
                         height={44}
                         className="h-11 w-11 rounded-full object-cover"
@@ -97,7 +98,7 @@ export default function MobileMenu({
                         type="button"
                         onClick={close}
                         className="absolute inset-0 bg-black/30"
-                        aria-label="Close menu"
+                        aria-label="メニューを閉じる"
                     />
                     <div
                         id="mobile-nav-panel"
@@ -111,14 +112,14 @@ export default function MobileMenu({
                             >
                                 <Image
                                     src="/icon/logo.png"
-                                    alt="Logo"
+                                    alt="CoCo ホーム"
                                     width={56}
                                     height={56}
                                     className="h-full w-full rounded-full object-cover"
                                     priority
                                 />
                             </Link>
-                            <nav className="flex flex-col gap-1">
+                            <nav aria-label="主要ナビゲーション" className="flex flex-col gap-1">
                                 {navItems.map((item) => {
                                     const Icon = iconMap[item.iconKey];
                                     return (
@@ -172,10 +173,7 @@ export default function MobileMenu({
                             </div>
                             {user ? (
                                 <div className="flex items-center justify-between gap-2">
-                                    <button
-                                        type="button"
-                                        className="flex items-center gap-3 p-3 flex-1 rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors text-left overflow-hidden"
-                                    >
+                                    <div className="flex items-center gap-3 p-3 flex-1 rounded-full text-left overflow-hidden">
                                         {user.avatarUrl ? (
                                             <img
                                                 src={user.avatarUrl}
@@ -189,7 +187,7 @@ export default function MobileMenu({
                                             <p className="font-bold text-sm truncate">{user.name}</p>
                                             <p className="text-zinc-500 text-sm truncate">{user.email}</p>
                                         </div>
-                                    </button>
+                                    </div>
                                     <Button
                                         variant="ghost"
                                         size="icon"
@@ -205,15 +203,19 @@ export default function MobileMenu({
                                 </div>
                             ) : (
                                 <div className="flex flex-col gap-2 p-2">
-                                    <Link href="/login" onClick={close}>
-                                        <Button variant="outline" className="w-full rounded-full font-bold">
-                                            {labels.login}
-                                        </Button>
+                                    <Link
+                                        href="/login"
+                                        onClick={close}
+                                        className="inline-flex h-9 w-full items-center justify-center rounded-full border border-input bg-background px-4 text-sm font-bold shadow-xs hover:bg-accent hover:text-accent-foreground"
+                                    >
+                                        {labels.login}
                                     </Link>
-                                    <Link href="/register" onClick={close}>
-                                        <Button className="w-full rounded-full font-bold bg-white text-black hover:bg-zinc-200">
-                                            {labels.register}
-                                        </Button>
+                                    <Link
+                                        href="/register"
+                                        onClick={close}
+                                        className="inline-flex h-9 w-full items-center justify-center rounded-full bg-black px-4 text-sm font-bold text-white hover:bg-zinc-800"
+                                    >
+                                        {labels.register}
                                     </Link>
                                 </div>
                             )}

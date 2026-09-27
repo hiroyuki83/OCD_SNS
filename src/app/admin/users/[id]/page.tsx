@@ -6,6 +6,10 @@ import { requireRole } from "@/lib/rbac";
 import AdminNotesPanel from "../AdminNotesPanel";
 import UserAccessPanel from "../UserAccessPanel";
 import UserPasswordResetForm from "../UserPasswordResetForm";
+import { visibleAccountFilter } from "@/lib/accountStatus";
+import { buildModerationTimeline } from "@/lib/moderationTimeline";
+
+export const dynamic = "force-dynamic";
 
 const statusLabels: Record<ReportStatus, string> = {
   OPEN: "未対応",
@@ -50,11 +54,14 @@ function StatBox({ label, value, helper }: { label: string; value: number; helpe
 export default async function AdminUserDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   await requireRole(Role.ADMIN);
+  const resolvedParams = await params;
 
-  const userId = params.id;
+  const userId = resolvedParams.id.trim();
+  if (!userId || userId.length > 128) notFound();
+  const now = new Date();
   const [
     user,
     visiblePostCount,
@@ -85,6 +92,7 @@ export default async function AdminUserDetailPage({
         role: true,
         status: true,
         restrictionReason: true,
+        restrictionUntil: true,
         suspendedUntil: true,
         createdAt: true,
         updatedAt: true,
@@ -96,8 +104,20 @@ export default async function AdminUserDetailPage({
     prisma.report.count({ where: { targetUserId: userId, status: ReportStatus.OPEN } }),
     prisma.report.count({ where: { targetUserId: userId, status: ReportStatus.REVIEWING } }),
     prisma.report.count({ where: { reporterId: userId } }),
-    prisma.follow.count({ where: { followingId: userId } }),
-    prisma.follow.count({ where: { followerId: userId } }),
+    prisma.follow.count({
+      where: {
+        followingId: userId,
+        acceptedAt: { not: null },
+        follower: visibleAccountFilter(now),
+      },
+    }),
+    prisma.follow.count({
+      where: {
+        followerId: userId,
+        acceptedAt: { not: null },
+        following: visibleAccountFilter(now),
+      },
+    }),
     prisma.post.findMany({
       where: { authorId: userId },
       orderBy: { createdAt: "desc" },
@@ -133,12 +153,17 @@ export default async function AdminUserDetailPage({
         post: { select: { id: true, content: true, isHidden: true, deletedAt: true } },
       },
     }),
-    prisma.moderationWarning.count({ where: { targetUserId: userId } }),
+    prisma.moderationWarning.count({ where: { targetUserId: userId, revokedAt: null } }),
     prisma.moderationWarning.findMany({
       where: { targetUserId: userId },
       orderBy: { createdAt: "desc" },
       take: 20,
-      include: {
+      select: {
+        id: true,
+        createdAt: true,
+        revokedAt: true,
+        reason: true,
+        reportId: true,
         actorUser: { select: { id: true, email: true, name: true } },
       },
     }),
@@ -162,13 +187,43 @@ export default async function AdminUserDetailPage({
 
   if (!user) notFound();
 
+  const [reportsTargetingCount, warningHistoryCount, adminNoteCount, auditLogCount] =
+    await Promise.all([
+      prisma.report.count({ where: { targetUserId: userId } }),
+      prisma.moderationWarning.count({ where: { targetUserId: userId } }),
+      prisma.adminNote.count({ where: { targetUserId: userId } }),
+      prisma.auditLog.count({ where: { targetUserId: userId } }),
+    ]);
+  const totalPostCount = visiblePostCount + hiddenPostCount + deletedPostCount;
+  const moderationTimeline = buildModerationTimeline({
+    warnings: warnings.map((warning) => ({
+      id: warning.id,
+      createdAt: warning.createdAt,
+      revokedAt: warning.revokedAt,
+      reason: warning.reason,
+    })),
+    reports: reportsTargetingUser.map((report) => ({
+      id: report.id,
+      createdAt: report.createdAt,
+      reason: report.reason,
+      status: report.status,
+      detail: report.detail,
+    })),
+    auditLogs: auditLogs.map((log) => ({
+      id: log.id,
+      createdAt: log.createdAt,
+      action: log.action,
+      meta: log.meta,
+    })),
+  }).slice(0, 30);
+
   const identity = user.email ?? user.name ?? user.id;
   const stats = [
     { label: "公開投稿", value: visiblePostCount, helper: "表示中の投稿" },
     { label: "非表示投稿", value: hiddenPostCount, helper: "モデレーション済み" },
     { label: "削除済み投稿", value: deletedPostCount, helper: "本人削除の証跡" },
     { label: "未対応通報", value: openReports, helper: `対応中 ${reviewingReports} 件` },
-    { label: "警告", value: warningCount, helper: "運営からの警告履歴" },
+    { label: "有効な警告", value: warningCount, helper: "取消済みは除外" },
     { label: "通報送信", value: reportsMadeCount, helper: "このユーザーが送った通報" },
     { label: "フォロワー", value: followerCount, helper: "このユーザーをフォロー" },
     { label: "フォロー中", value: followingCount, helper: "このユーザーがフォロー" },
@@ -224,6 +279,7 @@ export default async function AdminUserDetailPage({
 
       <AdminNotesPanel
         userId={user.id}
+        totalCount={adminNoteCount}
         notes={adminNotes.map((note) => ({
           id: note.id,
           body: note.body,
@@ -233,9 +289,46 @@ export default async function AdminUserDetailPage({
       />
 
       <section className="mb-6 rounded-lg border border-border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-zinc-900">モデレーション・制裁タイムライン</h2>
+          <span className="text-xs text-zinc-500">最新{moderationTimeline.length}件</span>
+        </div>
+        <p className="mt-1 text-xs text-zinc-500">
+          このユーザーへの通報、警告、主要な制裁操作を時系列でまとめています。詳細は下の各履歴と監査ログで確認できます。
+        </p>
+        <div className="mt-3 flex flex-col gap-2">
+          {moderationTimeline.length === 0 ? (
+            <div className="text-sm text-zinc-500">モデレーション履歴はありません。</div>
+          ) : (
+            moderationTimeline.map((item) => (
+              <div key={item.id} className="rounded-md border border-border p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-semibold text-zinc-900">{item.title}</div>
+                  <div className="text-xs text-zinc-500">{formatDate(item.createdAt)}</div>
+                </div>
+                {item.status && (
+                  <div className="mt-1 text-xs font-medium text-zinc-500">状態: {item.status}</div>
+                )}
+                {item.detail && (
+                  <div className="mt-2 whitespace-pre-wrap break-words text-xs text-zinc-700">
+                    {shortText(item.detail, 220)}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      <section className="mb-6 rounded-lg border border-border p-4">
         <h2 className="text-base font-semibold text-zinc-900">警告履歴</h2>
         <p className="mt-1 text-xs text-zinc-500">
           通報対応で発行された警告です。警告の発行は監査ログにも記録されます。
+          {warningHistoryCount > warnings.length
+            ? ` 最新${warnings.length}件 / 全${warningHistoryCount}件を表示しています。`
+            : warningHistoryCount > 0
+              ? ` 全${warningHistoryCount}件です。`
+              : ''}
         </p>
         <div className="mt-3 flex flex-col gap-3">
           {warnings.length === 0 ? (
@@ -244,12 +337,19 @@ export default async function AdminUserDetailPage({
             warnings.map((warning) => (
               <div key={warning.id} className="rounded-md bg-zinc-50 p-3 text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="font-semibold text-amber-800">警告</div>
+                  <div className={warning.revokedAt ? "font-semibold text-green-800" : "font-semibold text-amber-800"}>
+                    {warning.revokedAt ? "警告（取消済み）" : "警告"}
+                  </div>
                   <div className="text-xs text-zinc-500">{formatDate(warning.createdAt)}</div>
                 </div>
                 <div className="mt-2 whitespace-pre-wrap break-words text-zinc-800">
                   {warning.reason}
                 </div>
+                {warning.revokedAt && (
+                  <div className="mt-2 text-xs font-semibold text-green-700">
+                    取消日時: {formatDate(warning.revokedAt)}
+                  </div>
+                )}
                 <div className="mt-2 text-xs text-zinc-500">
                   actor: {warning.actorUser.email ?? warning.actorUser.name ?? warning.actorUser.id}
                   {warning.reportId ? ` / report: ${warning.reportId}` : ""}
@@ -285,6 +385,10 @@ export default async function AdminUserDetailPage({
             <dd className="mt-1 text-zinc-800">{user.autoHashtag ?? "-"}</dd>
           </div>
           <div>
+            <dt className="text-xs font-semibold text-zinc-500">投稿制限期限</dt>
+            <dd className="mt-1 text-zinc-800">{formatDate(user.restrictionUntil)}</dd>
+          </div>
+          <div>
             <dt className="text-xs font-semibold text-zinc-500">停止期限</dt>
             <dd className="mt-1 text-zinc-800">{formatDate(user.suspendedUntil)}</dd>
           </div>
@@ -302,7 +406,14 @@ export default async function AdminUserDetailPage({
       </div>
 
       <div className="mb-6">
-        <h2 className="mb-3 text-base font-semibold text-zinc-900">最近の投稿</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-zinc-900">最近の投稿</h2>
+          <span className="text-xs text-zinc-500">
+            {totalPostCount > recentPosts.length
+              ? `最新${recentPosts.length}件 / 全${totalPostCount}件`
+              : `全${totalPostCount}件`}
+          </span>
+        </div>
         <div className="flex flex-col gap-3">
           {recentPosts.length === 0 ? (
             <div className="rounded-lg border border-border p-4 text-sm text-zinc-500">投稿はありません。</div>
@@ -338,7 +449,14 @@ export default async function AdminUserDetailPage({
 
       <div className="mb-6 grid gap-6 xl:grid-cols-2">
         <section>
-          <h2 className="mb-3 text-base font-semibold text-zinc-900">このユーザーへの通報</h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold text-zinc-900">このユーザーへの通報</h2>
+            <span className="text-xs text-zinc-500">
+              {reportsTargetingCount > reportsTargetingUser.length
+                ? `最新${reportsTargetingUser.length}件 / 全${reportsTargetingCount}件`
+                : `全${reportsTargetingCount}件`}
+            </span>
+          </div>
           <div className="flex flex-col gap-3">
             {reportsTargetingUser.length === 0 ? (
               <div className="rounded-lg border border-border p-4 text-sm text-zinc-500">通報はありません。</div>
@@ -371,7 +489,14 @@ export default async function AdminUserDetailPage({
         </section>
 
         <section>
-          <h2 className="mb-3 text-base font-semibold text-zinc-900">このユーザーが送った通報</h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold text-zinc-900">このユーザーが送った通報</h2>
+            <span className="text-xs text-zinc-500">
+              {reportsMadeCount > reportsMade.length
+                ? `最新${reportsMade.length}件 / 全${reportsMadeCount}件`
+                : `全${reportsMadeCount}件`}
+            </span>
+          </div>
           <div className="flex flex-col gap-3">
             {reportsMade.length === 0 ? (
               <div className="rounded-lg border border-border p-4 text-sm text-zinc-500">通報はありません。</div>
@@ -398,7 +523,22 @@ export default async function AdminUserDetailPage({
       </div>
 
       <div>
-        <h2 className="mb-3 text-base font-semibold text-zinc-900">監査ログ</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-zinc-900">監査ログ</h2>
+          <div className="flex items-center gap-3 text-xs text-zinc-500">
+            <span>
+              {auditLogCount > auditLogs.length
+                ? `最新${auditLogs.length}件 / 全${auditLogCount}件`
+                : `全${auditLogCount}件`}
+            </span>
+            <Link
+              href={`/admin/audit?q=${encodeURIComponent(user.id)}`}
+              className="font-semibold text-[#1d9bf0] hover:underline"
+            >
+              監査ログで開く
+            </Link>
+          </div>
+        </div>
         <div className="rounded-lg border border-border">
           {auditLogs.length === 0 ? (
             <div className="p-4 text-sm text-zinc-500">監査ログはありません。</div>

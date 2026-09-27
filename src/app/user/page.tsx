@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
+import { isSuspensionActive } from '@/lib/accountStatus';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -11,7 +12,7 @@ export default async function UserPage({
     searchParams?: { id?: string };
 }) {
     const userId = searchParams?.id?.trim();
-    if (!userId) {
+    if (!userId || userId.length > 128) {
         return (
             <div className="p-6 text-sm text-zinc-500">
                 ユーザーIDが未指定です。{' '}
@@ -22,9 +23,9 @@ export default async function UserPage({
 
     const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { handle: true },
+        select: { handle: true, status: true, suspendedUntil: true },
     });
-    if (!user) {
+    if (!user || isSuspensionActive(user.status, user.suspendedUntil)) {
         return (
             <div className="p-6 text-sm text-zinc-500">
                 ユーザーが見つかりませんでした。{' '}
@@ -34,5 +35,5 @@ export default async function UserPage({
     }
 
     const handle = user.handle;
-    redirect(`/user/${handle}`);
+    redirect(`/user/${encodeURIComponent(handle)}`);
 }

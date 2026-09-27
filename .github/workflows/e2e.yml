@@ -1,0 +1,102 @@
+name: CoCo E2E
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - 'docs/**'
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'docs/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  browser-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coco_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d coco_e2e"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/coco_e2e
+      PREVIEW_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/coco_e2e
+      PREVIEW_TEST_PASSWORD: PreviewPass123!
+      PREVIEW_SEED_USERS: '1'
+      VERCEL_ENV: preview
+      VERCEL_GIT_COMMIT_REF: security-integration-final-20260926
+      AUTH_SECRET: e2e-only-auth-secret-not-used-outside-ci
+      NEXTAUTH_SECRET: e2e-only-auth-secret-not-used-outside-ci
+      STAFF_MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      AUTH_URL: http://127.0.0.1:3000
+      E2E_EMAIL_MODE: '1'
+      E2E_BLOB_MODE: '1'
+      E2E_EMAIL_OUTBOX_FILE: /tmp/coco-e2e-mails.jsonl
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Apply all migrations to isolated E2E database
+        run: npx prisma migrate deploy
+
+      - name: Seed isolated E2E users
+        run: npm run seed:preview
+
+      - name: Build application
+        run: npm run build
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser E2E
+        working-directory: e2e
+        run: npm test
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 7

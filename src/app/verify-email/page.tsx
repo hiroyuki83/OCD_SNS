@@ -1,5 +1,12 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ConfirmEmailForm, ResendEmailForm } from '@/app/verify-email/VerifyEmailForms';
+
+export const dynamic = 'force-dynamic';
+export const metadata: Metadata = {
+    robots: { index: false, follow: false },
+    referrer: 'no-referrer',
+};
 
 export default async function VerifyEmailPage({
     searchParams,
@@ -16,8 +23,8 @@ export default async function VerifyEmailPage({
                     <h1 className="text-center text-3xl font-bold">メールアドレスの確認</h1>
                     <p className="mt-2 text-center text-sm leading-6 text-zinc-500">
                         {token
-                            ? '登録を完了するには、下のボタンを押してください。'
-                            : '確認メールが届かない場合は再送できます。'}
+                            ? 'メールアドレスの確認を完了するには、下のボタンを押してください。'
+                            : '登録確認メールが届かない場合は再送できます。'}
                     </p>
                 </div>
                 {token ? <ConfirmEmailForm token={token} /> : <ResendEmailForm />}

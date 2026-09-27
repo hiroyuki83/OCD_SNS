@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { createPost, type CreatePostState } from '@/app/lib/actions';
 import { getPostSafetyNotice } from '@/lib/contentSafety';
+import { validateClientImageFile } from '@/lib/clientImageValidation';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -37,6 +38,7 @@ export default function CreatePostForm({
     const overLimit = content.length > 1000;
     const safetyNotice = getPostSafetyNotice(content);
     const [clipboardMessage, setClipboardMessage] = useState<string | null>(null);
+    const [imageName, setImageName] = useState('');
 
     useEffect(() => {
         if (state?.message === '投稿しました。') {
@@ -44,6 +46,7 @@ export default function CreatePostForm({
             const frame = window.requestAnimationFrame(() => {
                 setContent('');
                 setClipboardMessage(null);
+                setImageName('');
                 setSafetyAcknowledged(false);
             });
             return () => window.cancelAnimationFrame(frame);
@@ -70,10 +73,16 @@ export default function CreatePostForm({
                 const file = new File([blob], `clipboard.${item.type.split('/')[1] ?? 'png'}`, {
                     type: item.type,
                 });
+                const validationError = await validateClientImageFile(file);
+                if (validationError) {
+                    setClipboardMessage(validationError);
+                    return;
+                }
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(file);
                 if (fileInputRef.current) {
                     fileInputRef.current.files = dataTransfer.files;
+                    setImageName(file.name);
                     setClipboardMessage('クリップボードの画像を追加しました');
                     return;
                 }
@@ -104,6 +113,7 @@ export default function CreatePostForm({
                 <textarea
                     ref={inputRef}
                     name="content"
+                    aria-label="投稿本文"
                     value={content}
                     onChange={(event) => setContent(event.target.value)}
                     onKeyDown={(event) => {
@@ -135,12 +145,52 @@ export default function CreatePostForm({
                             accept="image/jpeg,image/png,image/webp,image/gif"
                             className="hidden"
                             ref={fileInputRef}
+                            onChange={async (event) => {
+                                const input = event.currentTarget;
+                                const file = input.files?.[0];
+                                setClipboardMessage(null);
+                                if (!file) {
+                                    setImageName('');
+                                    return;
+                                }
+                                const validationError = await validateClientImageFile(file);
+                                if (validationError) {
+                                    input.value = '';
+                                    setImageName('');
+                                    setClipboardMessage(validationError);
+                                    return;
+                                }
+                                setImageName(file.name);
+                            }}
                         />
                     </label>
                     <SubmitButton disabled={overLimit} />
                 </div>
+                <div className="flex items-center justify-between gap-3 text-xs text-zinc-400">
+                    <span>{imageName ? `画像: ${imageName}` : '画像なし'}</span>
+                    <span aria-live="polite">{content.length}/1000</span>
+                </div>
+                {imageName && (
+                    <div>
+                        <label htmlFor="post-image-alt" className="mb-1 block text-xs font-medium text-zinc-600">
+                            画像の説明（任意）
+                        </label>
+                        <input
+                            id="post-image-alt"
+                            name="imageAlt"
+                            type="text"
+                            maxLength={300}
+                            placeholder="例: 青空の下で咲いている白い花"
+                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#1d9bf0]"
+                            aria-describedby="post-image-alt-help"
+                        />
+                        <p id="post-image-alt-help" className="mt-1 text-xs text-zinc-400">
+                            画像を見にくい人にも内容が伝わるよう、必要に応じて説明を入力できます。
+                        </p>
+                    </div>
+                )}
                 {clipboardMessage && (
-                    <p className="text-sm text-zinc-400">{clipboardMessage}</p>
+                    <p className="text-sm text-zinc-400" aria-live="polite">{clipboardMessage}</p>
                 )}
                 {overLimit && (
                     <p className="text-sm text-red-500">1000文字を超えています</p>

@@ -14,13 +14,26 @@ import { rateLimit } from '@/lib/rateLimit';
 import { evaluatePostSafety, validatePublicPostContent } from '@/lib/contentSafety';
 import { isEmailDeliveryConfigured } from '@/lib/email';
 import { sendEmailVerification } from '@/lib/emailVerification';
-import { getAccessiblePostForViewer, usersAreBlocked } from '@/lib/postAccess';
 import { validateImageUpload } from '@/lib/uploadSecurity';
+import { isSuspensionActive } from '@/lib/accountStatus';
+import { normalizeAutoHashtag, normalizeProfileBio, normalizeProfileName } from '@/lib/profileInput';
+import { deleteManagedBlob, deleteManagedBlobs } from '@/lib/blobCleanup';
+import { mutateFollowRelation } from '@/lib/userRelations';
+import { parseBoundedInteger, parseBoundedStringList, parseItqTiming } from '@/lib/selfTestInput';
+import { togglePostInteraction } from '@/lib/postInteractions';
+import { mutateBlockRelation, mutateMuteRelation } from '@/lib/userPrivacyRelations';
+import { getNormalizedAccountModerationState } from '@/lib/accountModeration';
+import { isE2eBlobMode } from '@/lib/blobDeliveryMode';
+import { normalizeImageAlt } from '@/lib/postImageAlt';
 
 const RegisterSchema = z.object({
-    name: z.string().min(1, '名前は必須です'),
-    email: z.string().trim().toLowerCase().email('正しいメールアドレスを入力してください'),
-    password: z.string().min(10, 'パスワードは10文字以上です').max(128, 'パスワードは128文字以内です'),
+    name: z.string().trim().min(1, '名前は必須です').max(50, '名前は50文字以内です'),
+    email: z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます').email('正しいメールアドレスを入力してください'),
+    password: z
+        .string()
+        .min(10, 'パスワードは10文字以上です')
+        .max(128, 'パスワードは128文字以内です')
+        .refine((value) => /\S/.test(value), 'パスワードに空白以外の文字を含めてください'),
 });
 
 export type RegisterState =
@@ -54,6 +67,13 @@ export async function register(
     }
 
     const { name, email, password } = validatedFields.data;
+    const normalizedName = normalizeProfileName(name);
+    if (!normalizedName || Array.from(normalizedName).length > 50) {
+        return {
+            errors: { name: ['名前は1〜50文字で入力してください。'] },
+            message: '入力内容を確認してください。',
+        };
+    }
     const normalizedEmail = email.toLowerCase();
     if (!(await rateLimit(`register:${normalizedEmail}`, 3, 60 * 60 * 1000))) {
         return { message: '登録試行が多すぎます。しばらくしてから再度お試しください。' };
@@ -65,21 +85,21 @@ export async function register(
 
     let createdUser: { id: string; email: string };
     try {
-        const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+        const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
         if (existingUser) {
             return { message: 'このメールアドレスは既に使用されています。' };
         }
 
         createdUser = await prisma.user.create({
             data: {
-                name,
+                name: normalizedName,
                 email: normalizedEmail,
                 password: hashedPassword,
             },
             select: { id: true, email: true },
         });
     } catch {
-        return { message: 'データベースエラー: 登録に失敗しました。' };
+        return { message: '登録に失敗しました。時間をおいて再度お試しください。' };
     }
 
     try {
@@ -94,20 +114,45 @@ export async function register(
     return { ok: true, message: '確認メールを送信しました。メール内のリンクから登録を完了してください。' };
 }
 
+const AuthenticateSchema = z
+    .object({
+        email: z.string().trim().toLowerCase().max(254).email(),
+        password: z.string().min(6).max(128),
+        totpCode: z.string().trim().regex(/^\d{6}$/).optional().or(z.literal('')),
+        recoveryCode: z.string().trim().max(64).optional().or(z.literal('')),
+    })
+    .refine((data) => !(data.totpCode && data.recoveryCode), {
+        path: ['recoveryCode'],
+        message: '6桁コードとリカバリーコードはどちらか一方だけ入力してください。',
+    });
+
 export async function authenticate(
     _prevState: string | undefined,
     formData: FormData,
 ) {
+    const parsed = AuthenticateSchema.safeParse({
+        email: formData.get('email'),
+        password: formData.get('password'),
+        totpCode: formData.get('totpCode') ?? '',
+        recoveryCode: formData.get('recoveryCode') ?? '',
+    });
+    if (!parsed.success) {
+        return parsed.error.issues[0]?.message ?? '入力内容を確認してください。';
+    }
+
     try {
         await signIn('credentials', {
-            ...Object.fromEntries(formData),
+            email: parsed.data.email,
+            password: parsed.data.password,
+            totpCode: parsed.data.totpCode,
+            recoveryCode: parsed.data.recoveryCode,
             redirectTo: '/',
         });
     } catch (error) {
         if (error instanceof AuthError) {
             switch (error.type) {
                 case 'CredentialsSignin':
-                    return 'メールアドレスまたはパスワードが正しくありません。';
+                    return 'メールアドレス、パスワード、または必要な2段階認証を確認してください。';
                 default:
                     return 'エラーが発生しました。';
             }
@@ -134,6 +179,11 @@ async function uploadImage(file: File, pathPrefix: string) {
     }
 
     try {
+        if (isE2eBlobMode(process.env)) {
+            const bytes = Buffer.from(await file.arrayBuffer());
+            return { url: `data:${file.type};base64,${bytes.toString('base64')}` } as const;
+        }
+
         const blob = await put(`${pathPrefix}/${validation.objectName}`, file, {
             access: 'public',
         });
@@ -160,21 +210,28 @@ export async function createPost(
     if (!userId) {
         return { message: 'ログインしてください。' };
     }
-    const moderationState = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { status: true, suspendedUntil: true, restrictionReason: true },
-    });
-    if (moderationState?.status === AccountStatus.SUSPENDED) {
-        if (!moderationState.suspendedUntil || moderationState.suspendedUntil > new Date()) {
-            return { message: moderationState.restrictionReason ?? 'アカウントが停止中のため投稿できません。' };
-        }
-        await prisma.user.update({
-            where: { id: userId },
-            data: { status: AccountStatus.ACTIVE, suspendedUntil: null, restrictionReason: null },
-        });
+    const moderationState = await getNormalizedAccountModerationState(userId);
+    if (!moderationState) {
+        return { message: 'ユーザーが見つかりません。' };
     }
-    if (moderationState?.status === AccountStatus.POST_RESTRICTED) {
-        return { message: moderationState.restrictionReason ?? '投稿が制限されています。' };
+    if (moderationState.status === AccountStatus.SUSPENDED) {
+        return {
+            message:
+                moderationState.restrictionReason ??
+                'アカウントが停止中のため投稿できません。',
+        };
+    }
+    if (moderationState.status === AccountStatus.POST_RESTRICTED) {
+        const untilLabel = moderationState.restrictionUntil
+            ? moderationState.restrictionUntil.toLocaleString('ja-JP', {
+                  timeZone: 'Asia/Tokyo',
+              })
+            : null;
+        const baseMessage =
+            moderationState.restrictionReason ?? '投稿が制限されています。';
+        return {
+            message: untilLabel ? `${baseMessage}（${untilLabel}まで）` : baseMessage,
+        };
     }
     if (!(await rateLimit(`create-post:${userId}`, 20, 60 * 1000))) {
         return { message: '投稿が多すぎます。少し待ってから再度お試しください。' };
@@ -183,6 +240,9 @@ export async function createPost(
     const rawContent = formData.get('content');
     const content = typeof rawContent === 'string' ? rawContent.trim() : '';
     const image = formData.get('image');
+    const imageAltResult = normalizeImageAlt(formData.get('imageAlt'));
+    if (!imageAltResult.ok) return { message: imageAltResult.error };
+    const imageAlt = imageAltResult.value;
 
     let autoHashtag: string | null = null;
     if (userId) {
@@ -231,11 +291,20 @@ export async function createPost(
     }
 
     try {
-        await prisma.$transaction(async (tx) => {
+        const created = await prisma.$transaction(async (tx) => {
+            const currentUser = await tx.user.findUnique({
+                where: { id: userId },
+                select: { status: true },
+            });
+            if (!currentUser || currentUser.status !== AccountStatus.ACTIVE) {
+                return false;
+            }
+
             const post = await tx.post.create({
                 data: {
                     content: finalContent || '',
                     imageUrl,
+                    imageAlt: imageUrl ? imageAlt : null,
                     authorId: userId,
                 },
                 select: { id: true },
@@ -262,8 +331,17 @@ export async function createPost(
                     },
                 });
             }
+            return true;
         });
+
+        if (!created) {
+            if (imageUrl) await deleteManagedBlob(imageUrl);
+            return { message: 'アカウント状態が変更されたため投稿できませんでした。画面を更新してください。' };
+        }
     } catch (error) {
+        if (imageUrl) {
+            await deleteManagedBlob(imageUrl);
+        }
         console.error('Failed to create post:', error);
         return { message: '投稿に失敗しました。' };
     }
@@ -279,6 +357,9 @@ export async function createPost(
 
 
 export async function toggleLike(postId: string) {
+    postId = postId.trim();
+    if (!postId || postId.length > 128) return;
+
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -289,49 +370,22 @@ export async function toggleLike(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
+    if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) return;
 
-    const post = await getAccessiblePostForViewer(userId, postId);
-    if (!post) return;
-
-    const existing = await prisma.like.findUnique({
-        where: {
-            userId_postId: {
-                userId,
-                postId,
-            },
-        },
-    });
-
-    if (existing) {
-        await prisma.like.delete({ where: { id: existing.id } });
-        if (post?.authorId) {
-            await prisma.notification.deleteMany({
-                where: {
-                    type: 'LIKE',
-                    userId: post.authorId,
-                    actorId: userId,
-                    postId,
-                },
-            });
-        }
-    } else {
-        await prisma.like.create({ data: { userId, postId } });
-        if (post?.authorId && post.authorId !== userId) {
-            await prisma.notification.create({
-                data: {
-                    type: 'LIKE',
-                    userId: post.authorId,
-                    actorId: userId,
-                    postId,
-                },
-            });
-        }
-    }
+    const result = await togglePostInteraction(userId, postId, 'like');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/post');
+    revalidatePath(`/post/${postId}`);
+    revalidatePath('/notifications');
 }
 
 export async function addWakaru(postId: string) {
+    postId = postId.trim();
+    if (!postId || postId.length > 128) return;
+
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -342,64 +396,22 @@ export async function addWakaru(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
-    if (!(await getAccessiblePostForViewer(userId, postId))) return;
+    if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) return;
 
-    await prisma.$transaction(async (tx) => {
-        const existing = await tx.reaction.findUnique({
-            where: {
-                userId_postId_type: {
-                    userId,
-                    postId,
-                    type: 'WAKARU',
-                },
-            },
-        });
-        const post = await tx.post.findUnique({
-            where: { id: postId },
-            select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
-        });
-        if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) return;
-        if (existing) {
-            await tx.reaction.delete({ where: { id: existing.id } });
-            await tx.post.update({
-                where: { id: postId },
-                data: { wakaruCount: { decrement: 1 } },
-            });
-            if (post?.authorId) {
-                await tx.notification.deleteMany({
-                    where: {
-                        type: 'WAKARU',
-                        userId: post.authorId,
-                        actorId: userId,
-                        postId,
-                    },
-                });
-            }
-        } else {
-            await tx.reaction.create({
-                data: { userId, postId, type: 'WAKARU' },
-            });
-            await tx.post.update({
-                where: { id: postId },
-                data: { wakaruCount: { increment: 1 } },
-            });
-            if (post?.authorId && post.authorId !== userId) {
-                await tx.notification.create({
-                    data: {
-                        type: 'WAKARU',
-                        userId: post.authorId,
-                        actorId: userId,
-                        postId,
-                    },
-                });
-            }
-        }
-    });
+    const result = await togglePostInteraction(userId, postId, 'wakaru');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/post');
+    revalidatePath(`/post/${postId}`);
+    revalidatePath('/notifications');
 }
 
 export async function addGanbatta(postId: string) {
+    postId = postId.trim();
+    if (!postId || postId.length > 128) return;
+
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -410,64 +422,21 @@ export async function addGanbatta(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
-    if (!(await getAccessiblePostForViewer(userId, postId))) return;
+    if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) return;
 
-    await prisma.$transaction(async (tx) => {
-        const existing = await tx.reaction.findUnique({
-            where: {
-                userId_postId_type: {
-                    userId,
-                    postId,
-                    type: 'GANBATTA',
-                },
-            },
-        });
-        const post = await tx.post.findUnique({
-            where: { id: postId },
-            select: { authorId: true, deletedAt: true, isHidden: true, author: { select: { status: true } } },
-        });
-        if (!post || post.deletedAt || post.isHidden || post.author.status === AccountStatus.SUSPENDED) return;
-        if (existing) {
-            await tx.reaction.delete({ where: { id: existing.id } });
-            await tx.post.update({
-                where: { id: postId },
-                data: { ganbattaCount: { decrement: 1 } },
-            });
-            if (post?.authorId) {
-                await tx.notification.deleteMany({
-                    where: {
-                        type: 'GANBATTA',
-                        userId: post.authorId,
-                        actorId: userId,
-                        postId,
-                    },
-                });
-            }
-        } else {
-            await tx.reaction.create({
-                data: { userId, postId, type: 'GANBATTA' },
-            });
-            await tx.post.update({
-                where: { id: postId },
-                data: { ganbattaCount: { increment: 1 } },
-            });
-            if (post?.authorId && post.authorId !== userId) {
-                await tx.notification.create({
-                    data: {
-                        type: 'GANBATTA',
-                        userId: post.authorId,
-                        actorId: userId,
-                        postId,
-                    },
-                });
-            }
-        }
-    });
+    const result = await togglePostInteraction(userId, postId, 'ganbatta');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/post');
+    revalidatePath(`/post/${postId}`);
+    revalidatePath('/notifications');
 }
 
 export async function deletePost(postId: string) {
+    postId = postId.trim();
+    if (!postId || postId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -478,39 +447,59 @@ export async function deletePost(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
+    if (!(await rateLimit(`post-delete:${userId}`, 30, 60 * 1000))) return;
 
-    const post = await prisma.post.findUnique({
-        where: { id: postId },
-        select: { authorId: true, deletedAt: true },
-    });
-    if (!post || post.authorId !== userId || post.deletedAt) return;
+    const imageUrl = await prisma.$transaction(async (tx) => {
+        const post = await tx.post.findFirst({
+            where: {
+                id: postId,
+                authorId: userId,
+                deletedAt: null,
+            },
+            select: { imageUrl: true },
+        });
+        if (!post) return null;
 
-    await prisma.$transaction([
-        prisma.notification.deleteMany({ where: { postId } }),
-        prisma.post.update({
-            where: { id: postId },
+        const deletedAt = new Date();
+        const deleted = await tx.post.updateMany({
+            where: { id: postId, authorId: userId, deletedAt: null },
             data: {
-                deletedAt: new Date(),
+                deletedAt,
                 deletedById: userId,
             },
-        }),
-        prisma.auditLog.create({
+        });
+        if (deleted.count !== 1) return null;
+
+        await tx.notification.deleteMany({ where: { postId } });
+        await tx.auditLog.create({
             data: {
                 action: 'POST_DELETE_SELF',
                 actorUserId: userId,
                 targetUserId: userId,
-                meta: { postId },
+                meta: {
+                    postId,
+                    imageBlobCleanupRequested: Boolean(post.imageUrl),
+                },
             },
-        }),
-    ]);
+        });
+        return post.imageUrl;
+    });
+
+    if (imageUrl) {
+        await deleteManagedBlob(imageUrl);
+    }
+
     revalidatePath('/');
     revalidatePath('/profile');
     revalidatePath('/bookmarks');
+    revalidatePath('/notifications');
     revalidatePath('/post');
+    revalidatePath(`/post/${postId}`);
 }
 
-
 export async function followUser(targetUserId: string) {
+    targetUserId = targetUserId.trim();
+    if (!targetUserId || targetUserId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -522,37 +511,20 @@ export async function followUser(targetUserId: string) {
     }
     if (!userId || userId === targetUserId) return;
     if (!(await rateLimit(`follow-action:${userId}`, 60, 60 * 1000))) return;
-    const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } });
-    if (!targetUser || (await usersAreBlocked(userId, targetUserId))) return;
 
-    await prisma.follow.upsert({
-        where: {
-            followerId_followingId: {
-                followerId: userId,
-                followingId: targetUserId,
-            },
-        },
-        update: {},
-        create: {
-            followerId: userId,
-            followingId: targetUserId,
-        },
-    });
-
-    await prisma.notification.create({
-        data: {
-            type: 'FOLLOW',
-            userId: targetUserId,
-            actorId: userId,
-        },
-    });
+    const result = await mutateFollowRelation(userId, targetUserId, 'follow');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
     revalidatePath('/profile/following');
     revalidatePath('/profile/followers');
+    revalidatePath('/notifications');
 }
 
 export async function unfollowUser(targetUserId: string) {
+    targetUserId = targetUserId.trim();
+    if (!targetUserId || targetUserId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -563,28 +535,152 @@ export async function unfollowUser(targetUserId: string) {
         userId = user?.id;
     }
     if (!userId || userId === targetUserId) return;
+    if (!(await rateLimit(`follow-action:${userId}`, 60, 60 * 1000))) return;
 
-    await prisma.follow.deleteMany({
-        where: {
-            followerId: userId,
-            followingId: targetUserId,
-        },
-    });
+    const result = await mutateFollowRelation(userId, targetUserId, 'unfollow');
+    if (!result.ok) return;
 
-    await prisma.notification.deleteMany({
-        where: {
-            type: 'FOLLOW',
-            userId: targetUserId,
-            actorId: userId,
-        },
+    revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/profile/following');
+    revalidatePath('/profile/followers');
+    revalidatePath('/notifications');
+}
+
+export async function acceptFollowRequest(followerId: string) {
+    followerId = followerId.trim();
+    if (!followerId || followerId.length > 128) return;
+    const session = await auth();
+    let userId = session?.user?.id;
+    if (!userId && session?.user?.email) {
+        const user = await prisma.user.findUnique({
+            where: { email: session.user.email },
+            select: { id: true },
+        });
+        userId = user?.id;
+    }
+    if (!userId || userId === followerId) return;
+    if (!(await rateLimit(`follow-review:${userId}`, 100, 60 * 60 * 1000))) return;
+
+    await prisma.$transaction(async (tx) => {
+        const follower = await tx.user.findUnique({
+            where: { id: followerId },
+            select: { status: true, suspendedUntil: true },
+        });
+        if (!follower || isSuspensionActive(follower.status, follower.suspendedUntil)) return;
+
+        const blocked = await tx.block.findFirst({
+            where: {
+                OR: [
+                    { blockerId: userId, blockedId: followerId },
+                    { blockerId: followerId, blockedId: userId },
+                ],
+            },
+            select: { id: true },
+        });
+        if (blocked) return;
+
+        await tx.follow.updateMany({
+            where: {
+                followerId,
+                followingId: userId,
+                acceptedAt: null,
+            },
+            data: { acceptedAt: new Date() },
+        });
     });
 
     revalidatePath('/');
-    revalidatePath('/profile/following');
+    revalidatePath('/profile');
     revalidatePath('/profile/followers');
+    revalidatePath('/profile/following');
+    revalidatePath('/notifications');
+}
+
+export async function rejectFollowRequest(followerId: string) {
+    followerId = followerId.trim();
+    if (!followerId || followerId.length > 128) return;
+    const session = await auth();
+    let userId = session?.user?.id;
+    if (!userId && session?.user?.email) {
+        const user = await prisma.user.findUnique({
+            where: { email: session.user.email },
+            select: { id: true },
+        });
+        userId = user?.id;
+    }
+    if (!userId || userId === followerId) return;
+    if (!(await rateLimit(`follow-review:${userId}`, 100, 60 * 60 * 1000))) return;
+
+    await prisma.$transaction(async (tx) => {
+        const removed = await tx.follow.deleteMany({
+            where: {
+                followerId,
+                followingId: userId,
+                acceptedAt: null,
+            },
+        });
+        if (removed.count === 1) {
+            await tx.notification.deleteMany({
+                where: {
+                    type: 'FOLLOW',
+                    userId,
+                    actorId: followerId,
+                },
+            });
+        }
+    });
+
+    revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/profile/followers');
+    revalidatePath('/profile/following');
+    revalidatePath('/notifications');
+}
+
+export async function removeFollower(followerId: string) {
+    followerId = followerId.trim();
+    if (!followerId || followerId.length > 128) return;
+    const session = await auth();
+    let userId = session?.user?.id;
+    if (!userId && session?.user?.email) {
+        const user = await prisma.user.findUnique({
+            where: { email: session.user.email },
+            select: { id: true },
+        });
+        userId = user?.id;
+    }
+    if (!userId || userId === followerId) return;
+    if (!(await rateLimit(`follower-remove:${userId}`, 100, 60 * 60 * 1000))) return;
+
+    await prisma.$transaction(async (tx) => {
+        const removed = await tx.follow.deleteMany({
+            where: {
+                followerId,
+                followingId: userId,
+                acceptedAt: { not: null },
+            },
+        });
+        if (removed.count === 1) {
+            await tx.notification.deleteMany({
+                where: {
+                    type: 'FOLLOW',
+                    userId,
+                    actorId: followerId,
+                },
+            });
+        }
+    });
+
+    revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/profile/followers');
+    revalidatePath('/notifications');
 }
 
 export async function blockUser(targetUserId: string) {
+    targetUserId = targetUserId.trim();
+    if (!targetUserId || targetUserId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -595,37 +691,22 @@ export async function blockUser(targetUserId: string) {
         userId = user?.id;
     }
     if (!userId || userId === targetUserId) return;
+    if (!(await rateLimit(`block-action:${userId}`, 60, 60 * 1000))) return;
 
-    await prisma.block.upsert({
-        where: {
-            blockerId_blockedId: {
-                blockerId: userId,
-                blockedId: targetUserId,
-            },
-        },
-        update: {},
-        create: {
-            blockerId: userId,
-            blockedId: targetUserId,
-        },
-    });
-
-    await prisma.follow.deleteMany({
-        where: {
-            OR: [
-                { followerId: userId, followingId: targetUserId },
-                { followerId: targetUserId, followingId: userId },
-            ],
-        },
-    });
+    const result = await mutateBlockRelation(userId, targetUserId, 'block');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
     revalidatePath('/profile/blocks');
     revalidatePath('/profile/following');
     revalidatePath('/profile/followers');
+    revalidatePath('/notifications');
 }
 
 export async function unblockUser(targetUserId: string) {
+    targetUserId = targetUserId.trim();
+    if (!targetUserId || targetUserId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -636,16 +717,19 @@ export async function unblockUser(targetUserId: string) {
         userId = user?.id;
     }
     if (!userId || userId === targetUserId) return;
+    if (!(await rateLimit(`block-action:${userId}`, 60, 60 * 1000))) return;
 
-    await prisma.block.deleteMany({
-        where: { blockerId: userId, blockedId: targetUserId },
-    });
+    const result = await mutateBlockRelation(userId, targetUserId, 'unblock');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
     revalidatePath('/profile/blocks');
 }
 
 export async function muteUser(targetUserId: string) {
+    targetUserId = targetUserId.trim();
+    if (!targetUserId || targetUserId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -656,26 +740,20 @@ export async function muteUser(targetUserId: string) {
         userId = user?.id;
     }
     if (!userId || userId === targetUserId) return;
+    if (!(await rateLimit(`mute-action:${userId}`, 60, 60 * 1000))) return;
 
-    await prisma.mute.upsert({
-        where: {
-            muterId_mutedId: {
-                muterId: userId,
-                mutedId: targetUserId,
-            },
-        },
-        update: {},
-        create: {
-            muterId: userId,
-            mutedId: targetUserId,
-        },
-    });
+    const result = await mutateMuteRelation(userId, targetUserId, 'mute');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
     revalidatePath('/profile/mutes');
+    revalidatePath('/notifications');
 }
 
 export async function unmuteUser(targetUserId: string) {
+    targetUserId = targetUserId.trim();
+    if (!targetUserId || targetUserId.length > 128) return;
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -686,12 +764,13 @@ export async function unmuteUser(targetUserId: string) {
         userId = user?.id;
     }
     if (!userId || userId === targetUserId) return;
+    if (!(await rateLimit(`mute-action:${userId}`, 60, 60 * 1000))) return;
 
-    await prisma.mute.deleteMany({
-        where: { muterId: userId, mutedId: targetUserId },
-    });
+    const result = await mutateMuteRelation(userId, targetUserId, 'unmute');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
     revalidatePath('/profile/mutes');
 }
 
@@ -702,9 +781,9 @@ export type ProfileState =
     | undefined;
 
 const ProfileSchema = z.object({
-    name: z.string().trim().max(50, '名前は50文字以内です。').optional(),
-    bio: z.string().trim().max(500, '自己紹介は500文字以内です。').optional(),
-    autoHashtag: z.string().trim().max(100, '自動ハッシュタグは100文字以内です。').optional(),
+    name: z.string().max(50, '名前は50文字以内です。').nullable(),
+    bio: z.string().max(500, '自己紹介は500文字以内です。').nullable(),
+    autoHashtag: z.string().max(100, '自動ハッシュタグは100文字以内です。').nullable(),
 });
 
 export async function updateProfile(
@@ -724,16 +803,46 @@ export async function updateProfile(
     if (!(await rateLimit(`profile-update:${userId}`, 10, 10 * 60 * 1000))) {
         return { message: 'プロフィール更新が多すぎます。少し待ってから再度お試しください。' };
     }
+    const moderationState = await getNormalizedAccountModerationState(userId);
+    if (!moderationState) return { message: 'ユーザーが見つかりません。' };
+    if (moderationState.status === AccountStatus.SUSPENDED) {
+        return { message: 'アカウント停止中はプロフィールを変更できません。' };
+    }
+
+    const rawName = formData.get('name');
+    const rawBio = formData.get('bio');
+    const rawAutoHashtag = formData.get('autoHashtag');
+    if (
+        typeof rawName !== 'string' ||
+        typeof rawBio !== 'string' ||
+        typeof rawAutoHashtag !== 'string'
+    ) {
+        return { message: 'プロフィールの入力内容が不正です。' };
+    }
+
+    const normalizedAutoHashtag = normalizeAutoHashtag(rawAutoHashtag);
+    if (!normalizedAutoHashtag.ok) {
+        return { message: normalizedAutoHashtag.error };
+    }
 
     const profile = ProfileSchema.safeParse({
-        name: typeof formData.get('name') === 'string' ? String(formData.get('name')) : undefined,
-        bio: typeof formData.get('bio') === 'string' ? String(formData.get('bio')) : undefined,
-        autoHashtag:
-            typeof formData.get('autoHashtag') === 'string' ? String(formData.get('autoHashtag')) : undefined,
+        name: normalizeProfileName(rawName),
+        bio: normalizeProfileBio(rawBio),
+        autoHashtag: normalizedAutoHashtag.value,
     });
     if (!profile.success) {
         return { message: profile.error.issues[0]?.message ?? 'プロフィールの入力内容が不正です。' };
     }
+
+    const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+            handle: true,
+            avatarUrl: true,
+            headerUrl: true,
+        },
+    });
+    if (!currentUser) return { message: 'ユーザーが見つかりません。' };
 
     const { name, bio, autoHashtag } = profile.data;
     const avatar = formData.get('avatar');
@@ -750,22 +859,60 @@ export async function updateProfile(
 
     if (header instanceof File && header.size > 0) {
         const upload = await uploadImage(header, `profiles/${userId}/header`);
-        if ('error' in upload) return { message: upload.error ?? '画像のアップロードに失敗しました。' };
+        if ('error' in upload) {
+            if (avatarUrl) await deleteManagedBlob(avatarUrl);
+            return { message: upload.error ?? '画像のアップロードに失敗しました。' };
+        }
         headerUrl = upload.url;
     }
 
-    await prisma.user.update({
-        where: { id: userId },
-        data: {
-            name: name && name.length > 0 ? name : undefined,
-            bio: bio && bio.length > 0 ? bio : undefined,
-            autoHashtag: autoHashtag && autoHashtag.length > 0 ? autoHashtag : null,
-            avatarUrl,
-            headerUrl,
-        },
-    });
+    let updatedUser: { handle: string } | null = null;
+    try {
+        updatedUser = await prisma.$transaction(async (tx) => {
+            const changed = await tx.user.updateMany({
+                where: {
+                    id: userId,
+                    status: { not: AccountStatus.SUSPENDED },
+                },
+                data: {
+                    name,
+                    bio,
+                    autoHashtag,
+                    avatarUrl,
+                    headerUrl,
+                },
+            });
+            if (changed.count !== 1) return null;
+            return tx.user.findUnique({
+                where: { id: userId },
+                select: { handle: true },
+            });
+        });
 
+        if (!updatedUser) {
+            await deleteManagedBlobs([avatarUrl, headerUrl]);
+            return { message: 'アカウント状態が変更されたためプロフィールを更新できませんでした。' };
+        }
+    } catch (error) {
+        await deleteManagedBlobs([avatarUrl, headerUrl]);
+        console.error('Failed to update profile:', error);
+        return { message: 'プロフィールの更新に失敗しました。' };
+    }
+
+    const replacedUrls = [
+        avatarUrl && currentUser.avatarUrl && currentUser.avatarUrl !== avatarUrl
+            ? currentUser.avatarUrl
+            : null,
+        headerUrl && currentUser.headerUrl && currentUser.headerUrl !== headerUrl
+            ? currentUser.headerUrl
+            : null,
+    ];
+    await deleteManagedBlobs(replacedUrls);
+
+    revalidatePath('/');
     revalidatePath('/profile');
+    revalidatePath('/settings');
+    revalidatePath(`/user/${encodeURIComponent(updatedUser.handle)}`);
     return { message: 'プロフィールを更新しました。' };
 }
 
@@ -782,24 +929,69 @@ export async function togglePrivateAccount() {
     if (!userId) return;
     if (!(await rateLimit(`privacy-toggle:${userId}`, 10, 60 * 60 * 1000))) return;
 
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { isPrivate: true },
-    });
-    const nextValue = !(user?.isPrivate ?? false);
+    const result = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.findUnique({
+            where: { id: userId },
+            select: { isPrivate: true, handle: true },
+        });
+        if (!user) return null;
 
-    await prisma.user.update({
-        where: { id: userId },
-        data: { isPrivate: nextValue },
+        const nextValue = !user.isPrivate;
+        const changed = await tx.user.updateMany({
+            where: {
+                id: userId,
+                isPrivate: user.isPrivate,
+            },
+            data: { isPrivate: nextValue },
+        });
+        if (changed.count !== 1) return null;
+
+        let acceptedPendingCount = 0;
+        if (!nextValue) {
+            const accepted = await tx.follow.updateMany({
+                where: {
+                    followingId: userId,
+                    acceptedAt: null,
+                },
+                data: { acceptedAt: new Date() },
+            });
+            acceptedPendingCount = accepted.count;
+        }
+
+        await tx.auditLog.create({
+            data: {
+                action: 'ACCOUNT_PRIVACY_CHANGE',
+                actorUserId: userId,
+                targetUserId: userId,
+                meta: {
+                    fromPrivate: user.isPrivate,
+                    toPrivate: nextValue,
+                    acceptedPendingCount,
+                },
+            },
+        });
+
+        return {
+            handle: user.handle,
+            isPrivate: nextValue,
+        };
     });
+
+    if (!result) return;
 
     revalidatePath('/');
     revalidatePath('/profile');
     revalidatePath('/profile/following');
     revalidatePath('/profile/followers');
+    revalidatePath('/notifications');
+    revalidatePath('/admin/audit');
+    revalidatePath(`/user/${encodeURIComponent(result.handle)}`);
 }
 
 export async function toggleBookmark(postId: string) {
+    postId = postId.trim();
+    if (!postId || postId.length > 128) return;
+
     const session = await auth();
     let userId = session?.user?.id;
     if (!userId && session?.user?.email) {
@@ -810,27 +1002,47 @@ export async function toggleBookmark(postId: string) {
         userId = user?.id;
     }
     if (!userId) return;
+    if (!(await rateLimit(`post-action:${userId}`, 120, 60 * 1000))) return;
 
-    const post = await getAccessiblePostForViewer(userId, postId);
-    if (!post) return;
-
-    const existing = await prisma.bookmark.findUnique({
-        where: {
-            userId_postId: {
-                userId,
-                postId,
-            },
-        },
-    });
-
-    if (existing) {
-        await prisma.bookmark.delete({ where: { id: existing.id } });
-    } else {
-        await prisma.bookmark.create({ data: { userId, postId } });
-    }
+    const result = await togglePostInteraction(userId, postId, 'bookmark');
+    if (!result.ok) return;
 
     revalidatePath('/');
+    revalidatePath('/profile');
+    revalidatePath('/post');
+    revalidatePath(`/post/${postId}`);
     revalidatePath('/bookmarks');
+}
+
+export async function deleteSelfTestResult(
+    testType: 'ybocs' | 'iesr' | 'itq' | 'lsas',
+    resultId: string,
+) {
+    resultId = resultId.trim();
+    if (!['ybocs', 'iesr', 'itq', 'lsas'].includes(testType) || !resultId || resultId.length > 128) return;
+    const session = await auth();
+    let userId = session?.user?.id;
+    if (!userId && session?.user?.email) {
+        const user = await prisma.user.findUnique({
+            where: { email: session.user.email },
+            select: { id: true },
+        });
+        userId = user?.id;
+    }
+    if (!userId) return;
+    if (!(await rateLimit(`test-result-delete:${userId}`, 60, 60 * 60 * 1000))) return;
+
+    if (testType === 'ybocs') {
+        await prisma.ybocsResult.deleteMany({ where: { id: resultId, userId } });
+    } else if (testType === 'iesr') {
+        await prisma.iesrResult.deleteMany({ where: { id: resultId, userId } });
+    } else if (testType === 'itq') {
+        await prisma.itqResult.deleteMany({ where: { id: resultId, userId } });
+    } else if (testType === 'lsas') {
+        await prisma.lsasResult.deleteMany({ where: { id: resultId, userId } });
+    }
+
+    revalidatePath('/test');
 }
 
 export type YbocsState =
@@ -838,13 +1050,6 @@ export type YbocsState =
           message: string;
       }
     | undefined;
-
-function parseScore(value: FormDataEntryValue | null) {
-    if (typeof value !== 'string') return null;
-    const parsed = Number.parseInt(value, 10);
-    if (Number.isNaN(parsed)) return null;
-    return parsed;
-}
 
 export async function submitYbocs(
     _prevState: YbocsState,
@@ -862,24 +1067,34 @@ export async function submitYbocs(
     if (!userId) {
         return { message: 'ログインしてください。' };
     }
+    if (!(await rateLimit(`self-test-submit:ybocs:${userId}`, 30, 60 * 60 * 1000))) {
+        return { message: '保存回数が多すぎます。しばらくしてから再度お試しください。' };
+    }
 
-    const parsedScores = Array.from({ length: 10 }, (_, i) => parseScore(formData.get(`q${i + 1}`)));
+    const parsedScores = Array.from({ length: 10 }, (_, i) => parseBoundedInteger(formData.get(`q${i + 1}`), 0, 5));
     if (parsedScores.some((score) => score === null || score < 0 || score > 5)) {
         return { message: 'すべての設問に0〜5で回答してください。' };
     }
 
     const scores = parsedScores as number[];
-    const cgiI = parseScore(formData.get('cgiI'));
-    const cgiS = parseScore(formData.get('cgiS'));
-    if ((cgiI !== null && (cgiI < 1 || cgiI > 7)) || (cgiS !== null && (cgiS < 1 || cgiS > 7))) {
+    const rawCgiI = formData.get('cgiI');
+    const rawCgiS = formData.get('cgiS');
+    const hasCgiI = typeof rawCgiI === 'string' && rawCgiI.trim() !== '';
+    const hasCgiS = typeof rawCgiS === 'string' && rawCgiS.trim() !== '';
+    const cgiI = hasCgiI ? parseBoundedInteger(rawCgiI, 1, 7) : null;
+    const cgiS = hasCgiS ? parseBoundedInteger(rawCgiS, 1, 7) : null;
+    if ((hasCgiI && cgiI === null) || (hasCgiS && cgiS === null)) {
         return { message: 'CGIは1〜7で回答してください。' };
     }
     const obsessionsScore = scores.slice(0, 5).reduce((sum, val) => sum + (val ?? 0), 0);
     const compulsionsScore = scores.slice(5).reduce((sum, val) => sum + (val ?? 0), 0);
     const totalScore = obsessionsScore + compulsionsScore;
 
-    const symptomsCurrent = formData.getAll('symptom_current').filter((v) => typeof v === 'string') as string[];
-    const symptomsPast = formData.getAll('symptom_past').filter((v) => typeof v === 'string') as string[];
+    const symptomsCurrent = parseBoundedStringList(formData.getAll('symptom_current'), 200, 200);
+    const symptomsPast = parseBoundedStringList(formData.getAll('symptom_past'), 200, 200);
+    if (!symptomsCurrent || !symptomsPast) {
+        return { message: '症状リストの入力内容が不正です。' };
+    }
 
     try {
         await prisma.ybocsResult.create({
@@ -943,8 +1158,11 @@ export async function submitIesr(
     if (!userId) {
         return { message: 'ログインしてください。' };
     }
+    if (!(await rateLimit(`self-test-submit:iesr:${userId}`, 30, 60 * 60 * 1000))) {
+        return { message: '保存回数が多すぎます。しばらくしてから再度お試しください。' };
+    }
 
-    const parsedScores = Array.from({ length: 22 }, (_, i) => parseScore(formData.get(`q${i + 1}`)));
+    const parsedScores = Array.from({ length: 22 }, (_, i) => parseBoundedInteger(formData.get(`q${i + 1}`), 0, 4));
     if (parsedScores.some((score) => score === null || score < 0 || score > 4)) {
         return { message: 'すべての設問に0〜4で回答してください。' };
     }
@@ -1020,19 +1238,17 @@ export async function submitItq(
     if (!userId) {
         return { message: 'ログインしてください。' };
     }
+    if (!(await rateLimit(`self-test-submit:itq:${userId}`, 30, 60 * 60 * 1000))) {
+        return { message: '保存回数が多すぎます。しばらくしてから再度お試しください。' };
+    }
 
-    const eventDescription =
-        typeof formData.get('eventDescription') === 'string'
-            ? String(formData.get('eventDescription')).trim()
-            : null;
-    const eventTiming =
-        typeof formData.get('eventTiming') === 'string' ? String(formData.get('eventTiming')) : '';
+    const eventTiming = parseItqTiming(formData.get('eventTiming'));
     if (!eventTiming) {
         return { message: '経験の時期を選択してください。' };
     }
 
-    const pScores = Array.from({ length: 9 }, (_, i) => parseScore(formData.get(`p${i + 1}`)));
-    const cScores = Array.from({ length: 9 }, (_, i) => parseScore(formData.get(`c${i + 1}`)));
+    const pScores = Array.from({ length: 9 }, (_, i) => parseBoundedInteger(formData.get(`p${i + 1}`), 0, 4));
+    const cScores = Array.from({ length: 9 }, (_, i) => parseBoundedInteger(formData.get(`c${i + 1}`), 0, 4));
 
     if (
         pScores.some((score) => score === null || score < 0 || score > 4) ||
@@ -1077,7 +1293,7 @@ export async function submitItq(
         await prisma.itqResult.create({
             data: {
                 userId,
-                eventDescription: eventDescription && eventDescription.length > 0 ? eventDescription : null,
+                eventDescription: null,
                 eventTiming,
                 ptsdScore,
                 dsoScore,
@@ -1151,9 +1367,12 @@ export async function submitLsas(
     if (!userId) {
         return { message: 'ログインしてください。' };
     }
+    if (!(await rateLimit(`self-test-submit:lsas:${userId}`, 30, 60 * 60 * 1000))) {
+        return { message: '保存回数が多すぎます。しばらくしてから再度お試しください。' };
+    }
 
-    const fearScores = Array.from({ length: 24 }, (_, i) => parseScore(formData.get(`f${i + 1}`)));
-    const avoidScores = Array.from({ length: 24 }, (_, i) => parseScore(formData.get(`a${i + 1}`)));
+    const fearScores = Array.from({ length: 24 }, (_, i) => parseBoundedInteger(formData.get(`f${i + 1}`), 0, 3));
+    const avoidScores = Array.from({ length: 24 }, (_, i) => parseBoundedInteger(formData.get(`a${i + 1}`), 0, 3));
 
     if (
         fearScores.some((score) => score === null || score < 0 || score > 3) ||

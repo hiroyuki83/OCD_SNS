@@ -1,7 +1,14 @@
 import Link from 'next/link';
-import { AccountStatus, Prisma, ReportPriority, ReportReason, ReportStatus, Role } from '@prisma/client';
+import { AccountStatus, Prisma, ReportPriority, ReportReason, ReportStatus, Role, WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
+import { normalizeSearchQuery } from '@/lib/searchInput';
+import { visibleAccountFilter } from '@/lib/accountStatus';
+import { formatTokyoDateTimeLocal } from '@/lib/tokyoDateTime';
+
+export const dynamic = 'force-dynamic';
 import {
   hideReportedPost,
   markReportReviewing,
@@ -45,12 +52,6 @@ const priorityClassNames: Record<ReportPriority, string> = {
 const formatDate = (date: Date) =>
   date.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
 
-const formatDateInput = (date: Date | null) => {
-  if (!date) return '';
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
-  return localDate.toISOString().slice(0, 16);
-};
-
 const reportStatuses = [
   ReportStatus.OPEN,
   ReportStatus.REVIEWING,
@@ -79,21 +80,34 @@ function moderationHref(
   query: string,
   priority: ReportPriority | null,
   assignee: string,
+  page = 1,
 ) {
   const params = new URLSearchParams({ status });
   if (reason) params.set('reason', reason);
   if (query) params.set('q', query);
   if (priority) params.set('priority', priority);
   if (assignee) params.set('assigned', assignee);
+  if (page > 1) params.set('page', String(page));
   return `/moderation?${params.toString()}`;
 }
 
-function NoteInput({ placeholder = '対応メモ' }: { placeholder?: string }) {
+function NoteInput({
+  placeholder = '対応メモ',
+  required = false,
+  minLength,
+}: {
+  placeholder?: string;
+  required?: boolean;
+  minLength?: number;
+}) {
   return (
     <input
       name="note"
       type="text"
       placeholder={placeholder}
+      required={required}
+      minLength={minLength}
+      maxLength={500}
       className="min-w-0 flex-1 rounded-md border border-border px-2 py-1 text-xs"
     />
   );
@@ -102,18 +116,28 @@ function NoteInput({ placeholder = '対応メモ' }: { placeholder?: string }) {
 export default async function ModerationPage({
   searchParams,
 }: {
-  searchParams?: { status?: string; reason?: string; q?: string; priority?: string; assigned?: string };
+  searchParams?: Promise<{
+    status?: string;
+    reason?: string;
+    q?: string;
+    priority?: string;
+    assigned?: string;
+    page?: string;
+  }>;
 }) {
-  await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  const actor = await requireAnyRole([Role.ADMIN, Role.MODERATOR]);
+  const resolvedSearchParams = await searchParams;
 
-  const statusParam = searchParams?.status?.trim();
+  const statusParam = resolvedSearchParams?.status?.trim();
   const statusFilter = reportStatuses.find((status) => status === statusParam) ?? ReportStatus.OPEN;
-  const reasonParam = searchParams?.reason?.trim();
+  const reasonParam = resolvedSearchParams?.reason?.trim();
   const reasonFilter = reportReasons.find((reason) => reason === reasonParam) ?? null;
-  const priorityParam = searchParams?.priority?.trim();
+  const priorityParam = resolvedSearchParams?.priority?.trim();
   const priorityFilter = reportPriorities.find((priority) => priority === priorityParam) ?? null;
-  const assigneeFilter = searchParams?.assigned?.trim() ?? '';
-  const query = searchParams?.q?.trim() ?? '';
+  const rawAssigneeFilter = resolvedSearchParams?.assigned?.trim() ?? '';
+  const assigneeFilter = rawAssigneeFilter.length <= 128 ? rawAssigneeFilter : '';
+  const normalizedQuery = normalizeSearchQuery(resolvedSearchParams?.q ?? '');
+  const query = normalizedQuery.ok ? normalizedQuery.value : '';
   const baseFilters: Prisma.ReportWhereInput[] = [];
 
   if (reasonFilter) {
@@ -137,15 +161,21 @@ export default async function ModerationPage({
         { reporter: {
           OR: [
             { id: { contains: query } },
-            { email: { contains: query, mode: 'insensitive' } },
+            { handle: { contains: query, mode: 'insensitive' } },
             { name: { contains: query, mode: 'insensitive' } },
+            ...(actor.role === Role.ADMIN
+              ? [{ email: { contains: query, mode: 'insensitive' as const } }]
+              : []),
           ],
         } },
         { targetUser: {
           OR: [
             { id: { contains: query } },
-            { email: { contains: query, mode: 'insensitive' } },
+            { handle: { contains: query, mode: 'insensitive' } },
             { name: { contains: query, mode: 'insensitive' } },
+            ...(actor.role === Role.ADMIN
+              ? [{ email: { contains: query, mode: 'insensitive' as const } }]
+              : []),
           ],
         } },
         { post: { content: { contains: query, mode: 'insensitive' } } },
@@ -158,29 +188,7 @@ export default async function ModerationPage({
     AND: [{ status: statusFilter }, ...baseFilters],
   };
 
-  const [reports, counts, filteredCount, moderatorUsers] = await Promise.all([
-    prisma.report.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      include: {
-        reporter: { select: { id: true, email: true, name: true } },
-        targetUser: { select: { id: true, email: true, name: true, role: true, status: true, suspendedUntil: true } },
-        reviewedBy: { select: { id: true, email: true, name: true } },
-        assignedTo: { select: { id: true, email: true, name: true } },
-        post: {
-          select: {
-            id: true,
-            content: true,
-            imageUrl: true,
-            isHidden: true,
-            hiddenReason: true,
-            deletedAt: true,
-            createdAt: true,
-          },
-        },
-      },
-    }),
+  const [counts, filteredCount, moderatorUsers, pendingAppealCount] = await Promise.all([
     prisma.report.groupBy({
       by: ['status'],
       where: countWhere,
@@ -188,22 +196,78 @@ export default async function ModerationPage({
     }),
     prisma.report.count({ where }),
     prisma.user.findMany({
-      where: { role: { in: [Role.ADMIN, Role.MODERATOR] } },
+      where: {
+        role: { in: [Role.ADMIN, Role.MODERATOR] },
+        AND: [visibleAccountFilter(new Date())],
+      },
       orderBy: [{ role: 'desc' }, { createdAt: 'asc' }],
-      select: { id: true, email: true, name: true, role: true },
-      take: 100,
+      select: { id: true, email: true, handle: true, name: true, role: true },
+    }),
+    prisma.warningAppeal.count({
+      where: { status: WarningAppealStatus.PENDING },
     }),
   ]);
+
+  const pagination = clampPage(
+    parsePageNumber(resolvedSearchParams?.page),
+    filteredCount,
+    50,
+  );
+
+  const reports = await prisma.report.findMany({
+    where,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    skip: pagination.skip,
+    take: pagination.pageSize,
+    include: {
+      reporter: { select: { id: true, email: true, handle: true, name: true } },
+      targetUser: {
+        select: {
+          id: true,
+          email: true,
+          handle: true,
+          name: true,
+          role: true,
+          status: true,
+          restrictionUntil: true,
+          suspendedUntil: true,
+        },
+      },
+      reviewedBy: { select: { id: true, email: true, handle: true, name: true } },
+      assignedTo: { select: { id: true, email: true, handle: true, name: true } },
+      post: {
+        select: {
+          id: true,
+          content: true,
+          imageUrl: true,
+          isHidden: true,
+          hiddenReason: true,
+          deletedAt: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
 
   const countMap = new Map(counts.map((item) => [item.status, item._count._all]));
 
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold">モデレーション</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          通報を確認し、投稿非表示やユーザー制限を実行します。
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold">モデレーション</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              通報を確認し、投稿非表示やユーザー制限を実行します。
+            </p>
+          </div>
+          <Link
+            href="/moderation/appeals"
+            className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-700 hover:text-zinc-900"
+          >
+            異議申立てを見る{pendingAppealCount > 0 ? `（未審査 ${pendingAppealCount}）` : ''}
+          </Link>
+        </div>
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">
@@ -233,8 +297,9 @@ export default async function ModerationPage({
             <input
               name="q"
               defaultValue={query}
+              maxLength={100}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-              placeholder="通報者、対象者、投稿本文、通報詳細"
+              placeholder={actor.role === Role.ADMIN ? "通報者、対象者、メール、投稿本文、通報詳細" : "通報者、対象者、@handle、投稿本文、通報詳細"}
             />
           </label>
           <label className="block text-sm font-medium text-zinc-700 xl:col-span-2">
@@ -292,7 +357,7 @@ export default async function ModerationPage({
               <option value="unassigned">未担当</option>
               {moderatorUsers.map((user) => (
                 <option key={user.id} value={user.id}>
-                  {user.email ?? user.name ?? user.id}
+                  {user.name ?? `@${user.handle}`}
                 </option>
               ))}
             </select>
@@ -310,7 +375,12 @@ export default async function ModerationPage({
           </div>
         </div>
         <div className="mt-3 text-xs text-zinc-500">
-          {filteredCount} 件を表示しています。最大100件まで表示します。
+          {filteredCount === 0
+            ? '0件'
+            : `${pagination.skip + 1}〜${Math.min(
+                pagination.skip + reports.length,
+                filteredCount,
+              )}件目`} / {filteredCount}件
         </div>
       </form>
 
@@ -322,10 +392,19 @@ export default async function ModerationPage({
         ) : (
           reports.map((report) => {
             const canAct = report.status === ReportStatus.OPEN || report.status === ReportStatus.REVIEWING;
-            const reporterLabel = report.reporter.email ?? report.reporter.name ?? report.reporter.id;
-            const targetLabel = report.targetUser.email ?? report.targetUser.name ?? report.targetUser.id;
+            const canReviewTarget = actor.role === Role.ADMIN || report.targetUser.role === Role.USER;
+            const canSanctionTarget =
+              report.targetUser.role !== Role.ADMIN && canReviewTarget;
+            const reporterLabel =
+              actor.role === Role.ADMIN
+                ? report.reporter.email ?? report.reporter.name ?? `@${report.reporter.handle}`
+                : report.reporter.name ?? `@${report.reporter.handle}`;
+            const targetLabel =
+              actor.role === Role.ADMIN
+                ? report.targetUser.email ?? report.targetUser.name ?? `@${report.targetUser.handle}`
+                : report.targetUser.name ?? `@${report.targetUser.handle}`;
             const assigneeLabel = report.assignedTo
-              ? report.assignedTo.email ?? report.assignedTo.name ?? report.assignedTo.id
+              ? report.assignedTo.name ?? `@${report.assignedTo.handle}`
               : '未担当';
             const excerpt = report.post?.content?.trim()
               ? report.post.content.trim().slice(0, 160)
@@ -334,7 +413,12 @@ export default async function ModerationPage({
                 : '投稿本文なし';
 
             return (
-              <div key={report.id} className="rounded-lg border border-border p-4">
+              <div
+                key={report.id}
+                data-report-card
+                data-report-id={report.id}
+                className="rounded-lg border border-border p-4"
+              >
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-zinc-900">
@@ -355,22 +439,35 @@ export default async function ModerationPage({
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
                       {formatDate(report.createdAt)} ・ reporter:{' '}
-                      <Link href={`/admin/users/${report.reporter.id}`} className="hover:underline">
-                        {reporterLabel}
-                      </Link>{' '}
+                      {actor.role === Role.ADMIN ? (
+                        <Link href={`/admin/users/${report.reporter.id}`} className="hover:underline">
+                          {reporterLabel}
+                        </Link>
+                      ) : (
+                        <span>{reporterLabel}</span>
+                      )}{' '}
                       ・ target:{' '}
-                      <Link href={`/admin/users/${report.targetUser.id}`} className="hover:underline">
-                        {targetLabel}
-                      </Link>
+                      {actor.role === Role.ADMIN ? (
+                        <Link href={`/admin/users/${report.targetUser.id}`} className="hover:underline">
+                          {targetLabel}
+                        </Link>
+                      ) : (
+                        <span>{targetLabel}</span>
+                      )}
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
                       target status: {report.targetUser.status}
-                      {report.targetUser.suspendedUntil ? ` until ${formatDate(report.targetUser.suspendedUntil)}` : ''}
+                      {report.targetUser.restrictionUntil
+                        ? ` restriction until ${formatDate(report.targetUser.restrictionUntil)}`
+                        : ''}
+                      {report.targetUser.suspendedUntil
+                        ? ` suspended until ${formatDate(report.targetUser.suspendedUntil)}`
+                        : ''}
                     </div>
                   </div>
                   {report.reviewedBy && (
                     <div className="text-xs text-zinc-500">
-                      reviewed by {report.reviewedBy.email ?? report.reviewedBy.name}
+                      reviewed by {report.reviewedBy.name ?? `@${report.reviewedBy.handle}`}
                     </div>
                   )}
                 </div>
@@ -398,6 +495,13 @@ export default async function ModerationPage({
                 )}
 
                 <div className="flex flex-col gap-2">
+                  {!canReviewTarget && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+                      スタッフ対象の通報はADMINのみ対応できます。
+                    </div>
+                  )}
+
+                  {canAct && canReviewTarget && (
                   <form
                     action={updateReportRouting.bind(null, report.id)}
                     className="grid gap-2 rounded-md bg-zinc-50 p-3 md:grid-cols-12"
@@ -424,9 +528,12 @@ export default async function ModerationPage({
                         className="mt-1 w-full rounded-md border border-border bg-white px-2 py-1 text-xs"
                       >
                         <option value="">未担当</option>
-                        {moderatorUsers.map((user) => (
+                        {(report.targetUser.role === Role.USER
+                          ? moderatorUsers
+                          : moderatorUsers.filter((user) => user.role === Role.ADMIN)
+                        ).map((user) => (
                           <option key={user.id} value={user.id}>
-                            {user.email ?? user.name ?? user.id}
+                            {user.name ?? `@${user.handle}`}
                           </option>
                         ))}
                       </select>
@@ -436,7 +543,7 @@ export default async function ModerationPage({
                       <input
                         name="dueAt"
                         type="datetime-local"
-                        defaultValue={formatDateInput(report.dueAt)}
+                        defaultValue={formatTokyoDateTimeLocal(report.dueAt)}
                         className="mt-1 w-full rounded-md border border-border bg-white px-2 py-1 text-xs"
                       />
                     </label>
@@ -456,8 +563,9 @@ export default async function ModerationPage({
                       </button>
                     </div>
                   </form>
+                  )}
 
-                  {canAct && (
+                  {canAct && canReviewTarget && (
                     <div className="flex flex-wrap gap-2">
                       <form action={markReportReviewing.bind(null, report.id)}>
                         <button className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-zinc-700 hover:text-zinc-900">
@@ -479,7 +587,7 @@ export default async function ModerationPage({
                     </div>
                   )}
 
-                  {canAct && report.post && !report.post.deletedAt && !report.post.isHidden && (
+                  {canAct && canReviewTarget && report.post && !report.post.deletedAt && !report.post.isHidden && (
                     <form action={hideReportedPost.bind(null, report.id)} className="flex flex-wrap gap-2">
                       <NoteInput placeholder="非表示理由" />
                       <button className="rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white">
@@ -488,7 +596,7 @@ export default async function ModerationPage({
                     </form>
                   )}
 
-                  {report.post?.isHidden && !report.post.deletedAt && (
+                  {canReviewTarget && report.post?.isHidden && !report.post.deletedAt && (
                     <form
                       action={restorePost.bind(null, report.post.id, report.targetUser.id)}
                       className="flex flex-wrap gap-2"
@@ -500,33 +608,56 @@ export default async function ModerationPage({
                     </form>
                   )}
 
-                  {canAct && (
+                  {canAct && canSanctionTarget && (
                     <form action={warnReportedUser.bind(null, report.id)} className="flex flex-wrap gap-2">
-                      <NoteInput placeholder="警告理由（必須）" />
+                      <NoteInput placeholder="警告理由（5文字以上）" required minLength={5} />
                       <button className="rounded-full border border-amber-400 px-3 py-1 text-xs font-semibold text-amber-800">
                         警告して解決
                       </button>
                     </form>
                   )}
 
-                  {canAct && (
+                  {canAct && canSanctionTarget && (
                     <div className="flex flex-wrap gap-2">
                       <form
                         action={setReportedUserStatus.bind(null, report.id, AccountStatus.POST_RESTRICTED)}
-                        className="flex min-w-[240px] flex-1 gap-2"
+                        className="flex min-w-[320px] flex-1 flex-wrap gap-2"
                       >
-                        <NoteInput placeholder="投稿制限理由" />
+                        <NoteInput placeholder="投稿制限理由（5文字以上）" required minLength={5} />
+                        <select
+                          name="durationHours"
+                          defaultValue="24"
+                          className="rounded-md border border-border bg-white px-2 py-1 text-xs"
+                          aria-label="投稿制限期間"
+                        >
+                          <option value="1">1時間</option>
+                          <option value="24">24時間</option>
+                          <option value="72">3日</option>
+                        </select>
                         <button className="rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700">
                           投稿制限
                         </button>
                       </form>
                       <form
                         action={setReportedUserStatus.bind(null, report.id, AccountStatus.SUSPENDED)}
-                        className="flex min-w-[240px] flex-1 gap-2"
+                        className="flex min-w-[320px] flex-1 flex-wrap gap-2"
                       >
-                        <NoteInput placeholder="停止理由" />
+                        <NoteInput placeholder="停止理由（5文字以上）" required minLength={5} />
+                        <select
+                          name="durationDays"
+                          defaultValue="7"
+                          className="rounded-md border border-border bg-white px-2 py-1 text-xs"
+                          aria-label="アカウント停止期間"
+                        >
+                          <option value="1">1日</option>
+                          <option value="7">7日</option>
+                          <option value="30">30日</option>
+                          {actor.role === Role.ADMIN && (
+                            <option value="permanent">永久停止</option>
+                          )}
+                        </select>
                         <button className="rounded-full border border-red-300 px-3 py-1 text-xs font-semibold text-red-700">
-                          7日停止
+                          アカウント停止
                         </button>
                       </form>
                     </div>
@@ -537,6 +668,39 @@ export default async function ModerationPage({
           })
         )}
       </div>
+
+      {filteredCount > 0 && (
+        <div className="mt-4">
+          <PaginationLinks
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            previousHref={
+              pagination.hasPrevious
+                ? moderationHref(
+                    statusFilter,
+                    reasonFilter,
+                    query,
+                    priorityFilter,
+                    assigneeFilter,
+                    pagination.page - 1,
+                  )
+                : null
+            }
+            nextHref={
+              pagination.hasNext
+                ? moderationHref(
+                    statusFilter,
+                    reasonFilter,
+                    query,
+                    priorityFilter,
+                    assigneeFilter,
+                    pagination.page + 1,
+                  )
+                : null
+            }
+          />
+        </div>
+      )}
     </div>
   );
 }

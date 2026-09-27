@@ -1,11 +1,17 @@
-import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
-import { AccountStatus } from '@prisma/client';
+import { visibleAccountFilter } from '@/lib/accountStatus';
+import { privateJson } from '@/lib/apiResponse';
+import type { Prisma } from '@prisma/client';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
+import { jstDateKey, stableShuffle } from '@/lib/stableShuffle';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const tab = searchParams.get('tab') === 'following' ? 'following' : 'for-you';
+    const requestedPage = parsePageNumber(searchParams.get('page'));
     const session = await auth();
     let userId = session?.user?.id ?? null;
     if (!userId && session?.user?.email) {
@@ -16,6 +22,8 @@ export async function GET(request: Request) {
         userId = user?.id ?? null;
     }
 
+    const now = new Date();
+
     const [viewerProfile, followingIds, blockedIds, mutedIds, blockedByIds] = userId
         ? await Promise.all([
               prisma.user.findUnique({
@@ -24,7 +32,11 @@ export async function GET(request: Request) {
               }),
               prisma.follow
                   .findMany({
-                      where: { followerId: userId },
+                      where: {
+                          followerId: userId,
+                          acceptedAt: { not: null },
+                          following: visibleAccountFilter(now),
+                      },
                       select: { followingId: true },
                   })
                   .then((rows) => rows.map((follow) => follow.followingId)),
@@ -53,23 +65,30 @@ export async function GET(request: Request) {
         ? Array.from(new Set([...blockedIds, ...mutedIds, ...blockedByIds]))
         : [];
 
-    const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const followingWhere: Prisma.PostWhereInput = {
+        isHidden: false,
+        deletedAt: null,
+        authorId: {
+            in: followingIds,
+            ...(excludedAuthorIds.length > 0 ? { notIn: excludedAuthorIds } : {}),
+        },
+        author: visibleAccountFilter(now),
+    };
+
+    const followingTotalCount =
+        tab === 'following' && followingIds.length > 0
+            ? await prisma.post.count({ where: followingWhere })
+            : 0;
+    const followingPagination = clampPage(requestedPage, followingTotalCount, 50);
 
     const posts =
         tab === 'following'
             ? followingIds.length > 0
                 ? await prisma.post.findMany({
-                      where: {
-                          isHidden: false,
-                          deletedAt: null,
-                          authorId: {
-                              in: followingIds,
-                              ...(excludedAuthorIds.length > 0 ? { notIn: excludedAuthorIds } : {}),
-                          },
-                          author: { status: { not: AccountStatus.SUSPENDED } },
-                      },
-                  include: {
+                      where: followingWhere,
+                      include: {
                           author: {
                               select: { id: true, name: true, handle: true, avatarUrl: true, isPrivate: true },
                           },
@@ -78,6 +97,8 @@ export async function GET(request: Request) {
                           reactions: userId ? { where: { userId }, select: { type: true } } : { take: 0 },
                           _count: { select: { likes: true, bookmarks: true } },
                       },
+                      skip: followingPagination.skip,
+                      take: followingPagination.pageSize,
                       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
                   })
                 : []
@@ -85,15 +106,33 @@ export async function GET(request: Request) {
                   where: {
                       isHidden: false,
                       deletedAt: null,
-                      author: { status: { not: AccountStatus.SUSPENDED } },
                       createdAt: { gte: weekAgo },
-                      ...(userId
-                          ? {
-                                authorId: {
-                                    ...(excludedAuthorIds.length > 0 ? { notIn: excludedAuthorIds } : {}),
-                                },
-                            }
+                      ...(userId && excludedAuthorIds.length > 0
+                          ? { authorId: { notIn: excludedAuthorIds } }
                           : {}),
+                      author: userId
+                          ? {
+                                AND: [
+                                    visibleAccountFilter(now),
+                                    {
+                                        OR: [
+                                            { isPrivate: false },
+                                            { id: userId },
+                                            {
+                                                followers: {
+                                                    some: {
+                                                        followerId: userId,
+                                                        acceptedAt: { not: null },
+                                                    },
+                                                },
+                                            },
+                                        ],
+                                    },
+                                ],
+                            }
+                          : {
+                                AND: [visibleAccountFilter(now), { isPrivate: false }],
+                            },
                   },
                   include: {
                       author: {
@@ -104,36 +143,33 @@ export async function GET(request: Request) {
                       reactions: userId ? { where: { userId }, select: { type: true } } : { take: 0 },
                       _count: { select: { likes: true, bookmarks: true } },
                   },
+                  take: 100,
                   orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
               });
 
-    const filtered =
-        tab === 'for-you' && userId
-            ? posts.filter((post) => !post.author.isPrivate || followingIds.includes(post.author.id))
-            : posts.filter((post) => !post.author.isPrivate);
-
     const shuffled =
         tab === 'for-you'
-            ? (() => {
-                  const copy = [...filtered];
-                  for (let i = copy.length - 1; i > 0; i -= 1) {
-                      const j = Math.floor(Math.random() * (i + 1));
-                      [copy[i], copy[j]] = [copy[j], copy[i]];
-                  }
-                  return copy;
-              })()
-            : filtered;
+            ? stableShuffle(
+                  posts,
+                  `${jstDateKey(now)}:${userId ?? 'guest'}:for-you`,
+              )
+            : posts;
 
-    return NextResponse.json({
+    return privateJson({
         viewerId: userId,
         viewerAvatarUrl: viewerProfile?.avatarUrl ?? null,
-        followingIds,
+        totalCount: tab === 'following' ? followingTotalCount : shuffled.length,
+        page: tab === 'following' ? followingPagination.page : 1,
+        totalPages: tab === 'following' ? followingPagination.totalPages : 1,
+        hasPrevious: tab === 'following' ? followingPagination.hasPrevious : false,
+        hasNext: tab === 'following' ? followingPagination.hasNext : false,
         posts: shuffled.map((post) => {
             const types = new Set(post.reactions.map((reaction) => reaction.type));
             return {
                 id: post.id,
                 content: post.content,
                 imageUrl: post.imageUrl,
+                imageAlt: post.imageAlt,
                 createdAt: post.createdAt,
                 wakaruCount: post.wakaruCount,
                 ganbattaCount: post.ganbattaCount,

@@ -1,9 +1,10 @@
 ﻿'use client';
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useEffect, useMemo, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { updateProfile, type ProfileState } from '@/app/lib/actions';
 import Cropper, { type Area } from 'react-easy-crop';
+import { validateClientImageFile } from '@/lib/clientImageValidation';
 
 const AVATAR_ASPECT = 1;
 const HEADER_ASPECT = 3;
@@ -35,9 +36,13 @@ async function getCroppedBlob(imageSrc: string, crop: Area) {
         crop.height,
     );
 
-    return new Promise<Blob>((resolve) => {
+    return new Promise<Blob>((resolve, reject) => {
         canvas.toBlob((blob) => {
-            resolve(blob ?? new Blob());
+            if (!blob || blob.size <= 0) {
+                reject(new Error('画像の切り抜きに失敗しました。'));
+                return;
+            }
+            resolve(blob);
         }, 'image/jpeg', 0.92);
     });
 }
@@ -79,8 +84,21 @@ export default function ProfileEditForm({
     const [zoom, setZoom] = useState(1);
     const [croppedArea, setCroppedArea] = useState<Area | null>(null);
     const [pendingFileName, setPendingFileName] = useState('');
+    const [cropError, setCropError] = useState<string | null>(null);
 
     const aspect = cropTarget === 'avatar' ? AVATAR_ASPECT : HEADER_ASPECT;
+
+    useEffect(() => {
+        return () => {
+            if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+        };
+    }, [avatarPreview]);
+
+    useEffect(() => {
+        return () => {
+            if (headerPreview) URL.revokeObjectURL(headerPreview);
+        };
+    }, [headerPreview]);
 
     const handleAction = useMemo(
         () => async (formData: FormData) => {
@@ -109,22 +127,45 @@ export default function ProfileEditForm({
         reader.readAsDataURL(file);
     };
 
+    useEffect(() => {
+        if (!cropOpen) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setCropOpen(false);
+                setCropSrc(null);
+                setCropError(null);
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [cropOpen]);
+
     const applyCrop = async () => {
-        if (!cropSrc || !croppedArea) return;
-        const blob = await getCroppedBlob(cropSrc, croppedArea);
-        const file = new File([blob], pendingFileName || 'crop.jpg', { type: 'image/jpeg' });
-        const preview = URL.createObjectURL(file);
-        if (cropTarget === 'avatar') {
-            setAvatarFile(file);
-            setAvatarPreview(preview);
-            setAvatarName(file.name);
-        } else {
-            setHeaderFile(file);
-            setHeaderPreview(preview);
-            setHeaderName(file.name);
+        if (!cropSrc || !croppedArea || croppedArea.width <= 0 || croppedArea.height <= 0) return;
+        setCropError(null);
+        try {
+            const blob = await getCroppedBlob(cropSrc, croppedArea);
+            const file = new File([blob], pendingFileName || 'crop.jpg', { type: 'image/jpeg' });
+            const validationError = await validateClientImageFile(file);
+            if (validationError) {
+                setCropError(validationError);
+                return;
+            }
+            const preview = URL.createObjectURL(file);
+            if (cropTarget === 'avatar') {
+                setAvatarFile(file);
+                setAvatarPreview(preview);
+                setAvatarName(file.name);
+            } else {
+                setHeaderFile(file);
+                setHeaderPreview(preview);
+                setHeaderName(file.name);
+            }
+            setCropOpen(false);
+            setCropSrc(null);
+        } catch {
+            setCropError('画像の切り抜きに失敗しました。別の画像をお試しください。');
         }
-        setCropOpen(false);
-        setCropSrc(null);
     };
 
     return (
@@ -134,6 +175,7 @@ export default function ProfileEditForm({
                 名前
                 <input
                     name="name"
+                    maxLength={50}
                     defaultValue={name ?? ''}
                     className="mt-1 w-full rounded-lg bg-zinc-100 border border-zinc-300 p-2 text-sm"
                 />
@@ -142,6 +184,7 @@ export default function ProfileEditForm({
                 自己紹介
                 <textarea
                     name="bio"
+                    maxLength={500}
                     defaultValue={bio ?? ''}
                     rows={3}
                     className="mt-1 w-full rounded-lg bg-zinc-100 border border-zinc-300 p-2 text-sm resize-none"
@@ -151,6 +194,7 @@ export default function ProfileEditForm({
                 ハッシュタグ、自動追記
                 <input
                     name="autoHashtag"
+                    maxLength={100}
                     defaultValue={autoHashtag ?? ''}
                     className="mt-1 w-full rounded-lg bg-zinc-100 border border-zinc-300 p-2 text-sm"
                     placeholder="#タグ を入れてください"
@@ -171,11 +215,18 @@ export default function ProfileEditForm({
                         <input
                             type="file"
                             name="avatar"
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
                             className="hidden"
-                            onChange={(event) => {
-                                const file = event.target.files?.[0];
+                            onChange={async (event) => {
+                                const input = event.currentTarget;
+                                const file = input.files?.[0];
                                 if (file) {
+                                    const validationError = await validateClientImageFile(file);
+                                    if (validationError) {
+                                        alert(validationError);
+                                        input.value = '';
+                                        return;
+                                    }
                                     openCropper(file, 'avatar');
                                 } else {
                                     setAvatarName('');
@@ -205,11 +256,18 @@ export default function ProfileEditForm({
                         <input
                             type="file"
                             name="header"
-                            accept="image/*"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
                             className="hidden"
-                            onChange={(event) => {
-                                const file = event.target.files?.[0];
+                            onChange={async (event) => {
+                                const input = event.currentTarget;
+                                const file = input.files?.[0];
                                 if (file) {
+                                    const validationError = await validateClientImageFile(file);
+                                    if (validationError) {
+                                        alert(validationError);
+                                        input.value = '';
+                                        return;
+                                    }
                                     openCropper(file, 'header');
                                 } else {
                                     setHeaderName('');
@@ -224,20 +282,26 @@ export default function ProfileEditForm({
                     </span>
                 </div>
             </div>
-            {state?.message && <div className="text-sm text-zinc-400">{state.message}</div>}
+            {state?.message && <div className="text-sm text-zinc-400" aria-live="polite">{state.message}</div>}
             <SubmitButton />
 
             {cropOpen && cropSrc && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-                    <div className="w-full max-w-lg rounded-2xl bg-white p-4">
+                    <div
+                        className="w-full max-w-lg rounded-2xl bg-white p-4"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="profile-crop-title"
+                    >
                         <div className="flex items-center justify-between mb-2">
-                            <div className="text-sm font-bold">画像を調整</div>
+                            <div id="profile-crop-title" className="text-sm font-bold">画像を調整</div>
                             <button
                                 type="button"
                                 className="text-xs text-zinc-500 hover:underline"
                                 onClick={() => {
                                     setCropOpen(false);
                                     setCropSrc(null);
+                                    setCropError(null);
                                 }}
                             >
                                 閉じる
@@ -254,6 +318,9 @@ export default function ProfileEditForm({
                                 onCropComplete={(_, area) => setCroppedArea(area)}
                             />
                         </div>
+                        {cropError && (
+                            <div className="mt-3 text-xs text-red-600" aria-live="polite">{cropError}</div>
+                        )}
                         <div className="mt-3 flex items-center gap-3">
                             <input
                                 type="range"
@@ -267,7 +334,8 @@ export default function ProfileEditForm({
                             <button
                                 type="button"
                                 onClick={applyCrop}
-                                className="bg-[#1d9bf0] text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-[#1a8cd8]"
+                                disabled={!croppedArea}
+                                className="bg-[#1d9bf0] text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-[#1a8cd8] disabled:opacity-50"
                             >
                                 適用
                             </button>

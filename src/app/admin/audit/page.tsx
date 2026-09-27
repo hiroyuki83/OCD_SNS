@@ -1,7 +1,12 @@
 import { Prisma, Role } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
+import { normalizeSearchQuery } from "@/lib/searchInput";
+import PaginationLinks from "@/components/shared/PaginationLinks";
+import { clampPage, parsePageNumber } from "@/lib/pagination";
 
+
+export const dynamic = 'force-dynamic';
 const formatDate = (date: Date) =>
   date.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
 
@@ -47,17 +52,30 @@ const actionOptions = [
   "REPORT_RESOLVE",
   "REPORT_REJECT",
   "ANNOUNCEMENT_CREATE",
+  "ANNOUNCEMENT_UPDATE",
   "ANNOUNCEMENT_STATUS",
+  "ACCOUNT_PRIVACY_CHANGE",
+  "USER_WARNING",
+  "WARNING_APPEAL_SUBMITTED",
+  "WARNING_APPEAL_REVIEWED",
+  "STAFF_TOTP_SETUP_STARTED",
+  "STAFF_TOTP_ENABLED",
+  "STAFF_TOTP_DISABLED",
+  "STAFF_TOTP_RECOVERY_STARTED",
+  "STAFF_RECOVERY_CODES_REGENERATED",
+  "STAFF_RECOVERY_CODE_USED",
+  "USER_SESSIONS_REVOKED",
 ] as const;
 
 function selectedAction(value?: string) {
   return actionOptions.find((action) => action === value) ?? null;
 }
 
-function auditHref(action: string | null, query: string) {
+function auditHref(action: string | null, query: string, page = 1) {
   const params = new URLSearchParams();
   if (action) params.set("action", action);
   if (query) params.set("q", query);
+  if (page > 1) params.set("page", String(page));
   const suffix = params.toString();
   return suffix ? `/admin/audit?${suffix}` : "/admin/audit";
 }
@@ -65,63 +83,61 @@ function auditHref(action: string | null, query: string) {
 export default async function AdminAuditPage({
   searchParams,
 }: {
-  searchParams?: { action?: string; q?: string };
+  searchParams?: Promise<{ action?: string; q?: string; page?: string }>;
 }) {
+  const params = await searchParams;
   await requireRole(Role.ADMIN);
 
-  const query = searchParams?.q?.trim() ?? "";
-  const actionFilter = selectedAction(searchParams?.action);
+  const normalizedQuery = normalizeSearchQuery(params?.q ?? "");
+  const query = normalizedQuery.ok ? normalizedQuery.value : "";
+  const actionFilter = selectedAction(params?.action);
+  const requestedPage = parsePageNumber(params?.page);
+  const pageSize = 100;
   const filters: Prisma.AuditLogWhereInput[] = [];
 
   if (actionFilter) {
     filters.push({ action: actionFilter });
   }
 
-  let matchingUserIds: string[] = [];
   if (query) {
-    const matchingUsers = await prisma.user.findMany({
-      where: {
-        OR: [
-          { id: { contains: query } },
-          { email: { contains: query, mode: "insensitive" } },
-          { name: { contains: query, mode: "insensitive" } },
-        ],
-      },
-      select: { id: true },
-      take: 200,
-    });
-    matchingUserIds = matchingUsers.map((user) => user.id);
+    const userMatch: Prisma.UserWhereInput = {
+      OR: [
+        { id: { contains: query } },
+        { email: { contains: query, mode: "insensitive" } },
+        { name: { contains: query, mode: "insensitive" } },
+      ],
+    };
 
     filters.push({
       OR: [
         { action: { contains: query, mode: "insensitive" } },
         { actorUserId: { contains: query } },
         { targetUserId: { contains: query } },
-        ...(matchingUserIds.length
-          ? [
-              { actorUserId: { in: matchingUserIds } },
-              { targetUserId: { in: matchingUserIds } },
-            ]
-          : []),
+        { actorUser: { is: userMatch } },
+        { targetUser: { is: userMatch } },
       ],
     });
   }
 
   const where: Prisma.AuditLogWhereInput | undefined = filters.length ? { AND: filters } : undefined;
 
-  const [logs, totalCount, filteredCount] = await Promise.all([
-    prisma.auditLog.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 200,
-      where,
-      include: {
-        actorUser: { select: { id: true, email: true, name: true } },
-        targetUser: { select: { id: true, email: true, name: true } },
-      },
-    }),
+  const [totalCount, filteredCount] = await Promise.all([
     prisma.auditLog.count(),
     prisma.auditLog.count({ where }),
   ]);
+
+  const pagination = clampPage(requestedPage, filteredCount, pageSize);
+
+  const logs = await prisma.auditLog.findMany({
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: pagination.skip,
+    take: pagination.pageSize,
+    where,
+    include: {
+      actorUser: { select: { id: true, email: true, name: true } },
+      targetUser: { select: { id: true, email: true, name: true } },
+    },
+  });
 
   const filtersNav = [
     { label: "All", action: null },
@@ -134,7 +150,9 @@ export default async function AdminAuditPage({
         <div>
           <h1 className="text-2xl font-semibold">監査ログ</h1>
           <p className="text-sm text-zinc-500 mt-1">
-            最新200件まで表示します。{filteredCount} / {totalCount} 件
+            {filteredCount === 0
+              ? "0件"
+              : `${pagination.skip + 1}〜${Math.min(pagination.skip + logs.length, filteredCount)}件目を表示`} / 絞り込み ${filteredCount}件 / 全 ${totalCount}件
           </p>
         </div>
       </div>
@@ -146,6 +164,7 @@ export default async function AdminAuditPage({
             <input
               name="q"
               defaultValue={query}
+              maxLength={100}
               className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
               placeholder="Action、actor/targetの名前・メール・ユーザーID"
             />
@@ -187,7 +206,7 @@ export default async function AdminAuditPage({
           return (
             <a
               key={filter.label}
-              href={auditHref(filter.action, query)}
+              href={auditHref(filter.action, query, 1)}
               className={
                 "px-3 py-1 rounded-full text-xs font-semibold border transition-colors " +
                 (isActive
@@ -200,6 +219,23 @@ export default async function AdminAuditPage({
           );
         })}
       </div>
+
+      {filteredCount > 0 && (
+        <PaginationLinks
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          previousHref={
+            pagination.hasPrevious
+              ? auditHref(actionFilter, query, pagination.page - 1)
+              : null
+          }
+          nextHref={
+            pagination.hasNext
+              ? auditHref(actionFilter, query, pagination.page + 1)
+              : null
+          }
+        />
+      )}
 
       <div className="border border-border rounded-xl overflow-hidden">
         <div className="grid grid-cols-12 bg-zinc-50 px-4 py-2 text-xs font-semibold text-zinc-500">

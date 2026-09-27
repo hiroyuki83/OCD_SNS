@@ -1,16 +1,25 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { normalizePostgresSslMode } from '@/lib/databaseUrl';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-const connectionString =
+const previewConnectionString =
+  process.env.VERCEL_ENV === 'preview'
+    ? process.env.PREVIEW_DATABASE_URL?.trim()
+    : undefined;
+
+const rawConnectionString =
+  previewConnectionString ??
   process.env.POSTGRES_URL_NON_POOLING ??
   process.env.DATABASE_URL ??
   process.env.POSTGRES_PRISMA_URL;
 
+const connectionString = normalizePostgresSslMode(rawConnectionString);
+
 if (!connectionString) {
   throw new Error(
-    'Missing POSTGRES_URL_NON_POOLING, DATABASE_URL, or POSTGRES_PRISMA_URL.',
+    'Missing PREVIEW_DATABASE_URL, POSTGRES_URL_NON_POOLING, DATABASE_URL, or POSTGRES_PRISMA_URL.',
   );
 }
 

@@ -1,0 +1,70 @@
+name: CoCo Preview DB Release Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type MIGRATE_COCO_PREVIEW to authorize Preview DB migration'
+        required: true
+        type: string
+      allow_baseline:
+        description: 'Allow baselining existing historical schema when _prisma_migrations is absent'
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: coco-preview-db-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate-preview:
+    if: ${{ github.ref_name == 'security-integration-final-20260926' && inputs.confirmation == 'MIGRATE_COCO_PREVIEW' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: preview
+    env:
+      VERCEL_ENV: preview
+      VERCEL_GIT_COMMIT_REF: ${{ github.ref_name }}
+      PREVIEW_MIGRATION_CONFIRM: ${{ inputs.confirmation }}
+      PREVIEW_ALLOW_BASELINE: ${{ inputs.allow_baseline && '1' || '0' }}
+      PREVIEW_SEED_USERS: '1'
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      POSTGRES_URL_NON_POOLING: ${{ secrets.PREVIEW_DATABASE_URL }}
+      POSTGRES_PRISMA_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      PREVIEW_TEST_PASSWORD: ${{ secrets.PREVIEW_TEST_PASSWORD }}
+
+    steps:
+      - name: Checkout approved integration branch
+        uses: actions/checkout@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Preview DB safety preflight
+        run: npm run preview:db:preflight
+
+      - name: Apply guarded Preview migrations
+        run: npm run preview:db:migrate
+
+      - name: Verify Preview schema
+        run: npm run preview:db:verify
+
+      - name: Seed Preview test users
+        run: npm run seed:preview
+
+      - name: Confirm migration status
+        run: npx prisma migrate status

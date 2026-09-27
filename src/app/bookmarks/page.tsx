@@ -1,12 +1,22 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { formatPostTime } from '@/lib/formatTime';
-import { toggleBookmark } from '@/app/lib/actions';
 import HashtagText from '@/components/shared/HashtagText';
-import { AccountStatus } from '@prisma/client';
+import { visibleAccountFilter } from '@/lib/accountStatus';
+import type { Prisma } from '@prisma/client';
+import PaginationLinks from '@/components/shared/PaginationLinks';
+import { clampPage, parsePageNumber } from '@/lib/pagination';
+import ProfilePostActionForm from '@/components/profile/ProfilePostActionForm';
 
-export default async function BookmarksPage() {
+export const dynamic = 'force-dynamic';
+
+export default async function BookmarksPage({
+    searchParams,
+}: {
+    searchParams?: Promise<{ page?: string }>;
+}) {
+  const params = await searchParams;
     const session = await auth();
     let userId = session?.user?.id ?? null;
     if (!userId && session?.user?.email) {
@@ -25,22 +35,91 @@ export default async function BookmarksPage() {
         );
     }
 
-    const bookmarks = await prisma.bookmark.findMany({
-        where: {
-            userId,
-            post: {
-                isHidden: false,
-                deletedAt: null,
-                author: { status: { not: AccountStatus.SUSPENDED } },
+    const [blockedIds, blockedByIds, mutedIds] = await Promise.all([
+        prisma.block.findMany({
+            where: { blockerId: userId },
+            select: { blockedId: true },
+        }).then((rows) => rows.map((row) => row.blockedId)),
+        prisma.block.findMany({
+            where: { blockedId: userId },
+            select: { blockerId: true },
+        }).then((rows) => rows.map((row) => row.blockerId)),
+        prisma.mute.findMany({
+            where: { muterId: userId },
+            select: { mutedId: true },
+        }).then((rows) => rows.map((row) => row.mutedId)),
+    ]);
+
+    const excludedAuthorIds = Array.from(new Set([...blockedIds, ...blockedByIds, ...mutedIds]));
+
+    const now = new Date();
+
+    const bookmarkWhere: Prisma.BookmarkWhereInput = {
+        userId,
+        post: {
+            isHidden: false,
+            deletedAt: null,
+            ...(excludedAuthorIds.length > 0 ? { authorId: { notIn: excludedAuthorIds } } : {}),
+            author: {
+                AND: [
+                    visibleAccountFilter(now),
+                    {
+                        OR: [
+                            { isPrivate: false },
+                            { id: userId },
+                            {
+                                followers: {
+                                    some: {
+                                        followerId: userId,
+                                        acceptedAt: { not: null },
+                                    },
+                                },
+                            },
+                        ],
+                    },
+                ],
             },
         },
-        orderBy: { createdAt: 'desc' },
-        include: {
+    };
+
+    const bookmarkCount = await prisma.bookmark.count({ where: bookmarkWhere });
+    const pagination = clampPage(
+        parsePageNumber(params?.page),
+        bookmarkCount,
+        50,
+    );
+
+    const bookmarkRows = await prisma.bookmark.findMany({
+        where: bookmarkWhere,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: pagination.skip,
+        take: pagination.pageSize,
+        select: {
+            id: true,
             post: {
-                include: { author: true, likes: true, bookmarks: true },
+                select: {
+                    id: true,
+                    content: true,
+                    imageUrl: true,
+                    imageAlt: true,
+                    createdAt: true,
+                    authorId: true,
+                    author: {
+                        select: {
+                            id: true,
+                            name: true,
+                            handle: true,
+                            avatarUrl: true,
+                            isPrivate: true,
+                        },
+                    },
+                    _count: { select: { likes: true } },
+                },
             },
         },
     });
+
+    const bookmarks = bookmarkRows;
 
     return (
         <div className="min-h-screen border-r border-border">
@@ -48,10 +127,13 @@ export default async function BookmarksPage() {
                 <h1 className="font-bold text-base">ブックマーク</h1>
             </div>
             <div className="flex flex-col">
+                {bookmarkCount > 0 && (
+                    <div className="px-4 py-2 text-xs text-zinc-500 border-b border-border">
+                        全{bookmarkCount}件・{pagination.page}/{pagination.totalPages}ページ
+                    </div>
+                )}
                 {bookmarks.map((entry) => {
                     const post = entry.post;
-                    const bookmarked = post.bookmarks.some((bookmark) => bookmark.userId === userId);
-                    const likeCount = post.likes.length;
                     const createdAt = formatPostTime(post.createdAt);
 
                     return (
@@ -67,8 +149,12 @@ export default async function BookmarksPage() {
                             )}
                             <div className="flex-1 flex flex-col gap-2">
                                 <div className="flex items-center gap-2 text-sm flex-wrap">
-                                    <span className="font-bold">{post.author.name ?? 'ユーザー'}</span>
-                                    <span className="text-zinc-500">@{post.author.handle}</span>
+                                    <Link href={`/user/${post.author.handle}`} className="font-bold hover:underline">
+                                        {post.author.name ?? 'ユーザー'}
+                                    </Link>
+                                    <Link href={`/user/${post.author.handle}`} className="text-zinc-500 hover:underline">
+                                        @{post.author.handle}
+                                    </Link>
                                     <span className="text-zinc-500">・</span>
                                     <span className="text-zinc-500">{createdAt}</span>
                                 </div>
@@ -76,27 +162,37 @@ export default async function BookmarksPage() {
                                 {post.imageUrl && (
                                     <img
                                         src={post.imageUrl}
-                                        alt="投稿画像"
+                                        alt={post.imageAlt ?? ''}
                                         className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
                                     />
                                 )}
                                 <div className="flex items-center gap-3 text-zinc-500">
-                                    <div className="text-xs">いいね {likeCount}</div>
-                                    <form action={toggleBookmark.bind(null, post.id)}>
-                                        <button
-                                            type="submit"
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors ${
-                                                bookmarked ? 'text-[#1d9bf0]' : 'hover:text-[#1d9bf0]'
-                                            }`}
-                                        >
-                                            {bookmarked ? 'ブックマーク済み' : 'ブックマーク'}
-                                        </button>
-                                    </form>
+                                    <div className="text-xs">いいね {post._count.likes}</div>
+                                    <Link
+                                        href={`/post/${encodeURIComponent(post.id)}`}
+                                        className="text-xs text-[#1d9bf0] hover:underline"
+                                    >
+                                        投稿を開く
+                                    </Link>
+                                    <ProfilePostActionForm
+                                        postId={post.id}
+                                        action="bookmark"
+                                        active
+                                        compactLabel="ブックマーク解除"
+                                    />
                                 </div>
                             </div>
                         </div>
                     );
                 })}
+                {bookmarkCount > 0 && (
+                    <PaginationLinks
+                        page={pagination.page}
+                        totalPages={pagination.totalPages}
+                        previousHref={pagination.hasPrevious ? `/bookmarks?page=${pagination.page - 1}` : null}
+                        nextHref={pagination.hasNext ? `/bookmarks?page=${pagination.page + 1}` : null}
+                    />
+                )}
                 {bookmarks.length === 0 && (
                     <div className="p-6 text-sm text-zinc-500 text-center">ブックマークはまだありません</div>
                 )}

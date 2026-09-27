@@ -2,15 +2,24 @@
 // npm install --save-dev prisma dotenv
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
+import { normalizePostgresSslMode } from "./src/lib/databaseUrl";
 
-const migrateUrl =
-  process.env.POSTGRES_URL_NON_POOLING ??
-  process.env.DATABASE_URL ??
-  process.env.POSTGRES_PRISMA_URL;
+const previewMigrateUrl =
+  process.env.VERCEL_ENV?.trim() === "preview"
+    ? process.env.PREVIEW_DATABASE_URL?.trim()
+    : undefined;
+
+const rawMigrateUrl =
+  previewMigrateUrl ??
+  process.env.POSTGRES_URL_NON_POOLING?.trim() ??
+  process.env.DATABASE_URL?.trim() ??
+  process.env.POSTGRES_PRISMA_URL?.trim();
+
+const migrateUrl = normalizePostgresSslMode(rawMigrateUrl);
 
 if (!migrateUrl) {
   throw new Error(
-    "Missing POSTGRES_URL_NON_POOLING, DATABASE_URL, or POSTGRES_PRISMA_URL.",
+    "Missing PREVIEW_DATABASE_URL (for Vercel Preview), POSTGRES_URL_NON_POOLING, DATABASE_URL, or POSTGRES_PRISMA_URL.",
   );
 }
 

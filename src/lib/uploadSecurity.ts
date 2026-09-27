@@ -1,6 +1,10 @@
 import 'server-only';
 
 import crypto from 'crypto';
+import {
+  isSafeImageDimensions,
+  readImageDimensions,
+} from '@/lib/imageDimensions';
 
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -62,8 +66,8 @@ export async function validateImageUpload(file: File) {
     return { ok: false as const, error: '画像は5MB以下にしてください。' };
   }
 
-  const header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
-  const detected = detectImageType(header);
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const detected = detectImageType(bytes);
 
   if (!detected || detected.mime !== file.type) {
     return {
@@ -72,9 +76,26 @@ export async function validateImageUpload(file: File) {
     };
   }
 
+  const dimensions = readImageDimensions(bytes, detected.mime);
+  if (!dimensions) {
+    return {
+      ok: false as const,
+      error: '画像の幅と高さを確認できませんでした。別の画像をお試しください。',
+    };
+  }
+
+  if (!isSafeImageDimensions(dimensions)) {
+    return {
+      ok: false as const,
+      error: '画像の解像度が大きすぎます。最大12000px・5000万画素以内にしてください。',
+    };
+  }
+
   return {
     ok: true as const,
     extension: detected.extension,
     objectName: `${crypto.randomUUID()}.${detected.extension}`,
+    width: dimensions.width,
+    height: dimensions.height,
   };
 }

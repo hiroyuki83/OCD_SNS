@@ -1,11 +1,70 @@
 import 'server-only';
 
-import { AccountStatus } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import { visibleAccountFilter } from '@/lib/accountStatus';
 import { prisma } from '@/lib/db';
 
-export async function getAccessiblePostForViewer(viewerId: string | null, postId: string) {
-  const post = await prisma.post.findUnique({
-    where: { id: postId },
+export function accessiblePostWhere(
+  viewerId: string | null,
+  postId: string,
+  now = new Date(),
+): Prisma.PostWhereInput {
+  const authorVisibility: Prisma.UserWhereInput = viewerId
+    ? {
+        AND: [
+          visibleAccountFilter(now),
+          {
+            blocksInitiated: {
+              none: { blockedId: viewerId },
+            },
+          },
+          {
+            blockedBy: {
+              none: { blockerId: viewerId },
+            },
+          },
+          {
+            mutedBy: {
+              none: { muterId: viewerId },
+            },
+          },
+          {
+            OR: [
+              { isPrivate: false },
+              { id: viewerId },
+              {
+                followers: {
+                  some: {
+                    followerId: viewerId,
+                    acceptedAt: { not: null },
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      }
+    : {
+        AND: [
+          visibleAccountFilter(now),
+          { isPrivate: false },
+        ],
+      };
+
+  return {
+    id: postId,
+    deletedAt: null,
+    isHidden: false,
+    author: authorVisibility,
+  };
+}
+
+export async function getAccessiblePostForViewer(
+  viewerId: string | null,
+  postId: string,
+) {
+  return prisma.post.findFirst({
+    where: accessiblePostWhere(viewerId, postId),
     select: {
       id: true,
       authorId: true,
@@ -14,52 +73,12 @@ export async function getAccessiblePostForViewer(viewerId: string | null, postId
       author: {
         select: {
           status: true,
+          suspendedUntil: true,
           isPrivate: true,
         },
       },
     },
   });
-
-  if (
-    !post ||
-    post.deletedAt ||
-    post.isHidden ||
-    post.author.status === AccountStatus.SUSPENDED
-  ) {
-    return null;
-  }
-
-  if (post.authorId === viewerId) return post;
-
-  if (!viewerId) {
-    return post.author.isPrivate ? null : post;
-  }
-
-  const blocked = await prisma.block.findFirst({
-    where: {
-      OR: [
-        { blockerId: viewerId, blockedId: post.authorId },
-        { blockerId: post.authorId, blockedId: viewerId },
-      ],
-    },
-    select: { id: true },
-  });
-  if (blocked) return null;
-
-  if (post.author.isPrivate) {
-    const followsAuthor = await prisma.follow.findUnique({
-      where: {
-        followerId_followingId: {
-          followerId: viewerId,
-          followingId: post.authorId,
-        },
-      },
-      select: { id: true },
-    });
-    if (!followsAuthor) return null;
-  }
-
-  return post;
 }
 
 export async function usersAreBlocked(userId: string, targetUserId: string) {

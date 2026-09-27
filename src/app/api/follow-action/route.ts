@@ -2,20 +2,23 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
-import { usersAreBlocked } from '@/lib/postAccess';
-import { validateJsonMutationRequest } from '@/lib/requestSecurity';
+import { parseJsonMutationRequest } from '@/lib/requestSecurity';
+import { mutateFollowRelation } from '@/lib/userRelations';
+
+const FOLLOW_ACTIONS = ['follow', 'unfollow'] as const;
+type FollowAction = (typeof FOLLOW_ACTIONS)[number];
 
 export async function POST(request: Request) {
-    const requestCheck = validateJsonMutationRequest(request);
-    if (!requestCheck.ok) {
-        return NextResponse.json({ ok: false, error: requestCheck.error }, { status: requestCheck.status });
+    const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+    if (!parsedRequest.ok) {
+        return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
     }
 
-    const body = await request.json().catch(() => ({}));
-    const targetUserId = typeof body?.targetUserId === 'string' ? body.targetUserId : '';
-    const action = body?.action === 'unfollow' ? 'unfollow' : 'follow';
-    if (!targetUserId) {
-        return NextResponse.json({ ok: false }, { status: 400 });
+    const body = parsedRequest.data;
+    const targetUserId = typeof body?.targetUserId === 'string' ? body.targetUserId.trim() : '';
+    const action = typeof body?.action === 'string' ? body.action : '';
+    if (!targetUserId || targetUserId.length > 128 || !FOLLOW_ACTIONS.includes(action as FollowAction)) {
+        return NextResponse.json({ ok: false, error: '不正な操作です。' }, { status: 400 });
     }
 
     const session = await auth();
@@ -27,53 +30,37 @@ export async function POST(request: Request) {
         });
         userId = user?.id ?? null;
     }
-    if (!userId || userId === targetUserId) {
+    if (!userId) {
         return NextResponse.json({ ok: false }, { status: 401 });
     }
-    const targetUser = await prisma.user.findUnique({ where: { id: targetUserId }, select: { id: true } });
-    if (!targetUser) {
-        return NextResponse.json({ ok: false }, { status: 404 });
+    if (userId === targetUserId) {
+        return NextResponse.json({ ok: false, error: '自分自身はフォローできません。' }, { status: 400 });
     }
+
     if (!(await rateLimit(`follow-action:${userId}`, 60, 60 * 1000))) {
         return NextResponse.json({ ok: false }, { status: 429 });
     }
 
-    if (action === 'unfollow') {
-        await prisma.follow.deleteMany({
-            where: { followerId: userId, followingId: targetUserId },
-        });
-        await prisma.notification.deleteMany({
-            where: { type: 'FOLLOW', userId: targetUserId, actorId: userId },
-        });
-        return NextResponse.json({ ok: true });
+    const result = await mutateFollowRelation(
+        userId,
+        targetUserId,
+        action as FollowAction,
+    );
+    if (!result.ok) {
+        const status =
+            result.reason === 'NOT_FOUND'
+                ? 404
+                : result.reason === 'BLOCKED'
+                  ? 403
+                  : result.reason === 'CONFLICT'
+                    ? 409
+                    : 400;
+        return NextResponse.json({ ok: false }, { status });
     }
 
-    if (await usersAreBlocked(userId, targetUserId)) {
-        return NextResponse.json({ ok: false }, { status: 403 });
-    }
 
-    await prisma.follow.upsert({
-        where: {
-            followerId_followingId: {
-                followerId: userId,
-                followingId: targetUserId,
-            },
-        },
-        update: {},
-        create: {
-            followerId: userId,
-            followingId: targetUserId,
-        },
+    return NextResponse.json({
+        ok: true,
+        followState: result.state,
     });
-    if (userId !== targetUserId) {
-        await prisma.notification.create({
-            data: {
-                type: 'FOLLOW',
-                userId: targetUserId,
-                actorId: userId,
-            },
-        });
-    }
-
-    return NextResponse.json({ ok: true });
 }
