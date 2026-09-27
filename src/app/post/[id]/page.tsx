@@ -152,7 +152,7 @@ export default async function PostPage({
                     {post.imageUrl && (
                         <img
                             src={post.imageUrl}
-                            alt="投稿画像"
+                            alt={post.imageAlt ?? ''}
                             className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
                         />
                     )}
