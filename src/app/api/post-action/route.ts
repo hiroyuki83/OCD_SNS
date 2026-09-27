@@ -5,18 +5,18 @@ import { rateLimit } from '@/lib/rateLimit';
 import { AccountStatus } from '@prisma/client';
 import { isSuspensionActive } from '@/lib/accountStatus';
 import { getAccessiblePostForViewer } from '@/lib/postAccess';
-import { validateJsonMutationRequest } from '@/lib/requestSecurity';
+import { parseJsonMutationRequest } from '@/lib/requestSecurity';
 
 type ActionType = 'like' | 'wakaru' | 'ganbatta' | 'bookmark';
 const ACTION_TYPES = ['like', 'wakaru', 'ganbatta', 'bookmark'] as const;
 
 export async function POST(request: Request) {
-    const requestCheck = validateJsonMutationRequest(request);
-    if (!requestCheck.ok) {
-        return NextResponse.json({ ok: false, error: requestCheck.error }, { status: requestCheck.status });
-    }
+const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+if (!parsedRequest.ok) {
+    return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
+}
 
-    const body = await request.json().catch(() => ({}));
+    const body = parsedRequest.data;
     const postId = typeof body?.postId === 'string' ? body.postId.trim() : '';
     const action = typeof body?.action === 'string' ? body.action : '';
     if (!postId || postId.length > 128 || !ACTION_TYPES.includes(action as ActionType)) {
