@@ -28,6 +28,7 @@ export async function GET(request: Request) {
             id: true,
             content: true,
             imageUrl: true,
+            imageAlt: true,
             createdAt: true,
             author: {
                 select: {
@@ -49,6 +50,7 @@ export async function GET(request: Request) {
             id: post.id,
             content: post.content,
             imageUrl: post.imageUrl,
+            imageAlt: post.imageAlt,
             createdAt: post.createdAt,
             author: post.author,
         },
