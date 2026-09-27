@@ -17,6 +17,7 @@ import { sendEmailVerification } from '@/lib/emailVerification';
 import { getAccessiblePostForViewer, usersAreBlocked } from '@/lib/postAccess';
 import { validateImageUpload } from '@/lib/uploadSecurity';
 import { isSuspensionActive } from '@/lib/accountStatus';
+import { normalizeAutoHashtag, normalizeProfileBio, normalizeProfileName } from '@/lib/profileInput';
 
 const RegisterSchema = z.object({
     name: z.string().trim().min(1, '名前は必須です').max(50, '名前は50文字以内です'),
@@ -879,23 +880,32 @@ export async function muteUser(targetUserId: string) {
     });
     if (!targetUser) return;
 
-    await prisma.mute.upsert({
-        where: {
-            muterId_mutedId: {
+    await prisma.$transaction([
+        prisma.mute.upsert({
+            where: {
+                muterId_mutedId: {
+                    muterId: userId,
+                    mutedId: targetUserId,
+                },
+            },
+            update: {},
+            create: {
                 muterId: userId,
                 mutedId: targetUserId,
             },
-        },
-        update: {},
-        create: {
-            muterId: userId,
-            mutedId: targetUserId,
-        },
-    });
+        }),
+        prisma.notification.deleteMany({
+            where: {
+                userId,
+                actorId: targetUserId,
+            },
+        }),
+    ]);
 
     revalidatePath('/');
     revalidatePath('/profile');
     revalidatePath('/profile/mutes');
+    revalidatePath('/notifications');
 }
 
 export async function unmuteUser(targetUserId: string) {
@@ -929,9 +939,9 @@ export type ProfileState =
     | undefined;
 
 const ProfileSchema = z.object({
-    name: z.string().trim().max(50, '名前は50文字以内です。').optional(),
-    bio: z.string().trim().max(500, '自己紹介は500文字以内です。').optional(),
-    autoHashtag: z.string().trim().max(100, '自動ハッシュタグは100文字以内です。').optional(),
+    name: z.string().max(50, '名前は50文字以内です。').nullable(),
+    bio: z.string().max(500, '自己紹介は500文字以内です。').nullable(),
+    autoHashtag: z.string().max(100, '自動ハッシュタグは100文字以内です。').nullable(),
 });
 
 export async function updateProfile(
@@ -952,11 +962,26 @@ export async function updateProfile(
         return { message: 'プロフィール更新が多すぎます。少し待ってから再度お試しください。' };
     }
 
+    const rawName = formData.get('name');
+    const rawBio = formData.get('bio');
+    const rawAutoHashtag = formData.get('autoHashtag');
+    if (
+        typeof rawName !== 'string' ||
+        typeof rawBio !== 'string' ||
+        typeof rawAutoHashtag !== 'string'
+    ) {
+        return { message: 'プロフィールの入力内容が不正です。' };
+    }
+
+    const normalizedAutoHashtag = normalizeAutoHashtag(rawAutoHashtag);
+    if (!normalizedAutoHashtag.ok) {
+        return { message: normalizedAutoHashtag.error };
+    }
+
     const profile = ProfileSchema.safeParse({
-        name: typeof formData.get('name') === 'string' ? String(formData.get('name')) : undefined,
-        bio: typeof formData.get('bio') === 'string' ? String(formData.get('bio')) : undefined,
-        autoHashtag:
-            typeof formData.get('autoHashtag') === 'string' ? String(formData.get('autoHashtag')) : undefined,
+        name: normalizeProfileName(rawName),
+        bio: normalizeProfileBio(rawBio),
+        autoHashtag: normalizedAutoHashtag.value,
     });
     if (!profile.success) {
         return { message: profile.error.issues[0]?.message ?? 'プロフィールの入力内容が不正です。' };
@@ -981,18 +1006,20 @@ export async function updateProfile(
         headerUrl = upload.url;
     }
 
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
         where: { id: userId },
         data: {
-            name: name && name.length > 0 ? name : undefined,
-            bio: bio && bio.length > 0 ? bio : undefined,
-            autoHashtag: autoHashtag && autoHashtag.length > 0 ? autoHashtag : null,
+            name,
+            bio,
+            autoHashtag,
             avatarUrl,
             headerUrl,
         },
+        select: { handle: true },
     });
 
     revalidatePath('/profile');
+    revalidatePath(`/user/${encodeURIComponent(updatedUser.handle)}`);
     return { message: 'プロフィールを更新しました。' };
 }
 
