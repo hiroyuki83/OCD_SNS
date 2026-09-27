@@ -39,22 +39,43 @@ export default async function SettingsPage({
     );
   }
 
-    const [user, unusedRecoveryCodeCount] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          name: true,
-          bio: true,
-          email: true,
-          autoHashtag: true,
-          role: true,
-          staffTotpEnabledAt: true,
-        },
-      }),
-      prisma.staffRecoveryCode.count({
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      name: true,
+      bio: true,
+      email: true,
+      autoHashtag: true,
+      role: true,
+      staffTotpEnabledAt: true,
+      emailVerifiedAt: true,
+      isPrivate: true,
+    },
+  });
+
+  if (!user) {
+    return (
+      <div className="min-h-screen border-r border-border">
+        <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center px-4">
+          <h1 className="font-bold text-base">設定</h1>
+        </div>
+        <div className="p-6 text-sm text-zinc-500">
+          アカウント情報を取得できませんでした。{' '}
+          <Link href="/login" className="text-[#1d9bf0] hover:underline">
+            ログインし直す
+          </Link>
+          ことをお試しください。
+        </div>
+      </div>
+    );
+  }
+
+  const isStaff = user.role === Role.ADMIN || user.role === Role.MODERATOR;
+  const unusedRecoveryCodeCount = isStaff
+    ? await prisma.staffRecoveryCode.count({
         where: { userId, usedAt: null },
-      }),
-    ]);
+      })
+    : 0;
 
   return (
     <div className="min-h-screen border-r border-border">
@@ -69,15 +90,22 @@ export default async function SettingsPage({
         )}
         <FontSizeSetting />
         <SessionSecuritySetting />
-        <ProfileEditForm name={user?.name} bio={user?.bio} autoHashtag={user?.autoHashtag} />
-        {user && (user.role === Role.ADMIN || user.role === Role.MODERATOR) && (
+        <ProfileEditForm name={user.name} bio={user.bio} autoHashtag={user.autoHashtag} />
+        {isStaff && (
           <StaffTotpSetting
             enabled={Boolean(user.staffTotpEnabledAt)}
             unusedRecoveryCodeCount={unusedRecoveryCodeCount}
           />
         )}
-        <div className="mt-4 text-xs text-zinc-500">
-          メール: {user?.email ?? '-'}
+        <div className="mt-6 rounded-lg border border-border p-4 text-xs text-zinc-600">
+          <div>メール: {user.email ?? '-'}</div>
+          <div className="mt-1">
+            メール確認: {user.emailVerifiedAt ? '確認済み' : '未確認'}
+          </div>
+          <div className="mt-1">
+            公開設定: {user.isPrivate ? '非公開アカウント' : '公開アカウント'}
+          </div>
+          <div className="mt-1">権限: {user.role}</div>
         </div>
       </div>
     </div>
