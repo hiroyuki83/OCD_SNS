@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import HashtagText from '@/components/shared/HashtagText';
 import { formatPostTime } from '@/lib/formatTime';
 import { REPORT_REASONS, type ReportReasonValue } from '@/lib/reportReasons';
@@ -50,7 +50,6 @@ type ProfileResponse = {
 
 export default function UserHandleClient() {
     const params = useParams();
-    const router = useRouter();
     const searchParams = useSearchParams();
     const rawHandle = useMemo(() => {
         const value = params?.handle;
@@ -485,7 +484,7 @@ export default function UserHandleClient() {
                                     className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
                                 />
                             )}
-                            <div className="flex items-center gap-3 text-zinc-500 flex-wrap relative z-30 feed-action-area" data-action-area>
+                            <div className="flex items-center gap-3 text-zinc-500 flex-wrap relative z-30 feed-action-area">
                                 {viewerId ? (
                                     <button
                                         type="button"
