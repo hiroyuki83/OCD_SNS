@@ -37,15 +37,16 @@ function announcementHref(query: string, state: string, page = 1) {
 export default async function AdminAnnouncementsPage({
   searchParams,
 }: {
-  searchParams?: { q?: string; state?: string; page?: string };
+  searchParams?: Promise<{ q?: string; state?: string; page?: string }>;
 }) {
+  const params = await searchParams;
   await requireRole(Role.ADMIN);
 
-  const normalizedQuery = normalizeSearchQuery(searchParams?.q ?? '');
+  const normalizedQuery = normalizeSearchQuery(params?.q ?? '');
   const query = normalizedQuery.ok ? normalizedQuery.value : '';
   const stateFilter =
-    searchParams?.state === 'active' || searchParams?.state === 'inactive'
-      ? searchParams.state
+    params?.state === 'active' || params?.state === 'inactive'
+      ? params.state
       : '';
   const filters: Prisma.AnnouncementWhereInput[] = [];
   if (query) {
@@ -66,7 +67,7 @@ export default async function AdminAnnouncementsPage({
     prisma.announcement.count(),
   ]);
   const pagination = clampPage(
-    parsePageNumber(searchParams?.page),
+    parsePageNumber(params?.page),
     announcementCount,
     50,
   );
