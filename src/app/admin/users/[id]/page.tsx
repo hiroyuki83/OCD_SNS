@@ -54,11 +54,12 @@ function StatBox({ label, value, helper }: { label: string; value: number; helpe
 export default async function AdminUserDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   await requireRole(Role.ADMIN);
+  const resolvedParams = await params;
 
-  const userId = params.id.trim();
+  const userId = resolvedParams.id.trim();
   if (!userId || userId.length > 128) notFound();
   const now = new Date();
   const [
