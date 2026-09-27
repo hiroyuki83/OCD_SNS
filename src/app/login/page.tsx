@@ -38,6 +38,8 @@ export default function LoginPage() {
                             maxLength={254}
                             required
                             autoComplete="email"
+                            autoCapitalize="none"
+                            spellCheck={false}
                             placeholder="メールアドレス"
                             className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
                         />
@@ -66,12 +68,12 @@ export default function LoginPage() {
                             minLength={6}
                             maxLength={6}
                             autoComplete="one-time-code"
-                            aria-describedby="staff-totp-help"
+                            aria-describedby="staff-auth-help"
                             placeholder="認証アプリの6桁コード（スタッフのみ）"
                             className="w-full bg-white border border-zinc-300 rounded p-3 focus:border-[#1d9bf0] focus:outline-none"
                         />
-                        <p id="staff-totp-help" className="mt-1 text-xs text-zinc-500">
-                            2段階認証を有効にしているADMIN / MODERATORのみ入力してください。
+                        <p id="staff-auth-help" className="mt-1 text-xs text-zinc-500">
+                            2段階認証を有効にしているADMIN / MODERATORのみ入力してください。6桁コードとリカバリーコードは同時に入力せず、どちらか一方を使用します。
                         </p>
                     </div>
                     <div>
@@ -82,6 +84,7 @@ export default function LoginPage() {
                             type="text"
                             maxLength={64}
                             autoComplete="off"
+                            aria-describedby="staff-auth-help"
                             autoCapitalize="none"
                             spellCheck={false}
                             placeholder="リカバリーコード（認証アプリを使えない場合）"
