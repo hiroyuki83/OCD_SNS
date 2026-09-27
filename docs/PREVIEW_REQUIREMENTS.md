@@ -1,7 +1,8 @@
 # CoCo Preview 要件定義
 
 最終更新: 2026-09-28
-対象ブランチ: `security-integration-final-20260926`
+対象基準ブランチ: `main`
+現在の実装ブランチ: `feature/sanction-records-20260928`
 
 この文書を CoCo Preview 版の仕様上の正本（source of truth）とする。
 仕様変更があった場合は、この文書と `PREVIEW_ROADMAP.md` を更新する。
