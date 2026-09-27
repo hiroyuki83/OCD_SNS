@@ -19,9 +19,20 @@ const CreateUserSchema = z.object({
   adminConfirmation: z.string().trim().max(64).optional(),
 });
 
+function normalizeAdminNote(value: string) {
+  return value
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim();
+}
+
 const AdminNoteSchema = z.object({
   userId: z.string().trim().min(1).max(128),
-  body: z.string().trim().min(1, 'メモ本文を入力してください。').max(1000, 'メモは1000文字以内です。'),
+  body: z
+    .string()
+    .transform(normalizeAdminNote)
+    .refine((value) => Array.from(value).length >= 1, 'メモ本文を入力してください。')
+    .refine((value) => Array.from(value).length <= 1000, 'メモは1000文字以内です。'),
 });
 
 const AdminPasswordResetSchema = z.object({
