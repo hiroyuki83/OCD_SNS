@@ -1,10 +1,12 @@
 'use server';
 
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { isEmailDeliveryConfigured } from '@/lib/email';
 import { hashVerificationToken, sendEmailVerification } from '@/lib/emailVerification';
+import { logOperationalError } from '@/lib/operationalError';
 
 const tokenSchema = z.string().min(32).max(256);
 const emailSchema = z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます。').email('正しいメールアドレスを入力してください。');
@@ -27,7 +29,7 @@ export async function verifyEmail(
 
     const record = await prisma.emailVerificationToken.findUnique({
         where: { tokenHash: verificationHash },
-        select: { id: true, userId: true, usedAt: true, expiresAt: true },
+        select: { id: true, userId: true, usedAt: true, expiresAt: true, pendingEmail: true },
     });
 
     if (!record || record.usedAt || record.expiresAt <= new Date()) {
@@ -35,6 +37,78 @@ export async function verifyEmail(
     }
 
     const verifiedAt = new Date();
+
+    if (record.pendingEmail) {
+        try {
+            const changed = await prisma.$transaction(async (tx) => {
+                const consumed = await tx.emailVerificationToken.updateMany({
+                    where: {
+                        id: record.id,
+                        userId: record.userId,
+                        usedAt: null,
+                        expiresAt: { gt: verifiedAt },
+                        pendingEmail: record.pendingEmail,
+                    },
+                    data: { usedAt: verifiedAt },
+                });
+                if (consumed.count !== 1) return false;
+
+                const existing = await tx.user.findUnique({
+                    where: { email: record.pendingEmail },
+                    select: { id: true },
+                });
+                if (existing && existing.id !== record.userId) return false;
+
+                const updated = await tx.user.updateMany({
+                    where: { id: record.userId },
+                    data: {
+                        email: record.pendingEmail,
+                        emailVerifiedAt: verifiedAt,
+                        sessionVersion: { increment: 1 },
+                    },
+                });
+                if (updated.count !== 1) return false;
+
+                await tx.emailVerificationToken.updateMany({
+                    where: {
+                        userId: record.userId,
+                        usedAt: null,
+                    },
+                    data: { usedAt: verifiedAt },
+                });
+
+                await tx.auditLog.create({
+                    data: {
+                        action: 'EMAIL_CHANGED',
+                        actorUserId: record.userId,
+                        targetUserId: record.userId,
+                        meta: {
+                            changedAt: verifiedAt,
+                            sessionsRevoked: true,
+                        },
+                    },
+                });
+                return true;
+            });
+
+            if (!changed) {
+                return { message: 'このメールアドレスは利用できないか、確認リンクが既に使用されています。' };
+            }
+            return {
+                ok: true,
+                message: 'メールアドレスを変更しました。新しいメールアドレスでログインしてください。',
+            };
+        } catch (error) {
+            if (
+                error instanceof Prisma.PrismaClientKnownRequestError &&
+                error.code === 'P2002'
+            ) {
+                return { message: 'このメールアドレスは利用できません。' };
+            }
+            throw error;
+        }
+    }
+
     const completed = await prisma.$transaction(async (tx) => {
         const consumed = await tx.emailVerificationToken.updateMany({
             where: {
@@ -42,6 +116,7 @@ export async function verifyEmail(
                 userId: record.userId,
                 usedAt: null,
                 expiresAt: { gt: verifiedAt },
+                pendingEmail: null,
             },
             data: { usedAt: verifiedAt },
         });
@@ -109,7 +184,7 @@ export async function requestEmailVerification(
         try {
             await sendEmailVerification(user);
         } catch (error) {
-            console.error('Failed to resend verification email:', error);
+            logOperationalError('EMAIL_VERIFICATION_RESEND_FAILED', error);
         }
     }
 
