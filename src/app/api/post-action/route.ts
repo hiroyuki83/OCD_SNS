@@ -11,10 +11,10 @@ type ActionType = 'like' | 'wakaru' | 'ganbatta' | 'bookmark';
 const ACTION_TYPES = ['like', 'wakaru', 'ganbatta', 'bookmark'] as const;
 
 export async function POST(request: Request) {
-const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
-if (!parsedRequest.ok) {
-    return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
-}
+    const parsedRequest = await parseJsonMutationRequest<Record<string, unknown>>(request);
+    if (!parsedRequest.ok) {
+        return NextResponse.json({ ok: false, error: parsedRequest.error }, { status: parsedRequest.status });
+    }
 
     const body = parsedRequest.data;
     const postId = typeof body?.postId === 'string' ? body.postId.trim() : '';
