@@ -50,12 +50,4 @@ if (process.env.VERCEL_ENV === 'production') {
 
 run(['prisma', 'generate']);
 
-if (
-  process.env.VERCEL_ENV === 'preview' &&
-  process.env.VERCEL_GIT_COMMIT_REF === 'security-integration-final-20260926' &&
-  process.env.PREVIEW_SEED_USERS === '1'
-) {
-  run(['tsx', 'prisma/seed-preview.ts']);
-}
-
 run(['next', 'build']);
