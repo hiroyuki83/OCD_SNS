@@ -61,6 +61,7 @@ CoCo は、メンタルヘルス領域の当事者コミュニティを想定し
 - メール確認
 - パスワード再設定
 - ログイン中ユーザーによる通常のパスワード変更（変更後は既存セッションを失効）
+- ユーザーデータのJSONエクスポート
 - 公開識別子として email と分離した `@handle` を使用
 - ADMIN / MODERATOR / USER の3ロール
 - ADMIN / MODERATOR は TOTP 2段階認証を必須とする
@@ -247,6 +248,7 @@ ADMIN:
 - スタッフ MFA 状態
 - 運営お知らせ
 - モデレーション画面
+- モデレーション・制裁履歴をユーザー単位で時系列表示
 
 MODERATOR:
 
@@ -273,6 +275,7 @@ MODERATOR:
 - recovery code hash 保存
 - sessionVersion による session revoke
 - 管理操作の Audit Log
+- アプリ障害時は privacy-safe な incident ID / digest を使い、例外本文や機微情報を画面・ログへ露出しない
 
 ## 15. Preview / Production
 
@@ -286,7 +289,14 @@ Preview seed は以下の条件を満たす場合のみ実行する。
 
 Production DB に Preview seed を実行してはならない。
 
-## 16. 開発検証
+## 16. バックアップ・復旧
+
+- DB / Blob の復旧方針は `BACKUP_RECOVERY.md` を正本とする。
+- Production と Preview のDBを混同しない。
+- 破壊的DB操作前に復旧経路を確認する。
+- Previewデプロイ前の確認事項は `PREVIEW_DEPLOY_CHECKLIST.md` を使用する。
+
+## 17. 開発検証
 
 Release 前に以下を通す。
 
@@ -299,7 +309,7 @@ Release 前に以下を通す。
 
 今後 E2E test を追加する。
 
-## 17. 仕様変更の管理
+## 18. 仕様変更の管理
 
 仕様変更時は以下の順に更新する。
 
