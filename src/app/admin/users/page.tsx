@@ -3,6 +3,11 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 import UsersTable from "./UsersTable";
+import PaginationLinks from "@/components/shared/PaginationLinks";
+import { normalizeSearchQuery } from "@/lib/searchInput";
+import { clampPage, parsePageNumber } from "@/lib/pagination";
+
+export const dynamic = "force-dynamic";
 
 const roleOptions = [Role.USER, Role.MODERATOR, Role.ADMIN] as const;
 const statusOptions = [AccountStatus.ACTIVE, AccountStatus.POST_RESTRICTED, AccountStatus.SUSPENDED] as const;
@@ -18,11 +23,12 @@ function selectedStatus(value?: string) {
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams?: { q?: string; role?: string; status?: string };
+  searchParams?: { q?: string; role?: string; status?: string; page?: string };
 }) {
   await requireRole(Role.ADMIN);
 
-  const query = (searchParams?.q?.trim() ?? "").slice(0, 100);
+  const normalizedQuery = normalizeSearchQuery(searchParams?.q ?? "");
+  const query = normalizedQuery.ok ? normalizedQuery.value : "";
   const roleFilter = selectedRole(searchParams?.role);
   const statusFilter = selectedStatus(searchParams?.status);
   const filters: Prisma.UserWhereInput[] = [];
@@ -45,24 +51,32 @@ export default async function AdminUsersPage({
 
   const where: Prisma.UserWhereInput | undefined = filters.length ? { AND: filters } : undefined;
 
-  const [users, totalCount, filteredCount] = await Promise.all([
-    prisma.user.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        status: true,
-        suspendedUntil: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    }),
+  const [totalCount, filteredCount] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where }),
   ]);
+
+  const pagination = clampPage(
+    parsePageNumber(searchParams?.page),
+    filteredCount,
+    100,
+  );
+
+  const users = await prisma.user.findMany({
+    where,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      status: true,
+      suspendedUntil: true,
+      createdAt: true,
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: pagination.skip,
+    take: pagination.pageSize,
+  });
 
   const viewUsers = users.map((user) => ({
     id: user.id,
@@ -146,11 +160,47 @@ export default async function AdminUsersPage({
           </div>
         </div>
         <div className="mt-3 text-xs text-zinc-500">
-          {filteredCount} / {totalCount} 件を表示しています。最大200件まで表示します。
+          {filteredCount === 0
+            ? "0件"
+            : `${pagination.skip + 1}〜${Math.min(
+                pagination.skip + users.length,
+                filteredCount,
+              )}件目`} / 絞り込み {filteredCount}件 / 全 {totalCount}件
         </div>
       </form>
 
       <UsersTable users={viewUsers} />
+
+      {filteredCount > 0 && (
+        <PaginationLinks
+          page={pagination.page}
+          totalPages={pagination.totalPages}
+          previousHref={
+            pagination.hasPrevious
+              ? (() => {
+                  const params = new URLSearchParams();
+                  if (query) params.set("q", query);
+                  if (roleFilter) params.set("role", roleFilter);
+                  if (statusFilter) params.set("status", statusFilter);
+                  params.set("page", String(pagination.page - 1));
+                  return `/admin/users?${params.toString()}`;
+                })()
+              : null
+          }
+          nextHref={
+            pagination.hasNext
+              ? (() => {
+                  const params = new URLSearchParams();
+                  if (query) params.set("q", query);
+                  if (roleFilter) params.set("role", roleFilter);
+                  if (statusFilter) params.set("status", statusFilter);
+                  params.set("page", String(pagination.page + 1));
+                  return `/admin/users?${params.toString()}`;
+                })()
+              : null
+          }
+        />
+      )}
     </div>
   );
 }
