@@ -29,6 +29,8 @@ async function getAccessiblePost(
           status: true,
           suspendedUntil: true,
           isPrivate: true,
+          notifyLikes: true,
+          notifyReactions: true,
         },
       },
     },
@@ -83,6 +85,7 @@ async function toggleLike(
   userId: string,
   postId: string,
   authorId: string,
+  notifyLikes: boolean,
 ): Promise<InteractionState> {
   const removed = await tx.like.deleteMany({ where: { userId, postId } });
   if (removed.count > 0) {
@@ -98,7 +101,7 @@ async function toggleLike(
     skipDuplicates: true,
   });
 
-  if (created.count === 1 && authorId !== userId) {
+  if (created.count === 1 && authorId !== userId && notifyLikes) {
     await tx.notification.deleteMany({
       where: { type: 'LIKE', userId: authorId, actorId: userId, postId },
     });
@@ -148,6 +151,7 @@ async function toggleReaction(
   postId: string,
   authorId: string,
   type: ReactionType,
+  notifyReactions: boolean,
 ): Promise<InteractionState> {
   const removed = await tx.reaction.deleteMany({ where: { userId, postId, type } });
   if (removed.count === 0) {
@@ -155,7 +159,7 @@ async function toggleReaction(
       data: [{ userId, postId, type }],
       skipDuplicates: true,
     });
-    if (created.count === 1 && authorId !== userId) {
+    if (created.count === 1 && authorId !== userId && notifyReactions) {
       await tx.notification.deleteMany({
         where: { type, userId: authorId, actorId: userId, postId },
       });
@@ -210,7 +214,7 @@ async function runOnce(
       if (!post) return { ok: false as const, reason: 'NOT_FOUND' as const };
 
       if (action === 'like') {
-        return toggleLike(tx, userId, postId, post.authorId);
+        return toggleLike(tx, userId, postId, post.authorId, post.author.notifyLikes);
       }
       if (action === 'bookmark') {
         return toggleBookmark(tx, userId, postId);
@@ -221,6 +225,7 @@ async function runOnce(
         postId,
         post.authorId,
         action === 'wakaru' ? ReactionType.WAKARU : ReactionType.GANBATTA,
+        post.author.notifyReactions,
       );
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
