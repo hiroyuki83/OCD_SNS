@@ -346,11 +346,11 @@ export default async function NotificationsPage({
                                 {notification.actor.avatarUrl ? (
                                     <img
                                         src={notification.actor.avatarUrl}
-                                        alt="ユーザー画像"
+                                        alt=""
                                         className="h-10 w-10 rounded-full object-cover"
                                     />
                                 ) : (
-                                    <div className="h-10 w-10 rounded-full bg-slate-400" />
+                                    <div className="h-10 w-10 rounded-full bg-slate-400" aria-hidden="true" />
                                 )}
                             </Link>
                             <div className="min-w-0 flex-1">
