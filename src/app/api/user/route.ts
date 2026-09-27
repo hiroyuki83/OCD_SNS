@@ -3,6 +3,8 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import { isSuspensionActive } from '@/lib/accountStatus';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id')?.trim();
@@ -24,7 +26,7 @@ export async function GET(request: Request) {
             suspendedUntil: true,
         },
     });
-    if (!user) {
+    if (!user || isSuspensionActive(user.status, user.suspendedUntil)) {
         return NextResponse.json({ user: null }, { status: 404 });
     }
 
@@ -38,7 +40,7 @@ export async function GET(request: Request) {
         viewerId = viewer?.id ?? null;
     }
 
-    let canViewPosts = !isSuspensionActive(user.status, user.suspendedUntil);
+    let canViewPosts = true;
     if (viewerId) {
         const [blocked, muted] = await Promise.all([
             prisma.block.findFirst({
@@ -76,7 +78,7 @@ export async function GET(request: Request) {
             ? prisma.post.findMany({
                   where: { authorId: user.id, isHidden: false, deletedAt: null },
                   orderBy: { createdAt: 'desc' },
-              take: 100,
+                  take: 100,
                   select: { id: true, content: true, imageUrl: true, createdAt: true },
               })
             : Promise.resolve([]),
