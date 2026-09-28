@@ -715,3 +715,42 @@ test('Production pre-execution self-check includes Vercel credentials and projec
   assert.match(source, /api\.vercel\.com\/v7\/deployments/);
   assert.match(source, /no Vercel mutation/);
 });
+
+
+test('Production pre-execution self-check is bound to the exact protected main SHA', () => {
+  const path = '.github/workflows/production-pre-execution-self-check.yml';
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /run-name: Production pre-execution self-check \$\{\{ inputs\.release_sha \}\}/);
+  assert.match(source, /release_sha:/);
+  assert.match(source, /Verify exact protected main release commit/);
+  assert.match(source, /branches\/main/);
+  assert.match(source, /\.protected \/\/ false/);
+  assert.match(source, /main is not protected/);
+  assert.match(source, /RELEASE_SHA/);
+  assert.match(source, /WORKFLOW_SHA/);
+  assert.match(source, /WORKFLOW_REF/);
+  assert.match(source, /main branch protection: verified/);
+});
+
+test('Production rollback creation requires a successful same-SHA pre-execution self-check', () => {
+  const path = '.github/workflows/production-rollback-point-create.yml';
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /pre_execution_self_check_run_id:/);
+  assert.match(source, /PRE_EXECUTION_SELF_CHECK_RUN_ID/);
+  assert.match(source, /Verify pre-execution self-check attestation/);
+  assert.match(source, /production-pre-execution-self-check\.yml/);
+  assert.match(source, /Production pre-execution self-check \$\{RELEASE_SHA\}/);
+});
+
+test('Production Stage A independently requires the same pre-execution self-check attestation', () => {
+  const path = '.github/workflows/production-stage-a-apply.yml';
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /pre_execution_self_check_run_id:/);
+  assert.match(source, /PRE_EXECUTION_SELF_CHECK_RUN_ID/);
+  assert.match(source, /Verify pre-execution self-check attestation/);
+  assert.match(source, /production-pre-execution-self-check\.yml/);
+  assert.match(source, /Production pre-execution self-check \$\{RELEASE_SHA\}/);
+});

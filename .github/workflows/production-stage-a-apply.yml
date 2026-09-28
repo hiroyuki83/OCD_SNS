@@ -31,6 +31,10 @@ on:
         description: Successful Production Stage A Dry Run ID for this release SHA
         required: true
         type: string
+      pre_execution_self_check_run_id:
+        description: Successful Production Pre-execution Self Check run ID for this release SHA
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -58,6 +62,7 @@ jobs:
       APPLY_CONFIRMATION: ${{ inputs.confirmation }}
       PREFLIGHT_RUN_ID: ${{ inputs.preflight_run_id }}
       STAGE_A_DRY_RUN_ID: ${{ inputs.stage_a_dry_run_id }}
+      PRE_EXECUTION_SELF_CHECK_RUN_ID: ${{ inputs.pre_execution_self_check_run_id }}
 
     steps:
       - name: Verify explicit Stage A approval inputs
@@ -72,6 +77,7 @@ jobs:
           [ -n "${PRODUCTION_DATABASE_URL:-}" ] || { echo "PRODUCTION_DATABASE_URL_UNPOOLED is not configured."; exit 1; }
           [[ "${PREFLIGHT_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Numeric preflight run ID is required."; exit 1; }
           [[ "${STAGE_A_DRY_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Numeric Stage A dry-run ID is required."; exit 1; }
+          [[ "${PRE_EXECUTION_SELF_CHECK_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Numeric pre-execution self-check run ID is required."; exit 1; }
 
       - name: Verify workflow is running from exact main release commit
         shell: bash
@@ -82,6 +88,20 @@ jobs:
           set -euo pipefail
           [ "${WORKFLOW_REF}" = "main" ] || { echo "Stage A must be dispatched from main."; exit 1; }
           [ "${RELEASE_SHA}" = "${WORKFLOW_SHA}" ] || { echo "release_sha must match current main."; exit 1; }
+
+      - name: Verify pre-execution self-check attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          j="$(gh api "repos/${REPOSITORY}/actions/runs/${PRE_EXECUTION_SELF_CHECK_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${j}")" = "success" ] || { echo "Pre-execution self-check did not succeed."; exit 1; }
+          [ "$(jq -r '.head_sha // ""' <<<"${j}")" = "${RELEASE_SHA}" ] || { echo "Pre-execution self-check SHA mismatch."; exit 1; }
+          [ "$(jq -r '.event // ""' <<<"${j}")" = "workflow_dispatch" ] || { echo "Pre-execution self-check must be manually dispatched."; exit 1; }
+          [ "$(jq -r '.path // ""' <<<"${j}")" = ".github/workflows/production-pre-execution-self-check.yml" ] || { echo "Referenced run is not Production Pre-execution Self Check."; exit 1; }
+          [ "$(jq -r '.display_title // ""' <<<"${j}")" = "Production pre-execution self-check ${RELEASE_SHA}" ] || { echo "Pre-execution self-check release SHA binding mismatch."; exit 1; }
 
       - name: Verify rollback point attestation
         shell: bash
