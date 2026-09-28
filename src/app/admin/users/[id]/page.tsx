@@ -184,17 +184,6 @@ export default async function AdminUserDetailPage({
         reason: true,
         reportId: true,
         actorUser: { select: { id: true, email: true, name: true } },
-        appeal: {
-          select: {
-            id: true,
-            createdAt: true,
-            message: true,
-            status: true,
-            resolutionNote: true,
-            reviewedAt: true,
-            reviewer: { select: { id: true, email: true, name: true } },
-          },
-        },
       },
     }),
     prisma.sanction.findMany({
@@ -212,6 +201,17 @@ export default async function AdminUserDetailPage({
         reason: true,
         reportId: true,
         actorUser: { select: { id: true, email: true, name: true } },
+        appeal: {
+          select: {
+            id: true,
+            createdAt: true,
+            message: true,
+            status: true,
+            resolutionNote: true,
+            reviewedAt: true,
+            reviewer: { select: { id: true, email: true, name: true } },
+          },
+        },
       },
     }),
     prisma.adminNote.findMany({
