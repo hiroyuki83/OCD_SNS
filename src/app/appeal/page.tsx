@@ -54,7 +54,7 @@ export default function SanctionAppealPage() {
         </p>
       </div>
 
-      {state?.ok && state.status ? (
+      {state?.ok && state.sanctionType ? (
         <div
           role="status"
           aria-live="polite"
@@ -66,10 +66,20 @@ export default function SanctionAppealPage() {
               <dt className="text-xs font-semibold text-zinc-500">対象</dt>
               <dd>{sanctionLabel(state.sanctionType)}</dd>
             </div>
-            <div>
-              <dt className="text-xs font-semibold text-zinc-500">状態</dt>
-              <dd>{statusLabel(state.status)}</dd>
-            </div>
+            {state.status && (
+              <div>
+                <dt className="text-xs font-semibold text-zinc-500">状態</dt>
+                <dd>{statusLabel(state.status)}</dd>
+              </div>
+            )}
+            {state.sanctionReason && (
+              <div>
+                <dt className="text-xs font-semibold text-zinc-500">処分理由</dt>
+                <dd className="whitespace-pre-wrap break-words">
+                  {state.sanctionReason}
+                </dd>
+              </div>
+            )}
             <div>
               <dt className="text-xs font-semibold text-zinc-500">処分期限</dt>
               <dd>{formatDate(state.endsAt)}</dd>
