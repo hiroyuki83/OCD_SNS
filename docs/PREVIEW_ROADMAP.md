@@ -1400,3 +1400,53 @@ NEXT-039 remaining Production gates:
 9. separately approve Production deployment
 
 NEXT-040 remains **HOLD** until explicit Production write approval.
+
+
+## 2026-09-28 PR #59 guarded Production apply workflow
+
+- PR #59: **MERGED**
+- merge commit: `798f14d0eb3d63f5d7de452c08b142ac4f2da43e`
+- manual workflow: `.github/workflows/production-reconciliation-apply.yml`
+- read-only precheck: `scripts/production-reconciliation-precheck.ts`
+- Production DB write: **0**
+- Production deployment: **0**
+
+Workflowは `workflow_dispatch` のみで、以下が全て揃わない限り停止。
+
+- exact confirmation: `APPLY_COCO_PRODUCTION_RECONCILIATION`
+- verified rollback point identifier
+- exact current main release SHA
+- exact direct/unpooled Production host
+- GitHub Secret `PRODUCTION_DATABASE_URL_UNPOOLED`
+
+実行前にread-only precheckで以下を再確認。
+
+- legacy ModerationAction / Appeal schemaが想定どおり
+- ModerationAction rows = 0
+- legacy Appeal rows = 0
+- MODERATION Notification rows = 0
+- restrictionUntil active users = 0
+- Reply rows = 0
+- Quote rows = 0
+- legacy enum valuesが実測baselineと一致
+- active legacy migration record = 1
+- current restrictionUntil migration record = 0
+
+write sequence:
+
+1. guarded legacy reconciliation
+2. `20260926103000_add_restriction_until` をPrisma history上appliedとしてresolve
+3. remaining migrationsを `prisma migrate deploy`
+4. final read-only Production preflight PASSを要求
+
+Vercel Production deploymentはこのworkflowには含まれない。
+
+NEXT-039 remaining gates:
+
+1. Production rollback point作成・確認
+2. Vercel Production `DATABASE_URL_UNPOOLED` をGitHub Secret `PRODUCTION_DATABASE_URL_UNPOOLED` に設定
+3. direct/unpooled hostname確認
+4. main merge後CI/E2E確認
+5. Production writeの明示承認
+
+NEXT-040 remains **HOLD**。
