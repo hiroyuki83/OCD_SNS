@@ -754,3 +754,40 @@ test('Production Stage A independently requires the same pre-execution self-chec
   assert.match(source, /production-pre-execution-self-check\.yml/);
   assert.match(source, /Production pre-execution self-check \$\{RELEASE_SHA\}/);
 });
+
+
+test('repository branch cleanup is single-branch, manual, and refuses non-merged branches', () => {
+  const path = '.github/workflows/repository-branch-cleanup.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /branch_name:/);
+  assert.match(source, /VERIFY_ONLY/);
+  assert.match(source, /DELETE_MERGED_BRANCH/);
+  assert.match(source, /main can never be deleted/);
+  assert.match(source, /default branch can never be deleted/);
+  assert.match(source, /Protected branches are not eligible/);
+  assert.match(source, /open pull request/);
+  assert.match(source, /ahead.*-eq 0/);
+  assert.match(source, /Only ahead=0 branches are eligible for automated deletion/);
+  assert.match(source, /git\/refs\/\$\{encoded_ref\}/);
+  assert.match(source, /Verify branch deletion/);
+  assert.doesNotMatch(source, /for .*branch|while .*branch/);
+});
+
+test('repository branch cleanup verify-only mode performs no mutation', () => {
+  const path = '.github/workflows/repository-branch-cleanup.yml';
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /if: inputs\.operation == 'VERIFY_ONLY'/);
+  assert.match(source, /No branch was deleted/);
+  assert.match(source, /if: inputs\.operation == 'DELETE'/);
+
+  const verifyIndex = source.indexOf('Verify-only summary');
+  const deleteIndex = source.indexOf('Delete fully merged branch');
+  assert.ok(verifyIndex >= 0);
+  assert.ok(deleteIndex > verifyIndex);
+});
