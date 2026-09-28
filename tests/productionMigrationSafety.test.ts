@@ -135,5 +135,5 @@ test('production DB preflight is read-only and never invokes Prisma migrate', as
 
   assert.doesNotMatch(source, /prisma\s+migrate|migrate\s+deploy|spawnSync|execSync/);
   assert.match(source, /_prisma_migrations/);
-  assert.match(source, /prisma\/migrations/);
+  assert.match(source, /resolve\(process\.cwd\(\), 'prisma', 'migrations'\)/);
 });
