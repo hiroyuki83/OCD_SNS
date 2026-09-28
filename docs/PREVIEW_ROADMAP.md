@@ -695,7 +695,9 @@ NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへ�
 | 44 | モデレーションTOPへ未審査Sanction Appeal件数を追加 | DONE |
 | 45 | 審査結果メール送信をE2Eで検証 | DONE |
 | 46 | 停止中Appeal routeがpublicのままであることを回帰テスト | DONE |
-| 47 | PR #49 CI / E2E最終検証 | DONE |
+| 47 | 停止AppealフローのCI / E2E検証 | DONE |
+| 48 | 投稿制限→設定Appeal→独立審査→取消→投稿再開E2Eを追加 | DONE |
+| 49 | 投稿制限・停止の両Appealを含むPR #49最終CI / E2E | IN PROGRESS |
 
 Preview DBへのAppeal migration実適用はNEXT-041 / PR #48のSanction migration受入後に行う。
 
@@ -721,3 +723,16 @@ Preview DBへのAppeal migration実適用はNEXT-041 / PR #48のSanction migrati
 
 NEXT-042 はコード実装・隔離DB検証まで完了。
 共有Preview DBへの `20260928110500_add_sanction_appeals` 適用は、PR #48 / NEXT-041 のSanction migrationをPreviewで受入れた後に行う。
+
+
+### バッチ7追加検証対象
+
+`POST_RESTRICTION` についても実ブラウザE2Eへ追加:
+
+- 制限中は既存sessionを維持
+- 投稿試行を拒否し、制限理由を表示
+- 設定画面から `/appeal` へ遷移
+- Sanction Appealを送信
+- Sanction発行者とは別のADMINが取消審査
+- 結果メールを確認
+- 取消後に投稿を再開できることを確認
