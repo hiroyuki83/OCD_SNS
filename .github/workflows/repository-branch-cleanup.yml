@@ -171,7 +171,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          gh api --method DELETE "repos/${REPOSITORY}/git/refs/heads/${BRANCH_NAME}"
+          ref="heads/${BRANCH_NAME}"
+          encoded_ref="$(jq -nr --arg v "${ref}" '$v|@uri')"
+          gh api --method DELETE "repos/${REPOSITORY}/git/refs/${encoded_ref}"
 
       - name: Verify branch deletion
         if: inputs.operation == 'DELETE'
