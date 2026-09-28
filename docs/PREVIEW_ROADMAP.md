@@ -857,3 +857,48 @@ shared Preview認証付き手動UI受入は、GitHub Preview secretが未設定�
 認証フロー自体はisolated PostgreSQL上のPlaywrightで **16 / 16 PASS**、shared PreviewではDB schema・Vercel runtime・公開routeを別々に受入済み。
 このため、shared Previewでの重複した手動ログイン操作はmain統合の必須条件から外す。
 Production releaseは引き続きHOLD。
+
+
+## 2026-09-28 PR #49 main統合完了
+
+- PR #49: **MERGED**
+- main merge commit: `fc935925c4bb0e11630063eb83839f69ee68bc2b`
+- shared Preview DB: **41 migrations applied**
+- `Sanction` / `Appeal` schema: verified
+- Appeal Preview deployment: `dpl_HYXTdW7t9cCrjBzFnsGxBWT1rH3Z` READY
+- public smoke: **6 / 6 PASS**
+- `/appeal`: 200 / UI present
+- Preview runtime error/fatal: **0**
+- feature branch auto-deploy: **disabled**
+- main auto-deploy: **disabled**
+- Production DB / deployment: **untouched / HOLD**
+
+### Final PR head validation
+
+Final PR head: `d4005a0c9ff59b37715626c0087f4653284c8dac`
+
+- Security integration CI `36380072032`: **SUCCESS**
+  - unit tests: **173 / 173 PASS**
+  - Prisma validate / generate: PASS
+  - lint: PASS
+  - TypeScript: PASS
+  - Next.js build: PASS
+- CoCo E2E `36380071956`: **SUCCESS**
+  - isolated PostgreSQL migrations: PASS
+  - Preview seed: PASS
+  - Playwright: **16 / 16 PASS**
+
+### main merge後 validation
+
+- Security integration CI `36380347132`: **SUCCESS**
+  - unit tests: **173 / 173 PASS**
+  - Prisma validate / generate: PASS
+  - lint: PASS
+  - TypeScript: PASS
+  - Next.js build: PASS
+- CoCo E2E `36380347130`: **SUCCESS**
+  - Playwright: **16 / 16 PASS**
+- main mergeによるVercel Production deployment: **発生なし**
+
+NEXT-041 / NEXT-042のSanction + Sanction Appeal release系列はmain統合まで完了。
+Production releaseは別工程として **HOLD** を維持する。
