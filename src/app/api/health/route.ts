@@ -14,7 +14,7 @@ export async function GET() {
   const sha = releaseSha();
 
   try {
-    await prisma.$queryRawUnsafe('SELECT 1');
+    await prisma.$queryRaw`SELECT 1`;
 
     return Response.json(
       {
