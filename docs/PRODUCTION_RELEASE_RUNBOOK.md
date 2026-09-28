@@ -1227,3 +1227,80 @@ The following state-changing Production actions have **not** been executed in th
 - Production application rollback
 
 Production execution remains on HOLD until explicit approval at each state-changing boundary.
+
+
+# Repository guard and operational release freeze
+
+## Hard prerequisite: protected main
+
+`Production Pre-execution Self Check` now requires GitHub to report:
+
+- current ref = `main`
+- input release SHA = workflow SHA
+- input release SHA = current `main` SHA
+- `main.protected = true`
+
+If `main` is not protected, the self-check fails before any Production mutation can begin.
+
+At the time this section was added, GitHub reported `main.protected = false`.
+
+Configure branch protection or an equivalent repository ruleset before Production execution.
+
+Recommended minimum:
+
+- require pull requests before merge
+- require Security integration CI
+- require CoCo E2E for release-affecting code
+- block force pushes
+- block deletion of `main`
+
+## Self-check attestation is a state-changing gate
+
+A successful `Production Pre-execution Self Check` run ID is now required by:
+
+- `Production Rollback Point Create`
+- `Production Stage A Apply`
+
+The run must:
+
+- have succeeded
+- be a manual `workflow_dispatch` run
+- come from the exact release SHA
+- be the `production-pre-execution-self-check.yml` workflow
+- have a display title binding the exact release SHA
+
+This prevents a manually created rollback branch from bypassing repository / credential / provider identity checks.
+
+## Operational release freeze
+
+Once the pre-execution self-check passes for a release SHA, treat `main` as operationally frozen until one of these occurs:
+
+- `Production Release Acceptance` passes
+- release is explicitly aborted
+- emergency rollback is completed and `Production Rollback Acceptance` passes
+
+During this interval:
+
+- do not merge new PRs into `main`
+- do not push directly to `main`
+- do not reuse attestations after a main SHA change
+
+If `main` changes:
+
+1. stop the release
+2. do not reuse the prior pre-execution self-check run
+3. do not reuse same-SHA migration / deploy attestations as authorization for the new SHA
+4. restart the release sequence from `Production Pre-execution Self Check`
+5. create a fresh rollback point where the runbook requires one
+
+The workflows already bind their attestations to the exact release SHA, so an accidental main advance causes a safe failure instead of silently deploying a mixed release.
+
+# GitHub cleanup status
+
+Historical implementation PRs #5–#44 were closed after consolidation into PR #47 / current main.
+
+Current open PR count after cleanup: **0**.
+
+GitHub branch deletion remains manual because the connected GitHub integration exposes branch creation/update but no delete-ref operation.
+
+Use the GitHub Branches UI to remove merged / superseded historical branches. Never delete `main`.
