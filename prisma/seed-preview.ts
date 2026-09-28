@@ -90,6 +90,14 @@ const TEST_USERS = [
     isPrivate: false,
     bio: 'E2E管理操作分離用の管理者です。',
   },
+  {
+    email: 'coco.preview.admin4@example.com',
+    handle: 'preview-admin-4',
+    name: 'Preview Admin 4',
+    role: Role.ADMIN,
+    isPrivate: false,
+    bio: 'E2E処分異議申立て用の管理者です。',
+  },
 ] as const;
 
 async function run() {
