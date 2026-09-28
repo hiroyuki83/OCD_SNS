@@ -5,7 +5,10 @@ import {
   validatePreviewMigrationSafety,
 } from '../src/lib/previewMigrationSafety';
 
-import { PREVIEW_HISTORICAL_MIGRATIONS } from '../src/lib/previewMigrationPlan';
+import {
+  PREVIEW_DEFERRED_MIGRATIONS,
+  PREVIEW_HISTORICAL_MIGRATIONS,
+} from '../src/lib/previewMigrationPlan';
 
 const safety = validatePreviewMigrationSafety({
   vercelEnv: process.env.VERCEL_ENV,
@@ -17,6 +20,13 @@ const safety = validatePreviewMigrationSafety({
 
 if (!safety.ok) {
   console.error(safety.error);
+  process.exit(1);
+}
+
+if (PREVIEW_DEFERRED_MIGRATIONS.length > 0) {
+  console.error(
+    `Preview migration is blocked because deferred migrations are present: ${PREVIEW_DEFERRED_MIGRATIONS.join(', ')}`,
+  );
   process.exit(1);
 }
 
