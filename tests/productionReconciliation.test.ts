@@ -55,7 +55,7 @@ test('reconciliation dry run never uses Production secrets or remote deployment'
   assert.match(workflow, /postgres:16/);
   assert.match(workflow, /127\.0\.0\.1:5432\/coco_reconcile/);
   assert.doesNotMatch(workflow, /secrets\.PRODUCTION_DATABASE_URL/);
-  assert.doesNotMatch(workflow, /deploy_to_vercel|vercel deploy|production deployment/i);
+  assert.doesNotMatch(workflow, /deploy_to_vercel|\bvercel\s+deploy\b|production deployment/i);
 });
 
 test('reconciliation dry run reproduces legacy state and validates the final current schema', () => {
@@ -222,7 +222,7 @@ test('Production Stage C is independently dry-run and heavily gated', () => {
   assert.match(apply, /prisma migrate deploy/);
   assert.doesNotMatch(apply, /production-legacy-moderation-reconcile\.sql/);
   assert.doesNotMatch(apply, /prisma migrate resolve --applied 20260926103000_add_restriction_until/);
-  assert.doesNotMatch(apply, /vercel deploy|deploy_to_vercel/i);
+  assert.doesNotMatch(apply, /\bvercel\s+deploy\b|deploy_to_vercel/i);
 });
 
 
