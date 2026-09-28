@@ -29,7 +29,7 @@ test('Preview DB workflow is manual-only and requires exact confirmation', () =>
   assert.ok(!source.includes('\n  push:'));
   assert.ok(!source.includes('\n  pull_request:'));
   assert.ok(source.includes("inputs.confirmation == 'MIGRATE_COCO_PREVIEW'"));
-  assert.ok(source.includes("github.ref_name == 'feature/sanction-records-20260928'"));
+  assert.ok(source.includes("github.ref_name == 'feature/sanction-appeals-20260928'"));
   assert.ok(source.includes("PREVIEW_ALLOW_BASELINE: '0'"));
   assert.ok(!source.includes('allow_baseline:'));
   assert.ok(source.includes('secrets.PREVIEW_DATABASE_URL'));
@@ -52,4 +52,18 @@ test('Preview migration runner refuses to apply deferred migrations', () => {
   const source = readFileSync('scripts/migrate-preview.ts', 'utf8');
   assert.match(source, /PREVIEW_DEFERRED_MIGRATIONS\.length > 0/);
   assert.match(source, /Preview migration is blocked because deferred migrations are present/);
+});
+
+
+test('Appeal release preflight requires accepted Sanction schema and absent Appeal table', () => {
+  const source = readFileSync('scripts/preview-db-preflight.ts', 'utf8');
+  assert.ok(source.includes("['Sanction table already present', signatures.sanction]"));
+  assert.ok(source.includes("['Appeal table not yet present', !signatures.appeal]"));
+});
+
+test('Appeal release verification requires Appeal schema', () => {
+  const source = readFileSync('scripts/preview-db-verify.ts', 'utf8');
+  assert.ok(source.includes("['Appeal table added', await tableExists('Appeal')]"));
+  assert.ok(source.includes("['Appeal.sanctionId added', await columnExists('Appeal', 'sanctionId')]"));
+  assert.ok(source.includes("['Appeal.userId added', await columnExists('Appeal', 'userId')]"));
 });
