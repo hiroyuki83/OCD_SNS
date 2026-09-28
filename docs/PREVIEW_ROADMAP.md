@@ -1151,17 +1151,38 @@ Production identity / actual migration historyは引き続き未取得。
 - blob operational env: audited
 - Preview/E2E-only env: separated
 - SSL normalization behavior: audited
-- Production build currently runs `prisma migrate deploy`: confirmed
+- Production build DB mutation: **disabled on PR #51**
 
 重要:
-現mainではProduction deployment自体がmigration triggerになり得る。
-したがってProduction DB identity / rollback / dry-run完了前にProduction deployを開始しない。
+Production deployとDB migrationを分離する安全改修をPR #51で実施。
+Production buildはmigrationを実行せず、DB identity / rollback / dry-run / migrationを独立ゲートとして扱う。
 
 NEXT-039 remaining gates:
 
 1. exact Production DB host / database name
 2. actual Production `_prisma_migrations`
 3. Production env presence check, especially `STAFF_MFA_ENCRYPTION_KEY`
-4. migration-on-build behaviorを現運用のまま許容するか、安全に分離するか確定
+4. Production migrationの独立実行経路を確定
 
 NEXT-040 remains HOLD.
+
+
+### NEXT-039 Production deploy / migration decoupling
+
+PR #51でProduction deploymentとDB migrationを分離。
+
+TDD:
+
+- RED: Production buildに `prisma migrate deploy` が残っているためpolicy testが1件FAIL
+- GREEN: migration invocationを除去し、Production env validation / Prisma generate / Next.js buildを維持
+
+新しいrelease invariant:
+
+- Vercel Production build: **DB read-only**
+- Production migration: separate explicit step
+- Production deployment: separate explicit step
+- migration approval ≠ deploy approval
+- schema migration完了前に新appをProductionへdeployしない
+- `main` auto-deploy: disabledのまま
+
+Production DB / Production deploymentへの実操作: **なし**。
