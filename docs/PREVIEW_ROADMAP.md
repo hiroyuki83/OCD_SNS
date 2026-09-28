@@ -137,7 +137,7 @@
 | NEXT-036 | PR #47 を main へmerge | P0 | DONE |
 | NEXT-037 | main merge後のCI / E2E再確認 | P0 | DONE |
 | NEXT-038 | integration branch終了・不要な一時Neon branch整理 | P1 | IN PROGRESS（Neon完了 / GitHub branch手動削除待ち） |
-| NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | HOLD |
+| NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | HOLD（runbook準備済み / Production identity確認前） |
 | NEXT-040 | Productionへ明示release・post-deploy smoke / error scan | P0 | HOLD |
 | NEXT-041 | 投稿制限・停止を第一級 Sanction レコードとして永続化 | P1 | DONE |
 | NEXT-042 | Sanction を対象にした共通 Appeal を実装 | P1 | DONE |
@@ -981,3 +981,17 @@ rollback用backup 2本はProduction release完了まで保持。
 
 NEXT-038の残作業はGitHub上のahead=0済みbranch 3本の削除のみ。
 現在のGitHub connectorにはbranch delete actionがないため、UIでの手動削除待ち。
+
+
+### NEXT-039 preparation
+
+- `docs/PRODUCTION_RELEASE_RUNBOOK.md` を追加
+- Production identity gateを明文化
+- Production backup / restore gateを明文化
+- Production migration history差分確認を必須化
+- Production cloneでのmigration dry runを必須化
+- DB migrationとVercel deploymentを別承認ゲート化
+- post-deploy smoke / runtime error / rollback判断を明文化
+- Production DB / deploymentへの実操作: **未実施**
+
+NEXT-039はrunbook準備済みだが、Production identity確認前のため **HOLD** を維持する。
