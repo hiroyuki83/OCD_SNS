@@ -622,7 +622,7 @@ Production releaseは引き続き `NEXT-039 / NEXT-040` としてHOLDする。
 | 39 | Preview deploy checklist / branch情報を現行化 | DONE |
 | 40 | PR CI / E2Eで最終検証 | DONE |
 
-NEXT-041 はコード検証まで完了。PR #48はPreview DB migration / Preview受入前のためDraftを維持する。
+NEXT-041 はコード検証に加えて共有Preview DB migration / Preview受入まで完了。PR #48はmain統合ゲートへ進む。
 NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへの実適用はSanction migrationの受入順序を崩さない。
 
 ### バッチ6検証
@@ -640,3 +640,25 @@ NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへ�
   - Playwright: **15 / 15 PASS**
   - ADMIN status変更時のSanction有効/解除履歴を含む
 
+
+
+## 2026-09-28 Sanction Preview受入
+
+- Preview DB: Neon project `coco-preview` / DB `neondb`
+- rollback point: Neon branch `backup-before-sanction-migration-2026-09-28`
+- migration: `20260928071000_add_sanction_records`
+- Prisma migration history: **40 applied**
+- `Sanction` table: verified
+- indexes: **5**
+- foreign keys: **3**
+- Preview seed users: **5 / 5 ACTIVE**
+- validated Preview commit: `12ec8cda236efc7d76c593060a036161ee68da65`
+- Vercel Preview deployment: `dpl_7ksKuNtxd9oaJzj3vmgJKeePpMNZ`
+- deployment state: **READY**
+- public smoke: `/`, `/login`, `/register`, `/explore`, `/safety` = **HTTP 200**
+- runtime error/fatal scan: **0**
+- Sanction branch auto-deploy: acceptance後に **disabledへ復帰**
+- Production auto-deploy: **disabledのまま**
+- Production DB / Production deployment: **未変更 / HOLD**
+
+最新commitの最終CI / E2E成功を確認後、PR #48をmainへ統合する。
