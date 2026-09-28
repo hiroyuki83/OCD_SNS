@@ -186,3 +186,30 @@ test('Production Stage A workflows stop before the destructive Reply/Quote bound
   assert.doesNotMatch(verify, /ALTER\s+/i);
   assert.doesNotMatch(verify, /CREATE\s+/i);
 });
+
+
+test('Production bridge validation proves the approved bridge against a Stage A database', () => {
+  const path = '.github/workflows/production-bridge-validation.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1/);
+  assert.match(source, /20260927002000_add_follow_approval/);
+  assert.match(source, /production-stage-a-verify\.ts/);
+  assert.match(source, /Build approved bridge against Stage A database/);
+  assert.match(source, /api\/feed\?limit=1/);
+  assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL/);
+  assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
+});
+
+test('destructive Production reconciliation requires bridge validation attestation', () => {
+  const path = '.github/workflows/production-reconciliation-apply.yml';
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /bridge_validation_run_id:/);
+  assert.match(source, /BRIDGE_VALIDATION_RUN_ID/);
+  assert.match(source, /Verify successful bridge validation attestation/);
+  assert.match(source, /production-bridge-validation\.yml/);
+});
