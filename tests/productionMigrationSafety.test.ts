@@ -212,3 +212,23 @@ test('production preflight reports blockers only after read-only diagnostics', a
   assert.ok(reportIndex >= 0);
   assert.ok(blockerThrowIndex > reportIndex);
 });
+
+
+test('production preflight diagnoses pending schema object collisions', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+
+  const source = readFileSync(
+    resolve(process.cwd(), 'scripts/production-db-preflight.ts'),
+    'utf8',
+  );
+
+  assert.match(source, /tableColumns/);
+  assert.match(source, /tableConstraints/);
+  assert.match(source, /enumValues/);
+  assert.match(source, /moderationConflictDiagnostics/);
+  assert.match(source, /pendingObjectCollisions/);
+  assert.match(source, /ModerationWarning/);
+  assert.match(source, /WarningAppeal/);
+  assert.match(source, /Appeal/);
+});
