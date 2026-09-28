@@ -53,7 +53,7 @@ test('every explicit API mutation route uses shared mutation request security, a
 
     assert.match(
       source,
-      /parseJsonMutationRequest(?:<[^>]+>)?\s*\(/,
+      /parseJsonMutationRequest(?:<[^;\n]+>)?\s*\(/,
       `${file} exports a mutation handler without parseJsonMutationRequest()`,
     );
     assert.match(
