@@ -697,7 +697,7 @@ NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへ�
 | 46 | 停止中Appeal routeがpublicのままであることを回帰テスト | DONE |
 | 47 | 停止AppealフローのCI / E2E検証 | DONE |
 | 48 | 投稿制限→設定Appeal→独立審査→取消→投稿再開E2Eを追加 | DONE |
-| 49 | 投稿制限・停止の両Appealを含むPR #49最終CI / E2E | IN PROGRESS |
+| 49 | 投稿制限・停止の両Appealを含むPR #49最終CI / E2E | DONE |
 
 Preview DBへのAppeal migration実適用はNEXT-041 / PR #48のSanction migration受入後に行う。
 
@@ -736,3 +736,23 @@ NEXT-042 はコード実装・隔離DB検証まで完了。
 - Sanction発行者とは別のADMINが取消審査
 - 結果メールを確認
 - 取消後に投稿を再開できることを確認
+
+
+### バッチ7 最終検証（投稿制限 + 停止）
+
+- validated commit: `d588466f4eee95ebfa3f234ca23ef91d75a50ece`
+- Security integration CI run `36371259057`: **SUCCESS**
+  - unit tests: **169 / 169 PASS**
+  - Prisma validate / generate: PASS
+  - lint: PASS
+  - TypeScript: PASS
+  - Next.js build: PASS
+- CoCo E2E run `36371259021`: **SUCCESS**
+  - isolated PostgreSQLへの全migration適用: PASS
+  - Preview seed: PASS
+  - Playwright: **16 / 16 PASS**
+  - SUSPENSION: 処分内容確認 → Appeal → 独立審査 → 取消 → 結果メール → 再ログイン: PASS
+  - POST_RESTRICTION: 投稿拒否 → 設定Appeal → 独立審査 → 取消 → 結果メール → 投稿再開: PASS
+
+NEXT-042 のコード実装と隔離環境検証は完了。
+共有PreviewへのAppeal migrationは、NEXT-041のSanction migrationを共有Previewで受入れた後にのみ実施する。
