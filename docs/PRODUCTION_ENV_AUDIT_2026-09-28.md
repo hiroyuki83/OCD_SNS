@@ -84,22 +84,23 @@ Current mainの `scripts/vercel-build.mjs` はProduction buildで:
 1. `DATABASE_URL` を要求
 2. auth secretを要求
 3. `STAFF_MFA_ENCRYPTION_KEY` を要求・検証
-4. **`prisma migrate deploy` を実行**
-5. Prisma generate
-6. Next.js build
+4. Prisma generate
+5. Next.js build
 
-したがって、現在の構成ではProduction deploymentを開始すると、未適用migrationがbuild工程で自動適用され得る。
+Production buildは **`prisma migrate deploy` を実行しない**。
 
-これはrunbook上の「DB migration」と「app deployment」を運用上分離する方針と注意深く整合させる必要がある。
+これによりDB migrationとapplication deploymentを独立した承認ゲートとして運用できる。
 
 安全運用:
 
-- Production deploy前にread-only preflightを必ず完了
-- rollback pointを先に作る
+- Production DB identity / preflightを先に完了
+- rollback pointを作る
 - destructive migration gateを解消
-- migration dry runを先に通す
-- Production DB migrationを明示工程で先に適用する場合、後続Vercel buildの `prisma migrate deploy` はno-opになることを確認
-- preflight未完了の状態でProduction deployを開始しない
+- migration dry runを通す
+- 明示承認後にProduction migrationを独立実行
+- migration historyとschemaを確認
+- その後に別承認でProduction deploymentを実行
+- schema未適用の状態で新applicationをdeployしない
 
 ## SSL mode
 
@@ -124,4 +125,5 @@ Mainの `normalizePostgresSslMode` は:
 - build-required variable names: audited
 - newly required Production env: `STAFF_MFA_ENCRYPTION_KEY`
 - email/blob operational dependencies: audited
+- Production build DB mutation: disabled
 - Production deployment: NOT STARTED

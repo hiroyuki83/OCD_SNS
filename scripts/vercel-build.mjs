@@ -45,7 +45,6 @@ if (process.env.VERCEL_ENV === 'production') {
   }
   validateStaffMfaKey(requireProductionEnv('STAFF_MFA_ENCRYPTION_KEY'));
 
-  run(['prisma', 'migrate', 'deploy']);
 }
 
 run(['prisma', 'generate']);

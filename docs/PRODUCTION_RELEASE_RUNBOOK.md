@@ -282,6 +282,7 @@ Requires explicit user approval after DB migration succeeds.
 Preconditions:
 
 - Production DB migration succeeded
+- Production migration history verified after migration
 - main CI / E2E green
 - `main` auto-deploy remains disabled
 - intended main commit is recorded
@@ -485,18 +486,23 @@ Production identity取得後、以下のどれかに該当したらmigration実�
 上記が全て解消されるまでProduction migrationはHOLD。
 
 
-## Production build coupling note
+## Production build / migration separation
 
-Current main automatically runs `prisma migrate deploy` inside `scripts/vercel-build.mjs` when `VERCEL_ENV=production`.
+Production Vercel build no longer runs `prisma migrate deploy`.
 
-Therefore a Production deployment is also a potential migration trigger.
+`scripts/vercel-build.mjs` now:
 
-Until this behavior is intentionally changed or all migration gates are complete:
+1. validates required Production environment variables
+2. validates `STAFF_MFA_ENCRYPTION_KEY`
+3. runs Prisma generate
+4. runs Next.js build
 
-- do not start a Production deployment
-- finish Production DB identity/preflight first
-- finish rollback point + migration dry run first
-- verify `STAFF_MFA_ENCRYPTION_KEY` is configured
-- treat Production deploy approval as migration-capable approval
+It does **not** mutate the database.
 
-This coupling is a release-safety concern, not a reason to bypass migration validation.
+Operational consequence:
+
+- Production migration is a separate explicit step
+- Production deployment cannot implicitly apply pending Prisma migrations
+- DB identity / backup / dry run / explicit migration approval remain mandatory
+- deploy approval and migration approval are distinct gates
+- if application code requires schema not yet present, deploy must not start until the migration gate is complete
