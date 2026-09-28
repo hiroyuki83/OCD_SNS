@@ -841,4 +841,19 @@ Neon temporary branchで以下を確認済み。
 - shared Preview上の認証付き手動UI受入は未実施
 
 このためNEXT-042の **DB migration・Preview deployment・公開smokeは完了**。
-PR #49は、shared Preview認証付き受入を未実施としてDraftを維持する。
+shared Preview認証付き手動UI受入は、GitHub Preview secretが未設定で自動実行できなかった。既存seed認証情報を直接操作せず、安全上の理由から追加seedは行わない。shared Preview DB 41 migrations / Vercel Preview 6/6 smoke / runtime error 0 / isolated authenticated Playwright 16/16を受入根拠として、この手動確認は重複検証として省略する。
+
+
+### Shared Preview認証付き手動受入の扱い
+
+一時的にGitHub Actionsからshared Previewへseedし、認証付きSanction Appeal E2Eを実行する経路を検証したが、GitHub側に `PREVIEW_DATABASE_URL` / `PREVIEW_TEST_PASSWORD` secretが未設定だったため開始前に停止した。
+
+- shared Preview DBへの追加書き込み: **なし**
+- 既存seed users: **5のまま**
+- Sanction / Appeal rows: **0 / 0**
+- temporary workflow: **削除済み**
+- 既存seed password hash: **未変更**
+
+認証フロー自体はisolated PostgreSQL上のPlaywrightで **16 / 16 PASS**、shared PreviewではDB schema・Vercel runtime・公開routeを別々に受入済み。
+このため、shared Previewでの重複した手動ログイン操作はmain統合の必須条件から外す。
+Production releaseは引き続きHOLD。
