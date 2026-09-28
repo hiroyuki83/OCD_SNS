@@ -1064,3 +1064,33 @@ Production DB identityは未特定。
 
 NEXT-039は **IN PROGRESS（read-only identity gate）**。
 NEXT-040 Production releaseは引き続き **HOLD**。
+
+
+### NEXT-039 Production baseline
+
+読み取り専用確認を実施。
+
+- current Production deployment: `dpl_8U7SN8AU6fonvRq7fYsALJGwAzCb`
+- current Production commit: `1c57373d476a904942d4509354dfa3723d6192aa`
+- Production public smoke: **5 / 5 current routes PASS**
+- `/appeal`: 404（現Production commitでは未実装のため想定どおり）
+- `/api/feed?limit=1`: 200
+- current Production DB connectivity: confirmed through app
+- Preview seed handles 5件をProduction APIで照合: **5 / 5 not found**
+- shared Preview DB誤接続の兆候: **なし**
+- current Production code migration count: **28**
+- main migration count: **41**
+- code-level migration delta: **13 candidate migrations**
+- actual Production DB `_prisma_migrations`: **未取得**
+- exact Production DB host / database name: **未特定**
+- Production DB write: **未実施**
+- Production deploy: **未実施**
+
+PR #50でProduction read-only preflight safetyをmainへ追加済み。
+
+- PR #50 merge commit: `0b39d89c5957df7d66fb4c2cc83aea909d82cc3e`
+- main post-merge Security CI: **182 / 182 PASS**
+- main post-merge Playwright: **16 / 16 PASS**
+
+NEXT-039はProduction identity gate待ち。
+NEXT-040 / Production releaseは引き続き **HOLD**。
