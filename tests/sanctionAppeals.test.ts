@@ -36,6 +36,10 @@ const adminUserDetail = readFileSync(
   join(process.cwd(), 'src', 'app', 'admin', 'users', '[id]', 'page.tsx'),
   'utf8',
 );
+const moderationPage = readFileSync(
+  join(process.cwd(), 'src', 'app', 'moderation', 'page.tsx'),
+  'utf8',
+);
 
 test('sanction appeals use a foreign-keyed one-to-one Appeal model', () => {
   assert.match(schema, /model Appeal \{/);
@@ -104,4 +108,11 @@ test('admin user detail loads and displays sanction appeal history', () => {
   assert.match(adminUserDetail, /appealStatusLabels/);
   assert.match(adminUserDetail, /申立て:/);
   assert.match(adminUserDetail, /審査理由:/);
+});
+
+
+test('moderation dashboard surfaces pending sanction appeal count', () => {
+  assert.match(moderationPage, /prisma\.appeal\.count/);
+  assert.match(moderationPage, /AppealStatus\.PENDING/);
+  assert.match(moderationPage, /処分の異議申立て/);
 });
