@@ -78,6 +78,15 @@ jobs:
       - name: Build legacy Production schema
         run: npx prisma migrate deploy
 
+      - name: Restore current migration set
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf prisma/migrations/20260926073000_add_moderation_actions_and_appeals
+          for dir in /tmp/coco-later-migrations/*; do
+            mv "$dir" prisma/migrations/
+          done
+
       - name: Confirm legacy state is blocked by read-only preflight
         shell: bash
         run: |
@@ -89,15 +98,6 @@ jobs:
             echo "Legacy fixture unexpectedly passed Production preflight."
             exit 1
           fi
-
-      - name: Restore current migration set
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf prisma/migrations/20260926073000_add_moderation_actions_and_appeals
-          for dir in /tmp/coco-later-migrations/*; do
-            mv "$dir" prisma/migrations/
-          done
 
       - name: Apply guarded legacy reconciliation
         shell: bash
