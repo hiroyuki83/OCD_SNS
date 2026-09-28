@@ -9,43 +9,45 @@ import {
 
 test('suspended user can appeal without a login session and regain access after overturn', async ({ browser }) => {
   const token = Date.now().toString(36);
-  const adminContext = await browser.newContext();
+  const issuerContext = await browser.newContext();
+  const reviewerContext = await browser.newContext();
   const userContext = await browser.newContext();
 
-  const admin = await adminContext.newPage();
+  const issuer = await issuerContext.newPage();
+  const reviewer = await reviewerContext.newPage();
   const user = await userContext.newPage();
 
   const suspensionReason = `E2E停止Appeal理由です ${token}`;
   const appealMessage = `停止処分について再確認をお願いします。 ${token}`;
   const reviewNote = `E2E審査で停止処分取消を確認しました ${token}`;
 
-  const mfa = await enrollStaffMfa(admin, USERS.admin4, PREVIEW_PASSWORD);
-  const recoveryCode = mfa.recoveryCodes[0] ?? '';
-  expect(recoveryCode.length).toBeGreaterThan(10);
+  const issuerMfa = await enrollStaffMfa(issuer, USERS.admin4, PREVIEW_PASSWORD);
+  const issuerRecoveryCode = issuerMfa.recoveryCodes[0] ?? '';
+  expect(issuerRecoveryCode.length).toBeGreaterThan(10);
   await loginStaffWithRecoveryCode(
-    admin,
+    issuer,
     USERS.admin4,
-    recoveryCode,
+    issuerRecoveryCode,
     PREVIEW_PASSWORD,
   );
 
-  await admin.goto(`/admin/users?q=${encodeURIComponent(USERS.public2)}`);
-  await admin
+  await issuer.goto(`/admin/users?q=${encodeURIComponent(USERS.public2)}`);
+  await issuer
     .getByRole('link', { name: 'Preview 公開ユーザー2', exact: true })
     .click();
 
-  const accessSection = admin.locator('section').filter({
-    has: admin.getByRole('heading', { name: '権限とアカウント状態' }),
+  const accessSection = issuer.locator('section').filter({
+    has: issuer.getByRole('heading', { name: '権限とアカウント状態' }),
   });
   const password = accessSection.locator('#admin-current-password');
   const statusSelect = accessSection.locator('#admin-user-status');
 
   await password.fill(PREVIEW_PASSWORD);
   await statusSelect.selectOption('SUSPENDED');
-  admin.once('dialog', (dialog) => dialog.accept(suspensionReason));
+  issuer.once('dialog', (dialog) => dialog.accept(suspensionReason));
   await accessSection.getByRole('button', { name: '状態を更新' }).click();
   await expect(password).toHaveValue('');
-  await admin.reload();
+  await issuer.reload();
   await expect(statusSelect).toHaveValue('SUSPENDED');
 
   await user.goto('/login');
@@ -76,8 +78,18 @@ test('suspended user can appeal without a login session and regain access after 
   await expect(user.getByText('アカウント停止', { exact: true })).toBeVisible();
   await expect(user.getByText('審査中', { exact: true })).toBeVisible();
 
-  await admin.goto('/moderation/appeals/sanctions');
-  const appealCard = admin
+  const reviewerMfa = await enrollStaffMfa(reviewer, USERS.admin5, PREVIEW_PASSWORD);
+  const reviewerRecoveryCode = reviewerMfa.recoveryCodes[0] ?? '';
+  expect(reviewerRecoveryCode.length).toBeGreaterThan(10);
+  await loginStaffWithRecoveryCode(
+    reviewer,
+    USERS.admin5,
+    reviewerRecoveryCode,
+    PREVIEW_PASSWORD,
+  );
+
+  await reviewer.goto('/moderation/appeals/sanctions');
+  const appealCard = reviewer
     .locator('[data-sanction-appeal-card]')
     .filter({ hasText: appealMessage });
   await expect(appealCard).toBeVisible();
@@ -107,5 +119,9 @@ test('suspended user can appeal without a login session and regain access after 
 
   await login(user, USERS.public2, PREVIEW_PASSWORD);
 
-  await Promise.all([adminContext.close(), userContext.close()]);
+  await Promise.all([
+    issuerContext.close(),
+    reviewerContext.close(),
+    userContext.close(),
+  ]);
 });
