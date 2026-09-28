@@ -36,13 +36,18 @@ test('Preview historical, pending and deferred migration sets do not overlap', (
 
 test('Preview pending migration order is the release order', () => {
   assert.deepEqual(PREVIEW_PENDING_MIGRATIONS, [
-    '20260928071000_add_sanction_records',
+    '20260928110500_add_sanction_appeals',
   ]);
 });
 
+test('sanction migration is historical after shared Preview acceptance', () => {
+  assert.ok(
+    PREVIEW_HISTORICAL_MIGRATIONS.includes(
+      '20260928071000_add_sanction_records',
+    ),
+  );
+});
 
-test('sanction appeal migration stays deferred until sanction Preview acceptance', () => {
-  assert.deepEqual(PREVIEW_DEFERRED_MIGRATIONS, [
-    '20260928110500_add_sanction_appeals',
-  ]);
+test('no migration stays deferred for the appeal Preview release', () => {
+  assert.deepEqual(PREVIEW_DEFERRED_MIGRATIONS, []);
 });
