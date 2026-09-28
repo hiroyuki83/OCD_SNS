@@ -1094,3 +1094,29 @@ PR #50でProduction read-only preflight safetyをmainへ追加済み。
 
 NEXT-039はProduction identity gate待ち。
 NEXT-040 / Production releaseは引き続き **HOLD**。
+
+
+### NEXT-039 current blocking gate
+
+自動で確認できた内容:
+
+- Production deployment: identified
+- Production public baseline: recorded
+- Production DB connectivity through deployed app: confirmed
+- shared Preview DBとのデータ分離: confirmed by 5 known Preview handles
+- Production deployed-code migration baseline: 28
+- main migration files: 41
+- candidate delta: 13
+- Production read-only preflight implementation: merged / green
+
+現在の唯一のblocking gate:
+
+- exact Production DB endpoint host
+- exact Production database name
+- actual Production `_prisma_migrations` history
+
+Vercel connectorはProduction環境変数の値を公開しないため、上記identityは現接続から自動取得できない。
+host / DB名を推測してmigrationを実行してはならない。
+
+NEXT-039は **IN PROGRESS**。
+NEXT-040（Production migration / deploy）は **HOLD**。
