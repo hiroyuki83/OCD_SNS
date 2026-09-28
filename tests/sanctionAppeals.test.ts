@@ -32,6 +32,10 @@ const authConfig = readFileSync(
   join(process.cwd(), 'src', 'auth.config.ts'),
   'utf8',
 );
+const adminUserDetail = readFileSync(
+  join(process.cwd(), 'src', 'app', 'admin', 'users', '[id]', 'page.tsx'),
+  'utf8',
+);
 
 test('sanction appeals use a foreign-keyed one-to-one Appeal model', () => {
   assert.match(schema, /model Appeal \{/);
@@ -91,4 +95,13 @@ test('Preview seed clears test-user sanction and appeal state', () => {
 test('appeal route remains outside the authenticated protected-prefix list', () => {
   const protectedList = authConfig.match(/const protectedPrefixes = \[([\s\S]*?)\];/)?.[1] ?? '';
   assert.equal(protectedList.includes("'\/appeal'"), false);
+});
+
+
+test('admin user detail loads and displays sanction appeal history', () => {
+  assert.match(adminUserDetail, /prisma\.sanction\.findMany/);
+  assert.match(adminUserDetail, /appeal:\s*\{\s*select:/);
+  assert.match(adminUserDetail, /appealStatusLabels/);
+  assert.match(adminUserDetail, /申立て:/);
+  assert.match(adminUserDetail, /審査理由:/);
 });
