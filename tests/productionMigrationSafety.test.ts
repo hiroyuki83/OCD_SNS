@@ -207,7 +207,7 @@ test('production preflight reports blockers only after read-only diagnostics', a
   assert.match(source, /applied_steps_count/);
   assert.match(source, /started_at/);
 
-  const reportIndex = source.indexOf("console.log(report)");
+  const reportIndex = source.indexOf("console.log(JSON.stringify(report, null, 2))");
   const blockerThrowIndex = source.indexOf("Production preflight blockers:");
   assert.ok(reportIndex >= 0);
   assert.ok(blockerThrowIndex > reportIndex);
