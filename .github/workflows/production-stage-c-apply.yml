@@ -1,0 +1,143 @@
+name: Production Stage C Apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type APPLY_COCO_PRODUCTION_STAGE_C
+        required: true
+        type: string
+      rollback_point:
+        description: Verified rollback point created immediately before Stage C
+        required: true
+        type: string
+      release_sha:
+        description: Exact current main commit SHA
+        required: true
+        type: string
+      expected_unpooled_host:
+        description: Exact direct/unpooled Production Neon hostname
+        required: true
+        type: string
+      preflight_run_id:
+        description: Successful Production DB Read-only Preflight run ID after Stage A
+        required: true
+        type: string
+      stage_a_apply_run_id:
+        description: Successful Production Stage A Apply run ID for this release SHA
+        required: true
+        type: string
+      stage_c_dry_run_id:
+        description: Successful Production Stage C Dry Run ID for this release SHA
+        required: true
+        type: string
+      bridge_validation_run_id:
+        description: Successful Production Bridge Validation run ID for this release SHA
+        required: true
+        type: string
+      bridge_confirmation:
+        description: Type BRIDGE_PRODUCTION_VERIFIED after bridge Production smoke passes
+        required: true
+        type: string
+      bridge_commit_sha:
+        description: Exact bridge application commit deployed to Production
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: coco-production-stage-c-apply
+  cancel-in-progress: false
+
+jobs:
+  apply-stage-c:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+      PRODUCTION_DATABASE_HOST: ${{ inputs.expected_unpooled_host }}
+      PRODUCTION_DATABASE_NAME: neondb
+      PRODUCTION_MIGRATION_CONFIRM: CHECK_COCO_PRODUCTION
+      VERCEL_ENV: production
+      VERCEL_GIT_COMMIT_REF: main
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      ROLLBACK_POINT: ${{ inputs.rollback_point }}
+      APPLY_CONFIRMATION: ${{ inputs.confirmation }}
+      PREFLIGHT_RUN_ID: ${{ inputs.preflight_run_id }}
+      STAGE_A_APPLY_RUN_ID: ${{ inputs.stage_a_apply_run_id }}
+      STAGE_C_DRY_RUN_ID: ${{ inputs.stage_c_dry_run_id }}
+      BRIDGE_VALIDATION_RUN_ID: ${{ inputs.bridge_validation_run_id }}
+      BRIDGE_CONFIRMATION: ${{ inputs.bridge_confirmation }}
+      BRIDGE_COMMIT_SHA: ${{ inputs.bridge_commit_sha }}
+      EXPECTED_BRIDGE_COMMIT_SHA: 64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1
+
+    steps:
+      - name: Verify explicit Stage C approval inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "${APPLY_CONFIRMATION}" = "APPLY_COCO_PRODUCTION_STAGE_C" ] || { echo "Exact Stage C confirmation is required."; exit 1; }
+          [ -n "${ROLLBACK_POINT}" ] || { echo "Verified Stage C rollback point is required."; exit 1; }
+          [ "${BRIDGE_CONFIRMATION}" = "BRIDGE_PRODUCTION_VERIFIED" ] || { echo "Verified bridge Production smoke is required."; exit 1; }
+          [ "${BRIDGE_COMMIT_SHA}" = "${EXPECTED_BRIDGE_COMMIT_SHA}" ] || { echo "Unexpected bridge commit."; exit 1; }
+          [[ "${PRODUCTION_DATABASE_HOST}" != *"-pooler."* ]] || { echo "Direct/unpooled hostname is required."; exit 1; }
+          [ -n "${PRODUCTION_DATABASE_URL:-}" ] || { echo "PRODUCTION_DATABASE_URL_UNPOOLED is not configured."; exit 1; }
+          for id in "${PREFLIGHT_RUN_ID}" "${STAGE_A_APPLY_RUN_ID}" "${STAGE_C_DRY_RUN_ID}" "${BRIDGE_VALIDATION_RUN_ID}"; do
+            [[ "${id}" =~ ^[0-9]+$ ]] || { echo "All attestation run IDs must be numeric."; exit 1; }
+          done
+
+      - name: Verify workflow is running from exact main release commit
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+          WORKFLOW_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          [ "${WORKFLOW_REF}" = "main" ] || { echo "Stage C must be dispatched from main."; exit 1; }
+          [ "${RELEASE_SHA}" = "${WORKFLOW_SHA}" ] || { echo "release_sha must match current main."; exit 1; }
+
+      - name: Verify workflow run attestations
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          verify_run() {
+            run_id="$1"
+            expected_path="$2"
+            j="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}")"
+            [ "$(jq -r '.conclusion // ""' <<<"${j}")" = "success" ] || { echo "Run ${run_id} did not succeed."; exit 1; }
+            [ "$(jq -r '.head_sha // ""' <<<"${j}")" = "${RELEASE_SHA}" ] || { echo "Run ${run_id} SHA mismatch."; exit 1; }
+            [ "$(jq -r '.path // ""' <<<"${j}")" = "${expected_path}" ] || { echo "Run ${run_id} workflow mismatch."; exit 1; }
+          }
+          verify_run "${PREFLIGHT_RUN_ID}" ".github/workflows/production-db-preflight.yml"
+          verify_run "${STAGE_A_APPLY_RUN_ID}" ".github/workflows/production-stage-a-apply.yml"
+          verify_run "${STAGE_C_DRY_RUN_ID}" ".github/workflows/production-stage-c-dry-run.yml"
+          verify_run "${BRIDGE_VALIDATION_RUN_ID}" ".github/workflows/production-bridge-validation.yml"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.release_sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+
+      - name: Re-run general Production preflight
+        run: npm run production:db:preflight
+
+      - name: Verify Stage C boundary and zero Reply/Quote data
+        run: npx tsx scripts/production-stage-c-precheck.ts
+
+      - name: Apply destructive boundary and remaining additive migrations
+        run: npx prisma migrate deploy
+
+      - name: Verify final Production schema
+        run: npm run production:db:preflight
