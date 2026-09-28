@@ -139,7 +139,7 @@
 | NEXT-038 | integration branch終了・不要な一時Neon branch整理 | P1 | IN PROGRESS |
 | NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | HOLD |
 | NEXT-040 | Productionへ明示release・post-deploy smoke / error scan | P0 | HOLD |
-| NEXT-041 | 投稿制限・停止を第一級 Sanction レコードとして永続化 | P1 | IN PROGRESS |
+| NEXT-041 | 投稿制限・停止を第一級 Sanction レコードとして永続化 | P1 | DONE |
 | NEXT-042 | Sanction を対象にした共通 Appeal を実装 | P1 | TODO |
 
 ## リリース進行フェーズ
@@ -620,8 +620,23 @@ Production releaseは引き続き `NEXT-039 / NEXT-040` としてHOLDする。
 | 37 | 今回releaseでhistorical baselineを禁止 | DONE |
 | 38 | migration前のfeature branch Vercel deployを明示停止 | DONE |
 | 39 | Preview deploy checklist / branch情報を現行化 | DONE |
-| 40 | PR CI / E2Eで最終検証 | IN PROGRESS |
+| 40 | PR CI / E2Eで最終検証 | DONE |
 
-NEXT-041 はコード実装完了、CI / E2E確認後に DONE とする。
-NEXT-042 は Sanction 永続化のPreview検証後に着手する。
+NEXT-041 はコード検証まで完了。PR #48はPreview DB migration / Preview受入前のためDraftを維持する。
+NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへの実適用はSanction migrationの受入順序を崩さない。
+
+### バッチ6検証
+
+- commit: `f86c527ca88e2c3f37281c104284960f6ac0ca99`
+- Security integration CI run `36355224790`: SUCCESS
+  - unit tests: **153 / 153 PASS**
+  - Prisma validate / generate: PASS
+  - lint: PASS
+  - TypeScript: PASS
+  - Next.js build: PASS
+- CoCo E2E run `36355224603`: SUCCESS
+  - isolated PostgreSQLへの全migration適用: PASS
+  - Preview seed: PASS
+  - Playwright: **15 / 15 PASS**
+  - ADMIN status変更時のSanction有効/解除履歴を含む
 
