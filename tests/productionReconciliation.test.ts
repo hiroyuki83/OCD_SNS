@@ -334,3 +334,25 @@ test('Production rollback point creation is manual, protected, and compute-free'
   assert.doesNotMatch(source, /prisma migrate deploy/);
   assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
 });
+
+
+test('Production Neon API access check is read-only and scoped to the Production project', () => {
+  const path = '.github/workflows/production-neon-api-access-check.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /withered-lab-08522436/);
+  assert.match(source, /secrets\.NEON_API_KEY/);
+  assert.match(source, /console\.neon\.tech\/api\/v2\/auth/);
+  assert.match(source, /projects\/\$\{PROJECT_ID\}\/branches/);
+  assert.match(source, /include_deleted=false/);
+  assert.match(source, /\.default == true/);
+  assert.match(source, /read-only/);
+  assert.match(source, /GET requests only/);
+  assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
+  assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
+  assert.doesNotMatch(source, /prisma migrate deploy/);
+});
