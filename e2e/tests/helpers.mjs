@@ -7,6 +7,7 @@ export const PREVIEW_PASSWORD =
 export const USERS = {
   public1: 'coco.preview.public1@example.com',
   public2: 'coco.preview.public2@example.com',
+  appeal: 'coco.preview.appeal@example.com',
   private: 'coco.preview.private@example.com',
   moderator: 'coco.preview.moderator@example.com',
   admin: 'coco.preview.admin@example.com',
