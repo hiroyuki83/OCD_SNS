@@ -1,0 +1,118 @@
+name: Production Deploy Readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact current main commit SHA intended for Production deploy
+        required: true
+        type: string
+      stage_c_apply_run_id:
+        description: Successful Production Stage C Apply run ID for this exact release SHA
+        required: true
+        type: string
+      post_stage_c_preflight_run_id:
+        description: Successful Production DB Read-only Preflight run ID after Stage C
+        required: true
+        type: string
+      final_validation_run_id:
+        description: Successful Production Final Release Validation run ID for this exact release SHA
+        required: true
+        type: string
+      security_ci_run_id:
+        description: Successful Security integration CI run ID for this exact release SHA
+        required: true
+        type: string
+      e2e_run_id:
+        description: Successful CoCo E2E run ID for this exact release SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: coco-production-deploy-readiness
+  cancel-in-progress: true
+
+jobs:
+  verify-production-deploy-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      STAGE_C_APPLY_RUN_ID: ${{ inputs.stage_c_apply_run_id }}
+      POST_STAGE_C_PREFLIGHT_RUN_ID: ${{ inputs.post_stage_c_preflight_run_id }}
+      FINAL_VALIDATION_RUN_ID: ${{ inputs.final_validation_run_id }}
+      SECURITY_CI_RUN_ID: ${{ inputs.security_ci_run_id }}
+      E2E_RUN_ID: ${{ inputs.e2e_run_id }}
+
+    steps:
+      - name: Verify exact main release commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          for id in             "${STAGE_C_APPLY_RUN_ID}"             "${POST_STAGE_C_PREFLIGHT_RUN_ID}"             "${FINAL_VALIDATION_RUN_ID}"             "${SECURITY_CI_RUN_ID}"             "${E2E_RUN_ID}"; do
+            [[ "${id}" =~ ^[0-9]+$ ]] || { echo "All workflow run IDs must be numeric."; exit 1; }
+          done
+
+          main_sha="$(gh api "repos/${REPOSITORY}/branches/main" --jq '.commit.sha')"
+          if [ "${RELEASE_SHA}" != "${main_sha}" ]; then
+            echo "release_sha does not match the current main HEAD."
+            echo "release_sha=${RELEASE_SHA}"
+            echo "main_sha=${main_sha}"
+            exit 1
+          fi
+
+      - name: Verify all release attestations
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          verify_run() {
+            run_id="$1"
+            expected_path="$2"
+            expected_event="$3"
+
+            j="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}")"
+            conclusion="$(jq -r '.conclusion // ""' <<<"${j}")"
+            head_sha="$(jq -r '.head_sha // ""' <<<"${j}")"
+            path="$(jq -r '.path // ""' <<<"${j}")"
+            event="$(jq -r '.event // ""' <<<"${j}")"
+
+            [ "${conclusion}" = "success" ] || { echo "Run ${run_id} did not succeed."; exit 1; }
+            [ "${head_sha}" = "${RELEASE_SHA}" ] || { echo "Run ${run_id} SHA mismatch."; exit 1; }
+            [ "${path}" = "${expected_path}" ] || { echo "Run ${run_id} workflow mismatch."; exit 1; }
+            [ "${event}" = "${expected_event}" ] || { echo "Run ${run_id} event mismatch."; exit 1; }
+          }
+
+          verify_run "${STAGE_C_APPLY_RUN_ID}" ".github/workflows/production-stage-c-apply.yml" "workflow_dispatch"
+          verify_run "${POST_STAGE_C_PREFLIGHT_RUN_ID}" ".github/workflows/production-db-preflight.yml" "workflow_dispatch"
+          verify_run "${FINAL_VALIDATION_RUN_ID}" ".github/workflows/production-final-validation.yml" "workflow_dispatch"
+          verify_run "${SECURITY_CI_RUN_ID}" ".github/workflows/security-integration-ci.yml" "push"
+          verify_run "${E2E_RUN_ID}" ".github/workflows/e2e.yml" "push"
+
+      - name: Emit deploy readiness summary
+        shell: bash
+        run: |
+          {
+            echo "## Production deploy readiness: PASS"
+            echo
+            echo "- release SHA: \`${RELEASE_SHA}\`"
+            echo "- Stage C apply: verified"
+            echo "- post-Stage-C Production read-only preflight: verified"
+            echo "- final release validation: verified"
+            echo "- Security integration CI: verified"
+            echo "- CoCo E2E: verified"
+            echo
+            echo "This workflow does not deploy Production."
+            echo "A separate explicit Production deployment approval is still required."
+          } >> "${GITHUB_STEP_SUMMARY}"
