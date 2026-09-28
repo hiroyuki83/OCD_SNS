@@ -1,0 +1,138 @@
+name: Production Pre-execution Self Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-production-pre-execution-self-check
+  cancel-in-progress: true
+
+jobs:
+  verify-prerequisites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      PRODUCTION_DATABASE_URL_UNPOOLED: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+      EXPECTED_PROJECT_ID: withered-lab-08522436
+      EXPECTED_DATABASE_NAME: neondb
+      EXPECTED_POOLED_HOST: ep-billowing-smoke-ah3grpmy-pooler.c-3.us-east-1.aws.neon.tech
+      PREVIEW_PROJECT_ID: plain-dawn-64792117
+
+    steps:
+      - name: Verify required secrets are configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in NEON_API_KEY PRODUCTION_DATABASE_URL PRODUCTION_DATABASE_URL_UNPOOLED; do
+            if [ -z "${!name:-}" ]; then
+              echo "${name} is not configured."
+              missing=1
+            fi
+          done
+          [ "${missing}" -eq 0 ] || exit 1
+
+      - name: Verify Production database URL identities without connecting
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { URL } = require('node:url');
+
+          const pooled = new URL(process.env.PRODUCTION_DATABASE_URL);
+          const unpooled = new URL(process.env.PRODUCTION_DATABASE_URL_UNPOOLED);
+
+          const expectedPooled = process.env.EXPECTED_POOLED_HOST;
+          const expectedDb = process.env.EXPECTED_DATABASE_NAME;
+
+          const failures = [];
+
+          if (pooled.hostname !== expectedPooled) {
+            failures.push(`pooled hostname mismatch: ${pooled.hostname}`);
+          }
+          if (!pooled.hostname.includes('-pooler.')) {
+            failures.push('PRODUCTION_DATABASE_URL is not a pooled Neon hostname');
+          }
+          if (unpooled.hostname.includes('-pooler.')) {
+            failures.push('PRODUCTION_DATABASE_URL_UNPOOLED unexpectedly uses a pooled hostname');
+          }
+          if (unpooled.hostname === pooled.hostname) {
+            failures.push('pooled and unpooled hosts must differ');
+          }
+
+          const pooledDb = pooled.pathname.replace(/^\//, '');
+          const unpooledDb = unpooled.pathname.replace(/^\//, '');
+          if (pooledDb !== expectedDb) failures.push(`pooled database mismatch: ${pooledDb}`);
+          if (unpooledDb !== expectedDb) failures.push(`unpooled database mismatch: ${unpooledDb}`);
+
+          if (!pooled.hostname.endsWith('.neon.tech')) failures.push('pooled host is not a Neon host');
+          if (!unpooled.hostname.endsWith('.neon.tech')) failures.push('unpooled host is not a Neon host');
+
+          if (failures.length) {
+            console.error(failures.join('\n'));
+            process.exit(1);
+          }
+
+          console.log('Production database URL identity checks passed.');
+          console.log(`pooled_host=${pooled.hostname}`);
+          console.log(`unpooled_host=${unpooled.hostname}`);
+          console.log(`database=${pooledDb}`);
+          NODE
+
+      - name: Verify Neon API can read the confirmed Production project
+        id: neon
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          response="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://console.neon.tech/api/v2/projects/${EXPECTED_PROJECT_ID}/branches?limit=10000&include_deleted=false"             --header "Accept: application/json"             --header "Authorization: Bearer ${NEON_API_KEY}")"
+
+          branch_count="$(jq '.branches | length' <<<"${response}")"
+          default_id="$(jq -r '.branches[] | select(.default == true) | .id' <<<"${response}" | head -n1)"
+          default_name="$(jq -r '.branches[] | select(.default == true) | .name' <<<"${response}" | head -n1)"
+
+          [ "${branch_count}" -gt 0 ] || { echo "Production Neon project returned no active branches."; exit 1; }
+          [ -n "${default_id}" ] && [ "${default_id}" != "null" ] || { echo "Production default branch not found."; exit 1; }
+
+          echo "branch_count=${branch_count}" >> "${GITHUB_OUTPUT}"
+          echo "default_id=${default_id}" >> "${GITHUB_OUTPUT}"
+          echo "default_name=${default_name}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify configured Neon API key is not accidentally scoped to Preview-only project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if curl --silent --show-error --fail             --request GET             --url "https://console.neon.tech/api/v2/projects/${PREVIEW_PROJECT_ID}/branches?limit=1&include_deleted=false"             --header "Accept: application/json"             --header "Authorization: Bearer ${NEON_API_KEY}" >/tmp/preview-project.json 2>/tmp/preview-project.err; then
+            echo "Note: NEON_API_KEY can also read the Preview project. This is allowed, but Production project access was verified separately."
+          else
+            echo "Preview project is not readable by this key, which is acceptable."
+          fi
+
+      - name: Emit pre-execution self-check summary
+        shell: bash
+        env:
+          BRANCH_COUNT: ${{ steps.neon.outputs.branch_count }}
+          DEFAULT_BRANCH_ID: ${{ steps.neon.outputs.default_id }}
+          DEFAULT_BRANCH_NAME: ${{ steps.neon.outputs.default_name }}
+        run: |
+          {
+            echo "## Production pre-execution self-check: PASS"
+            echo
+            echo "- NEON_API_KEY: configured and Production project readable"
+            echo "- Production project: \`${EXPECTED_PROJECT_ID}\`"
+            echo "- Production active branches visible: \`${BRANCH_COUNT}\`"
+            echo "- Production default branch ID: \`${DEFAULT_BRANCH_ID}\`"
+            echo "- Production default branch name: \`${DEFAULT_BRANCH_NAME}\`"
+            echo "- pooled DB host: identity verified"
+            echo "- unpooled DB host: identity verified"
+            echo "- database: \`${EXPECTED_DATABASE_NAME}\`"
+            echo
+            echo "This workflow is read-only. It performs no SQL and no Neon mutation."
+            echo "Next safe step is Production Rollback Point Create, which requires separate explicit approval."
+          } >> "${GITHUB_STEP_SUMMARY}"
