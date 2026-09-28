@@ -96,7 +96,15 @@ const TEST_USERS = [
     name: 'Preview Admin 4',
     role: Role.ADMIN,
     isPrivate: false,
-    bio: 'E2E処分異議申立て用の管理者です。',
+    bio: 'E2E処分発行用の管理者です。',
+  },
+  {
+    email: 'coco.preview.admin5@example.com',
+    handle: 'preview-admin-5',
+    name: 'Preview Admin 5',
+    role: Role.ADMIN,
+    isPrivate: false,
+    bio: 'E2E処分異議申立て審査用の管理者です。',
   },
 ] as const;
 
