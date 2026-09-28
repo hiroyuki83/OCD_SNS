@@ -148,3 +148,41 @@ test('Production reconciliation precheck exists and is read-only', () => {
   assert.doesNotMatch(source, /ALTER\s+/i);
   assert.doesNotMatch(source, /CREATE\s+/i);
 });
+
+
+test('Production Stage A workflows stop before the destructive Reply/Quote boundary', () => {
+  const dryRunPath = '.github/workflows/production-stage-a-dry-run.yml';
+  const applyPath = '.github/workflows/production-stage-a-apply.yml';
+  const verifyPath = 'scripts/production-stage-a-verify.ts';
+
+  assert.equal(existsSync(dryRunPath), true);
+  assert.equal(existsSync(applyPath), true);
+  assert.equal(existsSync(verifyPath), true);
+  if (!existsSync(dryRunPath) || !existsSync(applyPath) || !existsSync(verifyPath)) return;
+
+  const dryRun = readFileSync(dryRunPath, 'utf8');
+  const apply = readFileSync(applyPath, 'utf8');
+  const verify = readFileSync(verifyPath, 'utf8');
+
+  assert.match(dryRun, /20260927002000_add_follow_approval/);
+  assert.match(dryRun, /production-stage-a-verify\.ts/);
+  assert.match(apply, /workflow_dispatch/);
+  assert.match(apply, /APPLY_COCO_PRODUCTION_STAGE_A/);
+  assert.match(apply, /stage_a_dry_run_id:/);
+  assert.match(apply, /production-db-preflight\.yml/);
+  assert.match(apply, /production-stage-a-dry-run\.yml/);
+  assert.match(apply, /20260927002000_add_follow_approval/);
+  assert.doesNotMatch(apply, /BRIDGE_PRODUCTION_VERIFIED/);
+
+  assert.match(verify, /20260927002000_add_follow_approval/);
+  assert.match(verify, /20260928013000_remove_reply_and_quote_post/);
+  assert.match(verify, /Reply table must still exist after Stage A/);
+  assert.match(verify, /Post\.quotePostId must still exist after Stage A/);
+  assert.match(verify, /Sanction must remain absent/);
+  assert.doesNotMatch(verify, /INSERT\s+INTO/i);
+  assert.doesNotMatch(verify, /UPDATE\s+/i);
+  assert.doesNotMatch(verify, /DELETE\s+FROM/i);
+  assert.doesNotMatch(verify, /DROP\s+/i);
+  assert.doesNotMatch(verify, /ALTER\s+/i);
+  assert.doesNotMatch(verify, /CREATE\s+/i);
+});
