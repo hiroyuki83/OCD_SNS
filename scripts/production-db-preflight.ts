@@ -154,16 +154,32 @@ async function main() {
         .map((row) => String(row.migration_name)),
     );
 
-    const migrationHistoryIssues = migrationRows.rows
-      .filter((row) => !row.finished_at || row.rolled_back_at)
+    const rolledBackMigrations = migrationRows.rows
+      .filter((row) => row.rolled_back_at)
       .map((row) => ({
         migrationName: String(row.migration_name),
-        state: row.rolled_back_at ? 'ROLLED_BACK' : 'UNFINISHED',
+        state: 'ROLLED_BACK',
         startedAt: row.started_at,
         finishedAt: row.finished_at,
         rolledBackAt: row.rolled_back_at,
         appliedStepsCount: Number(row.applied_steps_count ?? 0),
       }));
+
+    const unfinishedMigrations = migrationRows.rows
+      .filter((row) => !row.finished_at && !row.rolled_back_at)
+      .map((row) => ({
+        migrationName: String(row.migration_name),
+        state: 'UNFINISHED',
+        startedAt: row.started_at,
+        finishedAt: row.finished_at,
+        rolledBackAt: row.rolled_back_at,
+        appliedStepsCount: Number(row.applied_steps_count ?? 0),
+      }));
+
+    const migrationHistoryIssues = [
+      ...unfinishedMigrations,
+      ...rolledBackMigrations,
+    ];
 
     const pending = localMigrations.filter((name) => !applied.has(name));
     const unknown = [...applied]
@@ -174,6 +190,8 @@ async function main() {
     const warningAppealTable = await tableExists('WarningAppeal');
     const appealTable = await tableExists('Appeal');
     const sanctionTable = await tableExists('Sanction');
+    const restrictionUntilColumn = await columnExists('User', 'restrictionUntil');
+    const appealStatusValues = await enumValues('AppealStatus');
 
     const pendingObjectCollisions: string[] = [];
 
@@ -193,6 +211,15 @@ async function main() {
     ) {
       pendingObjectCollisions.push(
         'ModerationWarning.readAt already exists before its pending migration',
+      );
+    }
+
+    if (
+      pending.includes('20260926103000_add_restriction_until') &&
+      restrictionUntilColumn
+    ) {
+      pendingObjectCollisions.push(
+        'User.restrictionUntil already exists before its pending migration',
       );
     }
 
@@ -227,6 +254,15 @@ async function main() {
 
     if (
       pending.includes('20260928110500_add_sanction_appeals') &&
+      appealStatusValues.length
+    ) {
+      pendingObjectCollisions.push(
+        'AppealStatus enum already exists before the pending Sanction Appeal migration',
+      );
+    }
+
+    if (
+      pending.includes('20260928110500_add_sanction_appeals') &&
       appealTable
     ) {
       pendingObjectCollisions.push(
@@ -236,10 +272,10 @@ async function main() {
 
     const blockers: string[] = [];
 
-    if (migrationHistoryIssues.length) {
+    if (unfinishedMigrations.length) {
       blockers.push(
-        `migration history issues: ${migrationHistoryIssues
-          .map((item) => `${item.migrationName}(${item.state})`)
+        `unfinished migration history: ${unfinishedMigrations
+          .map((item) => item.migrationName)
           .join(', ')}`,
       );
     }
@@ -337,10 +373,38 @@ async function main() {
     const destructiveRemovalBlocked =
       (replyRows ?? 0) > 0 || (quotedPosts ?? 0) > 0;
 
+    const notificationTypeValues = await enumValues('NotificationType');
+    const moderationActionTypeValues = await enumValues('ModerationActionType');
+    const moderationNotificationRows = notificationTypeValues.includes('MODERATION')
+      ? Number(
+          (
+            await client.query(
+              `SELECT count(*)::text AS count
+               FROM "Notification"
+               WHERE "type"::text = 'MODERATION'`,
+            )
+          ).rows[0]?.count ?? 0,
+        )
+      : 0;
+    const restrictionUntilUsers = restrictionUntilColumn
+      ? Number(
+          (
+            await client.query(
+              `SELECT count(*)::text AS count
+               FROM "User"
+               WHERE "restrictionUntil" IS NOT NULL`,
+            )
+          ).rows[0]?.count ?? 0,
+        )
+      : null;
+
+    const moderationActionRows = await optionalRowCount('ModerationAction');
+    const legacyAppealRows = await optionalRowCount('Appeal');
+
     const moderationConflictDiagnostics = {
       ModerationAction: {
         present: await tableExists('ModerationAction'),
-        rowCount: await optionalRowCount('ModerationAction'),
+        rowCount: moderationActionRows,
         columns: await tableColumns('ModerationAction'),
         constraints: await tableConstraints('ModerationAction'),
       },
@@ -358,15 +422,31 @@ async function main() {
       },
       Appeal: {
         present: appealTable,
-        rowCount: await optionalRowCount('Appeal'),
+        rowCount: legacyAppealRows,
         columns: await tableColumns('Appeal'),
         constraints: await tableConstraints('Appeal'),
       },
+      legacyState: {
+        moderationNotificationRows,
+        restrictionUntilUsers,
+      },
       enums: {
+        NotificationType: notificationTypeValues,
+        ModerationActionType: moderationActionTypeValues,
         WarningAppealStatus: await enumValues('WarningAppealStatus'),
-        AppealStatus: await enumValues('AppealStatus'),
+        AppealStatus: appealStatusValues,
       },
     };
+
+    if (
+      (moderationActionRows ?? 0) > 0 ||
+      (legacyAppealRows ?? 0) > 0 ||
+      moderationNotificationRows > 0
+    ) {
+      blockers.push(
+        'legacy moderation schema contains live data and cannot be removed automatically',
+      );
+    }
 
     if (destructiveRemovalBlocked) {
       blockers.push(
@@ -382,6 +462,8 @@ async function main() {
       appliedMigrationCount: applied.size,
       pendingMigrations: pending,
       migrationHistoryIssues,
+      rolledBackMigrations,
+      unfinishedMigrations,
       unknownAppliedMigrations: unknown,
       pendingObjectCollisions,
       moderationConflictDiagnostics,
