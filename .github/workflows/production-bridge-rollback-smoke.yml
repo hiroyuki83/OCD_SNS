@@ -1,0 +1,113 @@
+name: Production Bridge Rollback Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Current main SHA whose app deployment was rolled back
+        required: true
+        type: string
+      rollback_deployment_id:
+        description: Bridge deployment ID now expected to serve Production
+        required: true
+        type: string
+      rollback_run_id:
+        description: Successful Production Vercel Rollback run ID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: coco-production-bridge-rollback-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      TEAM_ID: team_P1Z1wvYF1h42LIl0YfgXoOPI
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      ROLLBACK_DEPLOYMENT_ID: ${{ inputs.rollback_deployment_id }}
+      ROLLBACK_RUN_ID: ${{ inputs.rollback_run_id }}
+      PRODUCTION_BASE_URL: https://x-clone-olive-chi.vercel.app
+
+    steps:
+      - name: Verify rollback attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          [ -n "${VERCEL_TOKEN:-}" ] || { echo "VERCEL_TOKEN is not configured."; exit 1; }
+          [[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "release_sha must be a full Git SHA."; exit 1; }
+          [[ "${ROLLBACK_DEPLOYMENT_ID}" =~ ^dpl_[A-Za-z0-9]+$ ]] || { echo "rollback deployment ID is invalid."; exit 1; }
+          [[ "${ROLLBACK_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "rollback run ID must be numeric."; exit 1; }
+
+          run_json="$(gh api "repos/${REPOSITORY}/actions/runs/${ROLLBACK_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${run_json}")" = "success" ] || { echo "Rollback run did not succeed."; exit 1; }
+          [ "$(jq -r '.head_sha // ""' <<<"${run_json}")" = "${RELEASE_SHA}" ] || { echo "Rollback run SHA mismatch."; exit 1; }
+          [ "$(jq -r '.path // ""' <<<"${run_json}")" = ".github/workflows/production-vercel-rollback.yml" ] || { echo "Rollback workflow mismatch."; exit 1; }
+          [ "$(jq -r '.display_title // ""' <<<"${run_json}")" = "Production rollback to ${ROLLBACK_DEPLOYMENT_ID}" ] || { echo "Rollback deployment ID mismatch."; exit 1; }
+
+      - name: Verify Production alias is assigned to rollback deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          aliases="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://api.vercel.com/v2/deployments/${ROLLBACK_DEPLOYMENT_ID}/aliases?teamId=${TEAM_ID}"             --header "Accept: application/json"             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+
+          count="$(jq '[.aliases[] | select(.alias == "x-clone-olive-chi.vercel.app")] | length' <<<"${aliases}")"
+          [ "${count}" -ge 1 ] || {
+            echo "Production alias is not assigned to the rollback deployment."
+            exit 1
+          }
+
+      - name: Smoke bridge public routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in / /login /explore; do
+            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${PRODUCTION_BASE_URL}${path}")"
+            [ "${status}" = "200" ] || { echo "${path} returned HTTP ${status}."; exit 1; }
+          done
+
+      - name: Smoke bridge DB-backed feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(mktemp)"
+          status="$(curl --silent --show-error --output "${body}" --write-out '%{http_code}' "${PRODUCTION_BASE_URL}/api/feed?limit=1")"
+          [ "${status}" = "200" ] || { echo "Bridge feed returned HTTP ${status}."; cat "${body}"; exit 1; }
+          node -e "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'))" "${body}"
+
+      - name: Repeat bridge smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            curl --fail --silent --show-error "${PRODUCTION_BASE_URL}/" >/dev/null
+            curl --fail --silent --show-error "${PRODUCTION_BASE_URL}/api/feed?limit=1" >/dev/null
+            if [ "${attempt}" -lt 3 ]; then sleep 5; fi
+          done
+
+      - name: Emit rollback smoke summary
+        shell: bash
+        run: |
+          {
+            echo "## Production bridge rollback smoke: PASS"
+            echo
+            echo "- Production alias: \`${PRODUCTION_BASE_URL}\`"
+            echo "- rollback deployment ID: \`${ROLLBACK_DEPLOYMENT_ID}\`"
+            echo "- public routes: ok"
+            echo "- DB-backed feed: ok"
+            echo "- repeated smoke: ok"
+            echo
+            echo "The application was checked after rollback without rolling back the database."
+          } >> "${GITHUB_STEP_SUMMARY}"
