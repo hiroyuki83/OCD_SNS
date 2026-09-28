@@ -38,15 +38,14 @@ export const PREVIEW_HISTORICAL_MIGRATIONS = [
   '20260928014500_add_post_image_alt',
   '20260928023000_add_notification_preferences',
   '20260928031500_add_email_change_pending',
-] as const;
-
-export const PREVIEW_PENDING_MIGRATIONS = [
   '20260928071000_add_sanction_records',
 ] as const;
 
-export const PREVIEW_DEFERRED_MIGRATIONS = [
+export const PREVIEW_PENDING_MIGRATIONS = [
   '20260928110500_add_sanction_appeals',
 ] as const;
+
+export const PREVIEW_DEFERRED_MIGRATIONS = [] as const;
 
 export const PREVIEW_EXPECTED_MIGRATIONS = [
   ...PREVIEW_HISTORICAL_MIGRATIONS,
