@@ -265,7 +265,7 @@ test('production preflight distinguishes historical rollbacks from active migrat
   assert.match(source, /if \(unfinishedMigrations\.length\)/);
   assert.doesNotMatch(
     source,
-    /if \(migrationHistoryIssues\.length\) \{\s*blockers\.push/s,
+    /if \(migrationHistoryIssues\.length\) \{[\s\S]*blockers\.push/,
   );
 });
 
