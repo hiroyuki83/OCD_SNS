@@ -78,7 +78,7 @@ test('suspended user can appeal without a login session and regain access after 
 
   await expect(
     user.getByText(
-      '現在の処分内容を確認しました。異議申立てを送信する場合は、理由を10文字以上で入力してください。',
+      '現在の処分内容を確認しました。異議申立てを送信する場合は、認証情報を再入力し、理由を10文字以上で入力してください。',
     ),
   ).toBeVisible();
   await expect(user.getByText(suspensionReason)).toBeVisible();
