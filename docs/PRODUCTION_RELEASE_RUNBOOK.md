@@ -549,7 +549,7 @@ In GitHub:
 4. Actions
 5. New repository secret
 6. Name: `PRODUCTION_DATABASE_URL`
-7. Value: copy the existing Vercel **Production** `DATABASE_URL` value exactly
+7. Value: copy the existing Vercel **Production** `POSTGRES_PRISMA_URL` value exactly (use `DATABASE_URL` only if it exists and points to the same confirmed pooler host)
 8. Save
 
 Do not paste the connection string into chat, issues, PRs, commits, workflow YAML, or docs.
@@ -560,6 +560,8 @@ The workflow hard-codes only these confirmed non-secret identity values:
 - database: `neondb`
 
 The secret itself remains only in GitHub Actions.
+
+For this read-only preflight, `POSTGRES_PRISMA_URL` is preferred because the confirmed Production host is the pooled Neon endpoint. A later migration execution must use a separately verified direct/unpooled connection.
 
 ### Run
 
