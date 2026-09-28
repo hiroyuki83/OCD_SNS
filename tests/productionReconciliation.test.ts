@@ -170,7 +170,7 @@ test('Production bridge validation proves the approved bridge against a Stage A 
   assert.match(source, /Build approved bridge against Stage A database/);
   assert.match(source, /api\/feed\?limit=1/);
   assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL/);
-  assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
+  assert.doesNotMatch(source, /\bvercel\s+deploy\b|deploy_to_vercel/i);
 });
 
 test('Production Stage C precheck is read-only and requires the Stage A boundary', () => {
@@ -241,7 +241,7 @@ test('Production final release validation exercises current main after the full 
   assert.match(source, /Build current main against migrated Production-shaped database/);
   assert.match(source, /api\/feed\?limit=1/);
   assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL/);
-  assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
+  assert.doesNotMatch(source, /\bvercel\s+deploy\b|deploy_to_vercel/i);
 });
 
 
@@ -267,7 +267,7 @@ test('Production deploy readiness gate verifies all same-SHA release attestation
   assert.match(source, /Production deploy readiness: PASS/);
   assert.match(source, /does not deploy Production/);
   assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL/);
-  assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
+  assert.doesNotMatch(source, /\bvercel\s+deploy\b|deploy_to_vercel/i);
 });
 
 
@@ -416,7 +416,7 @@ test('Production post-deploy smoke binds observed runtime to the approved releas
   assert.match(source, /\/api\/feed\?page=1/);
   assert.match(source, /Verify health remains stable/);
   assert.match(source, /read-only HTTP checks only/);
-  assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
+  assert.doesNotMatch(source, /\bvercel\s+deploy\b|deploy_to_vercel/i);
   assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
 });
 
