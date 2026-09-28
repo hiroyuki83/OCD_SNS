@@ -1317,3 +1317,108 @@ After configuring the ruleset in GitHub Settings, run:
 - `Repository Main Guard Check`
 
 Do not begin Production execution until it reports PASS.
+
+
+# Repository guard verification and branch cleanup tooling
+
+## Stable required GitHub checks
+
+The repository guard expects these exact required status-check contexts:
+
+- `verify`
+- `e2e-required-gate`
+
+Do not configure `browser-e2e` itself as a required branch-protection check.
+
+`e2e-required-gate` is intentionally always present:
+
+- release-affecting changes require browser E2E success
+- docs-only changes skip browser E2E but still emit a successful required gate
+
+This behavior was verified on a docs-only PR before merge.
+
+## Repository Main Guard Check
+
+Workflow:
+
+- `.github/workflows/repository-main-guard-check.yml`
+
+Run after configuring GitHub rules.
+
+Required PASS conditions:
+
+- `main protected = true`
+- pull-request rule active
+- branch deletion protection active
+- non-fast-forward / force-push protection active
+- required-status-check rule active
+- required context `verify`
+- required context `e2e-required-gate`
+
+This workflow is read-only and does not require Production secrets.
+
+The exact UI setup is documented in:
+
+- `docs/GITHUB_MAIN_RULESET_SETUP.md`
+
+## Repository Branch Inventory
+
+Workflow:
+
+- `.github/workflows/repository-branch-inventory.yml`
+
+The workflow is read-only.
+
+It classifies each branch relative to `main`.
+
+`safe-delete` means:
+
+- not `main`
+- not protected
+- no open pull request
+- `ahead_of_main = 0`
+
+The workflow uploads:
+
+- `branch-inventory.json`
+- `branch-inventory.md`
+
+Review the inventory before any branch deletion.
+
+## Repository Branch Cleanup
+
+Workflow:
+
+- `.github/workflows/repository-branch-cleanup.yml`
+
+Default operation:
+
+- `VERIFY_ONLY`
+
+DELETE requires exact confirmation:
+
+- `DELETE_MERGED_BRANCH`
+
+The workflow refuses:
+
+- `main`
+- repository default branch
+- protected branches
+- branches with open PRs
+- branches with any commit not contained in `main`
+
+Only one branch can be deleted per run.
+
+No automatic bulk-delete mode exists.
+
+## Current execution state
+
+As of this documentation update:
+
+- historical open PR count: 0
+- repository guard tooling: complete
+- branch cleanup tooling: complete
+- historical branch deletion: not yet executed
+- `main protected = false`
+- Production execution: blocked
+- Production state-changing actions: not executed
