@@ -11,6 +11,14 @@ on:
         description: Successful Production Deploy Readiness run ID for this release SHA
         required: true
         type: string
+      deployment_id:
+        description: Vercel deployment ID promoted to Production
+        required: true
+        type: string
+      promotion_run_id:
+        description: Successful Production Vercel Promote run ID
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -27,6 +35,8 @@ jobs:
     env:
       RELEASE_SHA: ${{ inputs.release_sha }}
       DEPLOY_READINESS_RUN_ID: ${{ inputs.deploy_readiness_run_id }}
+      DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+      PROMOTION_RUN_ID: ${{ inputs.promotion_run_id }}
       PRODUCTION_BASE_URL: https://x-clone-olive-chi.vercel.app
 
     steps:
@@ -47,6 +57,14 @@ jobs:
             echo "deploy_readiness_run_id must be numeric."
             exit 1
           }
+          [[ "${DEPLOYMENT_ID}" =~ ^dpl_[A-Za-z0-9]+$ ]] || {
+            echo "deployment_id must be a Vercel deployment ID."
+            exit 1
+          }
+          [[ "${PROMOTION_RUN_ID}" =~ ^[0-9]+$ ]] || {
+            echo "promotion_run_id must be numeric."
+            exit 1
+          }
 
           j="$(gh api "repos/${REPOSITORY}/actions/runs/${DEPLOY_READINESS_RUN_ID}")"
 
@@ -62,6 +80,24 @@ jobs:
 
           [ "$(jq -r '.path // ""' <<<"${j}")" = ".github/workflows/production-deploy-readiness.yml" ] || {
             echo "Referenced run is not Production Deploy Readiness."
+            exit 1
+          }
+
+          promote_json="$(gh api "repos/${REPOSITORY}/actions/runs/${PROMOTION_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${promote_json}")" = "success" ] || {
+            echo "Production Vercel Promote run did not succeed."
+            exit 1
+          }
+          [ "$(jq -r '.head_sha // ""' <<<"${promote_json}")" = "${RELEASE_SHA}" ] || {
+            echo "Promotion run SHA does not match release_sha."
+            exit 1
+          }
+          [ "$(jq -r '.path // ""' <<<"${promote_json}")" = ".github/workflows/production-vercel-promote.yml" ] || {
+            echo "Referenced run is not Production Vercel Promote."
+            exit 1
+          }
+          [ "$(jq -r '.display_title // ""' <<<"${promote_json}")" = "Production promote ${DEPLOYMENT_ID}" ] || {
+            echo "Promotion run deployment ID does not match deployment_id."
             exit 1
           }
 
@@ -146,6 +182,7 @@ jobs:
             echo
             echo "- Production URL: \`${PRODUCTION_BASE_URL}\`"
             echo "- release SHA: \`${RELEASE_SHA}\`"
+            echo "- promoted deployment ID: \`${DEPLOYMENT_ID}\`"
             echo "- health: ok"
             echo "- database: ok"
             echo "- public routes: ok"
