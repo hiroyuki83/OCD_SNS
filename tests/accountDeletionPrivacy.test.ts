@@ -33,3 +33,9 @@ test('account deletion scrubs posts and anonymizes credentials', () => {
 test('staff accounts cannot use self-service deletion', () => {
   assert.match(source, /user\.role !== Role\.USER/);
 });
+
+
+test('account deletion scrubs sanction appeal messages', () => {
+  assert.match(source, /tx\.appeal\.updateMany/);
+  assert.match(source, /\[削除済みユーザーによる異議申立て\]/);
+});
