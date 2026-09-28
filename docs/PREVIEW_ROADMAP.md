@@ -1186,3 +1186,59 @@ TDD:
 - `main` auto-deploy: disabledのまま
 
 Production DB / Production deploymentへの実操作: **なし**。
+
+
+## 2026-09-28 PR #51 main統合完了
+
+Production deploymentとDB migrationの分離をmainへ統合。
+
+- PR #51: **MERGED**
+- merge commit: `358ac933488e3e41baf2c4c0f4ada8d0f9e0c17e`
+- Vercel Production build内の `prisma migrate deploy`: **削除**
+- Production env validation: **維持**
+- Prisma generate: **維持**
+- Next.js build: **維持**
+- Production buildによるDB mutation: **なし**
+
+### TDD
+
+RED:
+
+- Security integration CI `36389789228`: expected FAILURE
+- failing test: `Production build validates required env without mutating the database`
+- fail count: **1**
+
+GREEN final PR head:
+
+- Security integration CI `36390096813`: **SUCCESS**
+- CoCo E2E `36390096839`: **SUCCESS**
+- Playwright: **16 / 16 PASS**
+
+main merge後:
+
+- Security integration CI `36390488724`: **SUCCESS**
+  - unit tests: **182 / 182 PASS**
+- CoCo E2E `36390488695`: **SUCCESS**
+  - Playwright: **16 / 16 PASS**
+
+### Deployment safety
+
+- main mergeによるVercel Production deployment: **発生なし**
+- `main` auto-deploy: **disabled**
+- Production DB migration: **未実施**
+- Production DB write: **なし**
+- current aliased Production: **変更なし**
+
+新しいrelease invariant:
+
+1. Production identity / read-only preflight
+2. rollback point
+3. migration dry run
+4. explicit Production migration approval
+5. migration + schema verify
+6. separate Production deploy approval
+7. deploy
+8. post-deploy smoke / runtime scan
+
+NEXT-039はProduction DB identity gate待ち。
+NEXT-040 remains **HOLD**。
