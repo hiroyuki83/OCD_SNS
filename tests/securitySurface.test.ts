@@ -21,7 +21,7 @@ function walk(dir: string): string[] {
 }
 
 function read(file: string) {
-  return readFileSync(file, 'utf8');
+  return readFileSync(file, 'utf8').replace(/^\uFEFF/, '');
 }
 
 const apiRoutes = walk('src/app/api').filter((file) => file.endsWith('/route.ts'));
@@ -53,7 +53,7 @@ test('every explicit API mutation route uses shared mutation request security, a
 
     assert.match(
       source,
-      /parseJsonMutationRequest\(/,
+      /parseJsonMutationRequest(?:<[^>]+>)?\s*\(/,
       `${file} exports a mutation handler without parseJsonMutationRequest()`,
     );
     assert.match(
