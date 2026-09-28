@@ -1,10 +1,17 @@
 name: Production Pre-execution Self Check
+run-name: Production pre-execution self-check ${{ inputs.release_sha }}
 
 on:
   workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact current protected main commit SHA intended for Production
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: coco-production-pre-execution-self-check
@@ -26,8 +33,50 @@ jobs:
       EXPECTED_DATABASE_NAME: neondb
       EXPECTED_POOLED_HOST: ep-billowing-smoke-ah3grpmy-pooler.c-3.us-east-1.aws.neon.tech
       PREVIEW_PROJECT_ID: plain-dawn-64792117
+      RELEASE_SHA: ${{ inputs.release_sha }}
 
     steps:
+      - name: Verify exact protected main release commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_SHA: ${{ github.sha }}
+          WORKFLOW_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          [[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "release_sha must be a full 40-character Git SHA."
+            exit 1
+          }
+
+          [ "${WORKFLOW_REF}" = "main" ] || {
+            echo "Pre-execution self-check must be dispatched from main."
+            exit 1
+          }
+
+          branch_json="$(gh api "repos/${REPOSITORY}/branches/main")"
+          main_sha="$(jq -r '.commit.sha // ""' <<<"${branch_json}")"
+          protected="$(jq -r '.protected // false' <<<"${branch_json}")"
+
+          [ "${RELEASE_SHA}" = "${WORKFLOW_SHA}" ] || {
+            echo "release_sha does not match the workflow commit."
+            exit 1
+          }
+
+          [ "${RELEASE_SHA}" = "${main_sha}" ] || {
+            echo "release_sha does not match current main."
+            echo "release_sha=${RELEASE_SHA}"
+            echo "main_sha=${main_sha}"
+            exit 1
+          }
+
+          [ "${protected}" = "true" ] || {
+            echo "main is not protected. Configure branch protection or an equivalent repository ruleset before Production execution."
+            exit 1
+          }
+
       - name: Verify required secrets are configured
         shell: bash
         run: |
@@ -150,6 +199,8 @@ jobs:
           {
             echo "## Production pre-execution self-check: PASS"
             echo
+            echo "- release SHA: \`${RELEASE_SHA}\`"
+            echo "- main branch protection: verified"
             echo "- NEON_API_KEY: configured and Production project readable"
             echo "- VERCEL_TOKEN: configured and confirmed Vercel project readable"
             echo "- Vercel team ID: \`${VERCEL_TEAM_ID}\`"
