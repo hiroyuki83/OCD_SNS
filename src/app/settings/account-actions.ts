@@ -208,6 +208,10 @@ export async function deleteOwnAccount(
       where: { userId },
       data: { message: '[削除済みユーザーによる異議申立て]' },
     });
+    await tx.appeal.updateMany({
+      where: { userId },
+      data: { message: '[削除済みユーザーによる異議申立て]' },
+    });
     await tx.report.updateMany({
       where: { reporterId: userId },
       data: { detail: null },
