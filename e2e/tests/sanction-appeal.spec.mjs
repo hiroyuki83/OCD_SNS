@@ -71,6 +71,17 @@ test('suspended user can appeal without a login session and regain access after 
 
   await user.getByLabel('登録メールアドレス').fill(USERS.appeal);
   await user.getByLabel('パスワード').fill(PREVIEW_PASSWORD);
+  await user
+    .getByRole('button', { name: '異議申立てを送信・状況確認' })
+    .click();
+
+  await expect(
+    user.getByText(
+      '現在の処分内容を確認しました。異議申立てを送信する場合は、理由を10文字以上で入力してください。',
+    ),
+  ).toBeVisible();
+  await expect(user.getByText(suspensionReason)).toBeVisible();
+
   await user.getByLabel('異議申立ての理由').fill(appealMessage);
   await user
     .getByRole('button', { name: '異議申立てを送信・状況確認' })
