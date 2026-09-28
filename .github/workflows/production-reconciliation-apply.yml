@@ -23,6 +23,10 @@ on:
         description: Successful Production DB Read-only Preflight run ID for this exact release SHA
         required: true
         type: string
+      dry_run_run_id:
+        description: Successful Production Reconciliation Dry Run ID for this exact release SHA
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -48,6 +52,7 @@ jobs:
       ROLLBACK_POINT: ${{ inputs.rollback_point }}
       APPLY_CONFIRMATION: ${{ inputs.confirmation }}
       PREFLIGHT_RUN_ID: ${{ inputs.preflight_run_id }}
+      DRY_RUN_RUN_ID: ${{ inputs.dry_run_run_id }}
 
     steps:
       - name: Verify explicit Production approval inputs
@@ -80,6 +85,10 @@ jobs:
           fi
           if [[ ! "${PREFLIGHT_RUN_ID}" =~ ^[0-9]+$ ]]; then
             echo "A numeric successful Production read-only preflight run ID is required."
+            exit 1
+          fi
+          if [[ ! "${DRY_RUN_RUN_ID}" =~ ^[0-9]+$ ]]; then
+            echo "A numeric successful Production reconciliation dry-run ID is required."
             exit 1
           fi
 
@@ -131,6 +140,31 @@ jobs:
           fi
           if [ "${path}" != ".github/workflows/production-db-preflight.yml" ]; then
             echo "Referenced run is not the Production DB Read-only Preflight workflow."
+            exit 1
+          fi
+
+      - name: Verify successful reconciliation dry-run attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          run_json="$(gh api "repos/${REPOSITORY}/actions/runs/${DRY_RUN_RUN_ID}")"
+          conclusion="$(jq -r '.conclusion // ""' <<<"${run_json}")"
+          head_sha="$(jq -r '.head_sha // ""' <<<"${run_json}")"
+          path="$(jq -r '.path // ""' <<<"${run_json}")"
+
+          if [ "${conclusion}" != "success" ]; then
+            echo "Referenced Production reconciliation dry run did not succeed."
+            exit 1
+          fi
+          if [ "${head_sha}" != "${RELEASE_SHA}" ]; then
+            echo "Referenced reconciliation dry-run head SHA does not match release_sha."
+            exit 1
+          fi
+          if [ "${path}" != ".github/workflows/production-reconciliation-dry-run.yml" ]; then
+            echo "Referenced run is not the Production Reconciliation Dry Run workflow."
             exit 1
           fi
 
