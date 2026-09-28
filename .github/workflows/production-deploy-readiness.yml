@@ -27,6 +27,10 @@ on:
         description: Successful CoCo E2E run ID for this exact release SHA
         required: true
         type: string
+      candidate_verification_run_id:
+        description: Successful Production Vercel Candidate Verification run ID
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -47,6 +51,7 @@ jobs:
       FINAL_VALIDATION_RUN_ID: ${{ inputs.final_validation_run_id }}
       SECURITY_CI_RUN_ID: ${{ inputs.security_ci_run_id }}
       E2E_RUN_ID: ${{ inputs.e2e_run_id }}
+      CANDIDATE_VERIFICATION_RUN_ID: ${{ inputs.candidate_verification_run_id }}
 
     steps:
       - name: Verify exact main release commit
@@ -57,7 +62,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          for id in             "${STAGE_C_APPLY_RUN_ID}"             "${POST_STAGE_C_PREFLIGHT_RUN_ID}"             "${FINAL_VALIDATION_RUN_ID}"             "${SECURITY_CI_RUN_ID}"             "${E2E_RUN_ID}"; do
+          for id in             "${STAGE_C_APPLY_RUN_ID}"             "${POST_STAGE_C_PREFLIGHT_RUN_ID}"             "${FINAL_VALIDATION_RUN_ID}"             "${SECURITY_CI_RUN_ID}"             "${E2E_RUN_ID}"             "${CANDIDATE_VERIFICATION_RUN_ID}"; do
             [[ "${id}" =~ ^[0-9]+$ ]] || { echo "All workflow run IDs must be numeric."; exit 1; }
           done
 
@@ -103,6 +108,7 @@ jobs:
           verify_run "${FINAL_VALIDATION_RUN_ID}" ".github/workflows/production-final-validation.yml" "workflow_dispatch"
           verify_run "${SECURITY_CI_RUN_ID}" ".github/workflows/security-integration-ci.yml" "push,workflow_dispatch"
           verify_run "${E2E_RUN_ID}" ".github/workflows/e2e.yml" "push,workflow_dispatch"
+          verify_run "${CANDIDATE_VERIFICATION_RUN_ID}" ".github/workflows/production-vercel-candidate-verify.yml" "workflow_dispatch"
 
       - name: Emit deploy readiness summary
         shell: bash
@@ -116,6 +122,7 @@ jobs:
             echo "- final release validation: verified"
             echo "- Security integration CI: verified"
             echo "- CoCo E2E: verified"
+            echo "- Vercel promotion candidate: verified"
             echo
             echo "This workflow does not deploy Production."
             echo "A separate explicit Production deployment approval is still required."
