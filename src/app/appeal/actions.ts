@@ -233,7 +233,7 @@ export async function submitSanctionAppeal(
     if (result.kind === 'details') {
       return {
         ok: true,
-        message: '現在の処分内容を確認しました。異議申立てを送信する場合は、理由を10文字以上で入力してください。',
+        message: '現在の処分内容を確認しました。異議申立てを送信する場合は、認証情報を再入力し、理由を10文字以上で入力してください。',
         sanctionType:
           result.type === SanctionType.SUSPENSION
             ? 'SUSPENSION'
