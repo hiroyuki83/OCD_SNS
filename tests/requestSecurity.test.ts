@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   parseJsonMutationRequest,
   validateJsonMutationRequest,
-} from '../src/lib/requestSecurity';
+} from '../src/lib/requestSecurityCore';
 
 function jsonRequest(
   body = '{}',
