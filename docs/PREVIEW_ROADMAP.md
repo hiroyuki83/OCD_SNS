@@ -695,6 +695,29 @@ NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへ�
 | 44 | モデレーションTOPへ未審査Sanction Appeal件数を追加 | DONE |
 | 45 | 審査結果メール送信をE2Eで検証 | DONE |
 | 46 | 停止中Appeal routeがpublicのままであることを回帰テスト | DONE |
-| 47 | PR #49 CI / E2E最終検証 | IN PROGRESS |
+| 47 | PR #49 CI / E2E最終検証 | DONE |
 
 Preview DBへのAppeal migration実適用はNEXT-041 / PR #48のSanction migration受入後に行う。
+
+
+### バッチ7検証
+
+- code commit: `ceb5d93318a94a17ba79990685400882354f9c84`
+- Security integration CI run `36370678553`: **SUCCESS**
+  - unit tests: **169 / 169 PASS**
+  - Prisma validate / generate: PASS
+  - lint: PASS
+  - TypeScript: PASS
+  - Next.js build: PASS
+- CoCo E2E run `36370678559`: **SUCCESS**
+  - isolated PostgreSQLへの全migration適用: PASS
+  - Preview seed: PASS
+  - Playwright: **16 / 16 PASS**
+  - 停止ユーザーの処分内容確認: PASS
+  - 停止中のSanction Appeal送信: PASS
+  - 処分発行者とAppeal審査者の分離: PASS
+  - Appeal取消によるSanction解除 / 再ログイン: PASS
+  - 審査結果メール通知: PASS
+
+NEXT-042 はコード実装・隔離DB検証まで完了。
+共有Preview DBへの `20260928110500_add_sanction_appeals` 適用は、PR #48 / NEXT-041 のSanction migrationをPreviewで受入れた後に行う。
