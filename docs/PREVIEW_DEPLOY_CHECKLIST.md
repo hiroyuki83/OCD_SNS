@@ -1,7 +1,7 @@
 # CoCo Preview デプロイ・チェックリスト
 
 最終更新: 2026-09-28
-対象ブランチ: feature/sanction-records-20260928
+対象ブランチ: feature/sanction-appeals-20260928
 
 ## デプロイ前
 
@@ -13,21 +13,25 @@
 - DATABASE_URL と PREVIEW_DATABASE_URL が完全一致
 - PREVIEW_DATABASE_URL が Production DB ではない
 - VERCEL_ENV=preview
-- VERCEL_GIT_COMMIT_REF=feature/sanction-records-20260928
+- VERCEL_GIT_COMMIT_REF=feature/sanction-appeals-20260928
 - seedする場合だけ PREVIEW_SEED_USERS=1
 - PREVIEW_TEST_PASSWORD は10〜128文字
-- `_prisma_migrations` に既存39 migrationが記録済みであることを確認する
+- `_prisma_migrations` に既存40 migration（Sanctionまで）が記録済みであることを確認する
 
 ## schema変更
 
 Preview環境では vercel-build が自動で `prisma migrate deploy` を実行しない。
 schema変更を含むcommitをPreviewへ出す前に、Preview DBへmigrationを明示的に適用する。
 
-今回の未適用migration:
+今回の受入済みbaseline migration:
 
 - `20260928071000_add_sanction_records`
 
-今回のPreview DBは既に39 migrationの履歴を持つため、historical baselineは行わない。
+今回の未適用migration:
+
+- `20260928110500_add_sanction_appeals`
+
+今回のPreview DBは既に40 migrationの履歴を持つため、historical baselineは行わない。
 `_prisma_migrations` が欠落していた場合は自動修復せず停止し、原因を確認する。
 
 Production DBへこの手順を流用しない。
@@ -39,7 +43,7 @@ Preview DB migration は自動実行しない。GitHub Actions の
 
 安全条件:
 
-- branch が `feature/sanction-records-20260928`
+- branch が `feature/sanction-appeals-20260928`
 - `VERCEL_ENV=preview`
 - `DATABASE_URL === PREVIEW_DATABASE_URL`
 - 接続hostが承認済み `coco-preview` Neon endpoint
@@ -55,8 +59,8 @@ Preview DB migration は自動実行しない。GitHub Actions の
 4. `npm run seed:preview`
 5. `npx prisma migrate status`
 
-preflightでは前回受入済みschemaを確認し、`Sanction` tableがまだ存在しないことを確認する。
-verifyでは`Sanction` tableと主要column、および新migrationの適用履歴を確認する。
+preflightでは前回受入済みschemaを確認し、`Sanction` tableが存在し、`Appeal` tableがまだ存在しないことを確認する。
+verifyでは`Sanction`を維持したまま`Appeal` tableと主要column、および新migrationの適用履歴を確認する。
 
 ### Prisma接続先の安全策
 
@@ -76,10 +80,11 @@ DB migration前はschema不一致のPreviewを公開しない。
 
 - `security-integration-final-20260926: false`
 - `feature/sanction-records-20260928: false`
+- `feature/sanction-appeals-20260928: false`
 - `main: false`
 
 Preview DB migration / seed / schema verifyが成功した後にのみ、
-`feature/sanction-records-20260928` を一時的に `true` にして最新Preview deploymentを作る。
+`feature/sanction-appeals-20260928` を一時的に `true` にして最新Preview deploymentを作る。
 
 Preview acceptance完了後:
 
@@ -108,6 +113,7 @@ mainへmergeしただけでProduction deployが開始される設定へ戻して
 - warning appeal
 - admin user management
 - 投稿制限 / 停止のSanction履歴
+- 投稿制限 / 停止のSanction Appeal送信・独立審査・取消
 - self-test privacy
 - account export
 - notification preferences
@@ -121,7 +127,7 @@ mainへmergeしただけでProduction deployが開始される設定へ戻して
 - 接続先DBがPreviewか不明
 - ProductionとPreviewのURL区別ができない
 - migration対象schemaが不明
-- migration historyが39件の受入済み状態と一致しない
+- migration historyが40件のSanction受入済み状態と一致しない
 - backup / restore経路が確認できない
 
 ## Preview受入完了後のmain統合ゲート
@@ -150,3 +156,28 @@ main merge後:
 
 Production releaseはmain mergeとは別工程。
 明示的なrelease判断後にのみ、Production DB backup / migration / deploy / smoke / runtime error scan / rollback確認を行う。
+
+
+## 今回のSanction Preview受入結果
+
+- rollback branch: `backup-before-sanction-migration-2026-09-28`
+- Prisma migration history: 40 applied
+- Sanction schema / indexes / foreign keys: verified
+- Vercel deployment: `dpl_7ksKuNtxd9oaJzj3vmgJKeePpMNZ` READY
+- validated commit: `12ec8cda236efc7d76c593060a036161ee68da65`
+- public HTTP smoke: 5 / 5 PASS
+- runtime error/fatal: 0
+- feature branch auto-deploy: disabled again after acceptance
+- main auto-deploy: disabled
+- Production: untouched
+
+
+## 今回のAppeal Previewリリース予定
+
+- baseline: Sanction受入済み **40 migrations**
+- pending: `20260928110500_add_sanction_appeals`
+- preflight: Sanction present / Appeal absent
+- post-migration: Appeal present / migration history **41**
+- release branch: `feature/sanction-appeals-20260928`
+- Vercel auto-deploy: migration受入前は disabled
+- Production: untouched / HOLD
