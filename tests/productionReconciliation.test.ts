@@ -628,3 +628,35 @@ test('Production Stage C requires machine-proven bridge promotion and smoke atte
   assert.match(source, /Production bridge promote \$\{BRIDGE_DEPLOYMENT_ID\}/);
   assert.match(source, /Production bridge smoke \$\{BRIDGE_DEPLOYMENT_ID\}/);
 });
+
+
+test('Production Vercel API access check is read-only and scoped to the confirmed project', () => {
+  const path = '.github/workflows/production-vercel-api-access-check.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /secrets\.VERCEL_TOKEN/);
+  assert.match(source, /team_P1Z1wvYF1h42LIl0YfgXoOPI/);
+  assert.match(source, /prj_AcjmJFO5jcqse6sStknZzZkmfR7h/);
+  assert.match(source, /PROJECT_NAME: coco/);
+  assert.match(source, /api\.vercel\.com\/v7\/deployments/);
+  assert.match(source, /api\.vercel\.com\/v13\/deployments/);
+  assert.match(source, /Vercel API access: PASS/);
+  assert.match(source, /read-only/);
+  assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
+});
+
+test('Production pre-execution self-check includes Vercel credentials and project identity', () => {
+  const path = '.github/workflows/production-pre-execution-self-check.yml';
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /secrets\.VERCEL_TOKEN/);
+  assert.match(source, /VERCEL_TEAM_ID: team_P1Z1wvYF1h42LIl0YfgXoOPI/);
+  assert.match(source, /VERCEL_PROJECT_ID: prj_AcjmJFO5jcqse6sStknZzZkmfR7h/);
+  assert.match(source, /VERCEL_PROJECT_NAME: coco/);
+  assert.match(source, /api\.vercel\.com\/v7\/deployments/);
+  assert.match(source, /no Vercel mutation/);
+});
