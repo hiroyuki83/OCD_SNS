@@ -888,3 +888,56 @@ As of this update:
 - current main Production deploy: **not performed**
 
 Production execution remains **HOLD** until explicit approval at each write/deploy boundary.
+
+
+## Production rollback point verification
+
+Workflow:
+
+- `.github/workflows/production-rollback-point-verify.yml`
+
+Required GitHub Actions secret:
+
+- `NEON_API_KEY`
+
+Use a Neon API key that can read Production project:
+
+- `withered-lab-08522436`
+
+The workflow is read-only and verifies the rollback branch through the Neon Management API.
+
+Required inputs:
+
+- rollback branch ID (`br-...`)
+- exact rollback branch name
+- maximum accepted branch age in minutes
+
+The verification requires:
+
+- branch exists in the Production project
+- branch is active
+- branch is not the default branch
+- branch is a direct child of the Production default branch
+- exact branch name matches
+- branch creation timestamp is within the accepted freshness window
+
+The workflow run name includes the verified branch ID:
+
+`Production rollback verify <branch-id>`
+
+Both Production write workflows now require the successful rollback verification run ID:
+
+- `Production Stage A Apply`
+- `Production Stage C Apply`
+
+The apply workflow verifies:
+
+- rollback-verification workflow succeeded
+- verification run belongs to the exact release SHA
+- run was manually dispatched
+- referenced workflow path is correct
+- verified branch ID matches the rollback branch supplied to the write workflow
+
+Do not place `NEON_API_KEY` in workflow YAML, commits, issues, PR descriptions, or chat.
+
+The rollback verification workflow does not create, restore, modify, or delete Neon branches.

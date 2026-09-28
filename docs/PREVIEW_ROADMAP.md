@@ -1556,3 +1556,15 @@ Canonical order is now:
 15. explicit approval → deploy current main
 16. post-deploy smoke / runtime scan
 17. retain rollback points until release acceptance
+
+
+### PR #69 — Production rollback-point attestation
+
+- merged
+- added read-only `Production Rollback Point Verification`
+- Neon Management API verifies rollback branch existence and freshness
+- verifies the rollback is a direct child of the Production default branch
+- Stage A and Stage C apply now require a successful rollback verification run
+- rollback branch ID is bound to the verification run
+- requires GitHub Actions secret: `NEON_API_KEY`
+- no Production branch mutation, DB write, restore, or deployment performed
