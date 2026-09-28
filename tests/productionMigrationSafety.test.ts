@@ -249,3 +249,39 @@ test('Production preflight expands legacy moderation reconciliation diagnostics'
   assert.match(source, /tableConstraints\('ModerationAction'\)/);
   assert.match(source, /JSON\.stringify\(report, null, 2\)/);
 });
+
+
+test('production preflight distinguishes historical rollbacks from active migration failures', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+
+  const source = readFileSync(
+    resolve(process.cwd(), 'scripts/production-db-preflight.ts'),
+    'utf8',
+  );
+
+  assert.match(source, /rolledBackMigrations/);
+  assert.match(source, /unfinishedMigrations/);
+  assert.match(source, /if \(unfinishedMigrations\.length\)/);
+  assert.doesNotMatch(
+    source,
+    /if \(migrationHistoryIssues\.length\) \{\s*blockers\.push/s,
+  );
+});
+
+test('production preflight diagnoses legacy moderation cleanup prerequisites', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+
+  const source = readFileSync(
+    resolve(process.cwd(), 'scripts/production-db-preflight.ts'),
+    'utf8',
+  );
+
+  assert.match(source, /moderationNotificationRows/);
+  assert.match(source, /restrictionUntilUsers/);
+  assert.match(source, /enumValues\('NotificationType'\)/);
+  assert.match(source, /enumValues\('ModerationActionType'\)/);
+  assert.match(source, /User\.restrictionUntil already exists before its pending migration/);
+  assert.match(source, /AppealStatus enum already exists before the pending Sanction Appeal migration/);
+});
