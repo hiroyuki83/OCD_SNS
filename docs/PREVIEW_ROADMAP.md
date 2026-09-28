@@ -682,12 +682,19 @@ NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへ�
 | 31 | account exportへSanction / Appeal履歴を追加 | DONE |
 | 32 | moderation timelineへSanction Appeal審査結果を追加 | DONE |
 | 33 | Preview seed再実行時にSanction / Appeal状態を初期化 | DONE |
-| 34 | Appeal専用E2E Admin 4を追加 | DONE |
+| 34 | Appeal専用E2E Admin 4 / Admin 5を追加し処分発行者と審査者を分離 | DONE |
 | 35 | stacked branchのVercel Preview自動deployを明示停止 | DONE |
 | 36 | Appeal schema / auth / review安全境界の回帰テストを追加 | DONE |
 | 37 | account deletion privacy回帰テストを追加 | DONE |
 | 38 | account export privacy回帰テストを追加 | DONE |
 | 39 | 停止→Appeal→取消→再ログインE2Eを追加 | DONE |
-| 40 | PR #49 CI / E2E最終検証 | IN PROGRESS |
+| 40 | Appeal専用ユーザーを追加し既存social E2Eから状態を分離 | DONE |
+| 41 | 停止ログイン失敗時のalert locatorをNext route announcerから分離 | DONE |
+| 42 | 本人確認後に処分理由・期限を確認してから申立てるE2Eを追加 | DONE |
+| 43 | ADMINユーザー詳細へSanction Appeal履歴を統合 | DONE |
+| 44 | モデレーションTOPへ未審査Sanction Appeal件数を追加 | DONE |
+| 45 | 審査結果メール送信をE2Eで検証 | DONE |
+| 46 | 停止中Appeal routeがpublicのままであることを回帰テスト | DONE |
+| 47 | PR #49 CI / E2E最終検証 | IN PROGRESS |
 
 Preview DBへのAppeal migration実適用はNEXT-041 / PR #48のSanction migration受入後に行う。
