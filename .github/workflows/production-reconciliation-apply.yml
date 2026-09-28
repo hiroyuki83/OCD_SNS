@@ -19,9 +19,14 @@ on:
         description: Exact direct/unpooled Production Neon hostname
         required: true
         type: string
+      preflight_run_id:
+        description: Successful Production DB Read-only Preflight run ID for this exact release SHA
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: coco-production-reconciliation-apply
@@ -42,6 +47,7 @@ jobs:
       RELEASE_SHA: ${{ inputs.release_sha }}
       ROLLBACK_POINT: ${{ inputs.rollback_point }}
       APPLY_CONFIRMATION: ${{ inputs.confirmation }}
+      PREFLIGHT_RUN_ID: ${{ inputs.preflight_run_id }}
 
     steps:
       - name: Verify explicit Production approval inputs
@@ -72,6 +78,10 @@ jobs:
             echo "PRODUCTION_DATABASE_URL_UNPOOLED secret is not configured."
             exit 1
           fi
+          if [[ ! "${PREFLIGHT_RUN_ID}" =~ ^[0-9]+$ ]]; then
+            echo "A numeric successful Production read-only preflight run ID is required."
+            exit 1
+          fi
 
       - name: Verify workflow is running from main release commit
         shell: bash
@@ -86,6 +96,41 @@ jobs:
           fi
           if [ "${RELEASE_SHA}" != "${WORKFLOW_SHA}" ]; then
             echo "release_sha must exactly match the current main workflow commit."
+            exit 1
+          fi
+
+      - name: Verify successful read-only preflight attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          run_json="$(gh api "repos/${REPOSITORY}/actions/runs/${PREFLIGHT_RUN_ID}")"
+          conclusion="$(jq -r '.conclusion // ""' <<<"${run_json}")"
+          head_sha="$(jq -r '.head_sha // ""' <<<"${run_json}")"
+          head_branch="$(jq -r '.head_branch // ""' <<<"${run_json}")"
+          event="$(jq -r '.event // ""' <<<"${run_json}")"
+          path="$(jq -r '.path // ""' <<<"${run_json}")"
+
+          if [ "${conclusion}" != "success" ]; then
+            echo "Referenced Production read-only preflight did not succeed."
+            exit 1
+          fi
+          if [ "${head_sha}" != "${RELEASE_SHA}" ]; then
+            echo "Referenced preflight head SHA does not match release_sha."
+            exit 1
+          fi
+          if [ "${head_branch}" != "main" ]; then
+            echo "Referenced preflight was not run from main."
+            exit 1
+          fi
+          if [ "${event}" != "workflow_dispatch" ]; then
+            echo "Referenced preflight was not manually dispatched."
+            exit 1
+          fi
+          if [ "${path}" != ".github/workflows/production-db-preflight.yml" ]; then
+            echo "Referenced run is not the Production DB Read-only Preflight workflow."
             exit 1
           fi
 
