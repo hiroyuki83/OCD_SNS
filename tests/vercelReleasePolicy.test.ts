@@ -19,11 +19,11 @@ test('Production and schema-changing Preview branches stay gated before explicit
   assert.equal(
     enabled['feature/sanction-records-20260928'],
     false,
-    'sanction Preview deploy must stay disabled until its DB migration gate succeeds',
+    'completed sanction branch must remain disabled after Preview acceptance',
   );
   assert.equal(
     enabled['feature/sanction-appeals-20260928'],
     false,
-    'stacked sanction appeal Preview deploy must stay disabled until the sanction release is accepted',
+    'sanction appeal Preview deploy must stay disabled until its DB migration gate succeeds',
   );
 });
