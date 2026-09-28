@@ -2,7 +2,7 @@
 
 最終更新: 2026-09-28
 対象基準ブランチ: `main`
-現在の実装ブランチ: `feature/sanction-appeals-20260928`
+現在の実装ブランチ: `main`
 
 この文書を CoCo Preview 版の仕様上の正本（source of truth）とする。
 仕様変更があった場合は、この文書と `PREVIEW_ROADMAP.md` を更新する。
@@ -269,7 +269,7 @@ SanctionStatus:
 - Appeal本文はアカウント削除時に匿名化する
 - 本人データexportにはSanction / Appeal履歴を含める
 
-Appeal migrationはSanction migrationのPreview受入まではdeferredとして扱い、共有Preview DBへ同時適用しない。
+Sanction migrationとAppeal migrationは段階的に共有Previewで受入済み。現在の共有Preview migration historyは41件で、両schemaを含む。
 
 ## 13. 管理画面
 
