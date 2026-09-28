@@ -101,6 +101,8 @@ Suggested name:
 
 ## 3. Migration plan gate
 
+詳細な13 migration監査は `PRODUCTION_MIGRATION_AUDIT_2026-09-28.md` を正本とする。
+
 Use the migration files committed to `main` as the source of truth.
 
 Current latest migrations:
@@ -462,3 +464,20 @@ Do not assume the Production DB has exactly 28 applied migrations. The actual `_
 The connected Vercel tool does not expose Production environment variable values, so Production DB identity cannot be safely inferred from the current connector.
 
 The release remains **HOLD** until the exact Production DB identity is supplied or retrieved through an authorized environment-variable path and the read-only `production:db:preflight` command succeeds.
+
+
+## Production migration stop conditions
+
+Production identity取得後、以下のどれかに該当したらmigration実行へ進まない。
+
+- `_prisma_migrations` にmainに存在しないmigrationがある
+- unfinished / rolled-back migrationがある
+- schemaとmigration historyが一致しない
+- `Reply` rowが1件以上ある
+- `Post.quotePostId` 非NULLが1件以上ある
+- Follow件数またはdry-run lock時間が許容範囲を超える
+- exact Production host / DB名が承認値と一致しない
+- known shared Preview hostへ接続している
+- pre-release rollback pointがREADYでない
+
+上記が全て解消されるまでProduction migrationはHOLD。
