@@ -1450,3 +1450,109 @@ NEXT-039 remaining gates:
 5. Production writeの明示承認
 
 NEXT-040 remains **HOLD**。
+
+
+## 2026-09-28 Production staged release safety completion
+
+Production release path was refactored from a monolithic reconciliation/apply model into explicit staged gates.
+
+### PR #60 — read-only preflight attestation
+
+- merged
+- Production apply requires a successful `Production DB Read-only Preflight` run
+- referenced run must match the exact release SHA
+- stale / unrelated preflight runs cannot authorize Production write
+
+### PR #61 — reconciliation dry-run attestation
+
+- merged
+- Production destructive path requires a successful isolated reconciliation dry run for the exact release SHA
+
+### PR #62 — bridge boundary gate
+
+- merged
+- destructive Reply / Quote migration cannot proceed without explicit bridge Production verification
+- approved bridge commit:
+  - `64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1`
+
+### PR #63 — Stage A split
+
+- merged
+- dedicated `Production Stage A Dry Run`
+- dedicated `Production Stage A Apply`
+- Stage A applies only through:
+  - `20260927002000_add_follow_approval`
+- destructive migration remains pending:
+  - `20260928013000_remove_reply_and_quote_post`
+- Stage A verifier requires Reply table and Post.quotePostId to remain present
+
+### PR #64 — bridge compatibility validation
+
+- merged
+- approved historical bridge commit is checked out in CI
+- legacy Production state is reproduced
+- Stage A is applied
+- bridge is built against the Stage A-shaped database
+- bridge app is started
+- public + DB-backed feed smoke succeeds
+
+### PR #65 — Stage C split
+
+- merged
+- old monolithic `Production Reconciliation Apply` is intentionally blocked / deprecated
+- dedicated `Production Stage C Dry Run`
+- dedicated `Production Stage C Apply`
+- Stage C precheck requires:
+  - Stage A migration boundary complete
+  - Reply rows = 0
+  - Quote rows = 0
+  - legacy moderation schema absent
+  - bridge verified
+- Stage C then applies the destructive Reply / Quote migration and remaining additive migrations
+
+### PR #66 — final current-main validation
+
+- merged
+- isolated validation now reproduces:
+  1. historical Production state
+  2. guarded reconciliation
+  3. Stage A
+  4. Stage C
+  5. final Production preflight
+  6. current main build
+  7. current main runtime smoke
+- this validates current main against the migrated Production-history shape, not only against a fresh DB
+
+### Current release state
+
+Production write performed in this sequence: **NO**
+
+Production migration performed in this sequence: **NO**
+
+Production bridge deployment performed: **NO**
+
+Current-main Production deployment performed: **NO**
+
+NEXT-039 preparation / safety implementation: **COMPLETE**
+
+NEXT-040 Production execution: **HOLD — explicit Production write/deploy approval required**
+
+Canonical order is now:
+
+1. create / verify Production rollback point
+2. read-only Production preflight
+3. Production Stage A dry run
+4. explicit approval → Production Stage A apply
+5. verify Stage A Production state
+6. validate approved bridge
+7. explicit approval → deploy approved bridge commit
+8. bridge Production smoke / runtime verification
+9. create / verify Stage C rollback point
+10. read-only Production preflight
+11. Production Stage C dry run
+12. explicit approval → Production Stage C apply
+13. final Production preflight
+14. Production Final Release Validation
+15. explicit approval → deploy current main
+16. post-deploy smoke / runtime scan
+17. retain rollback points until release acceptance
