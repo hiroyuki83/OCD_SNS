@@ -232,3 +232,20 @@ test('production preflight diagnoses pending schema object collisions', async ()
   assert.match(source, /WarningAppeal/);
   assert.match(source, /Appeal/);
 });
+
+
+test('Production preflight expands legacy moderation reconciliation diagnostics', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+
+  const source = readFileSync(
+    resolve(process.cwd(), 'scripts/production-db-preflight.ts'),
+    'utf8',
+  );
+
+  assert.match(source, /ModerationAction:/);
+  assert.match(source, /optionalRowCount\('ModerationAction'\)/);
+  assert.match(source, /tableColumns\('ModerationAction'\)/);
+  assert.match(source, /tableConstraints\('ModerationAction'\)/);
+  assert.match(source, /JSON\.stringify\(report, null, 2\)/);
+});
