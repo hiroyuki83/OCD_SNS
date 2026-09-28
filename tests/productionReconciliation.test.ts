@@ -68,3 +68,15 @@ test('reconciliation dry run reproduces legacy state and validates the final cur
   assert.match(workflow, /Apply remaining current migrations/);
   assert.match(workflow, /Verify reconciled schema with Production preflight/);
 });
+
+
+test('dry run restores current migrations before asserting the legacy Production blocker', () => {
+  const restoreIndex = workflow.indexOf('Restore current migration set');
+  const blockedIndex = workflow.indexOf(
+    'Confirm legacy state is blocked by read-only preflight',
+  );
+
+  assert.ok(restoreIndex >= 0);
+  assert.ok(blockedIndex >= 0);
+  assert.ok(restoreIndex < blockedIndex);
+});
