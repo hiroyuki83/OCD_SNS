@@ -1309,3 +1309,94 @@ Production migration: **未実施**
 Production deploy: **未実施**
 NEXT-039: **IN PROGRESS — migration history/schema reconciliation**
 NEXT-040: **HOLD**
+
+
+## 2026-09-28 PR #58 reconciliation dry-run complete
+
+Production legacy moderation schema reconciliationを隔離PostgreSQL上で再現・検証。
+
+- PR #58: **MERGED**
+- merge commit: `35ded41bf93d990c9e171472820c67fae7d72dd1`
+- Production DB write: **0**
+- Production deployment: **0**
+
+### Actual Production read-only preflight baseline
+
+GitHub Actions run: `36408876898`
+
+- main migrations: **41**
+- Production migration history rows: **28**
+- applied migrations: **27**
+- pending main migrations: **15**
+- historical rolled-back migration: **1**
+  - `20260124133259_init`
+- applied migration absent from main:
+  - `20260926073000_add_moderation_actions_and_appeals`
+
+Production rows:
+
+- User: **2**
+- Post: **3**
+- Follow: **1**
+- Reply: **0**
+- non-null `Post.quotePostId`: **0**
+- ModerationAction: **0**
+- legacy Appeal: **0**
+- MODERATION notification: **0**
+- users with `restrictionUntil`: **0**
+
+Production legacy schema:
+
+- `ModerationAction`: present
+- legacy `Appeal`: present
+- `ModerationWarning`: absent
+- `WarningAppeal`: absent
+- `Sanction`: absent
+- `User.restrictionUntil`: present
+- legacy `AppealStatus`: `OPEN / REVIEWING / UPHELD / OVERTURNED`
+- legacy `ModerationActionType`: expected 6 values
+- `NotificationType`: includes `MODERATION`
+
+Reply / Quote destructive data-loss gate: **CLEAR**
+
+### Isolated reconciliation dry run
+
+Workflow: `Production Reconciliation Dry Run`
+Run: `36427568122`
+
+Result: **SUCCESS**
+
+Verified sequence:
+
+1. reproduce historical Production migration set
+2. create legacy moderation schema
+3. restore current 41-migration repository set
+4. require read-only preflight to block the legacy/current mismatch
+5. apply guarded transactional legacy reconciliation
+6. resolve already-present `20260926103000_add_restriction_until`
+7. apply all remaining current migrations
+8. require final Production read-only preflight to PASS
+
+Reconciliation guards stop if:
+
+- ModerationAction has rows
+- legacy Appeal has rows
+- MODERATION Notification has rows
+- expected legacy objects / enums differ
+- current moderation schema is already partially present
+- legacy migration history does not match
+- restrictionUntil migration is already recorded applied
+
+NEXT-039 remaining Production gates:
+
+1. create Production rollback point / backup
+2. obtain direct/unpooled Production DB connection for migration
+3. re-run read-only preflight immediately before write
+4. explicit approval for Production reconciliation + migration
+5. apply guarded reconciliation
+6. resolve restrictionUntil migration history
+7. apply remaining migrations
+8. verify final Production preflight
+9. separately approve Production deployment
+
+NEXT-040 remains **HOLD** until explicit Production write approval.
