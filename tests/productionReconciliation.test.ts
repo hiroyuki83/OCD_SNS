@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const reconciliationSql = readFileSync(
@@ -79,4 +79,56 @@ test('dry run restores current migrations before asserting the legacy Production
   assert.ok(restoreIndex >= 0);
   assert.ok(blockedIndex >= 0);
   assert.ok(restoreIndex < blockedIndex);
+});
+
+
+test('Production reconciliation apply workflow is manual and heavily gated', () => {
+  const path = '.github/workflows/production-reconciliation-apply.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.doesNotMatch(source, /^\s*push:/m);
+  assert.doesNotMatch(source, /^\s*pull_request:/m);
+
+  assert.match(source, /confirmation:/);
+  assert.match(source, /rollback_point:/);
+  assert.match(source, /release_sha:/);
+  assert.match(source, /expected_unpooled_host:/);
+  assert.match(source, /APPLY_COCO_PRODUCTION_RECONCILIATION/);
+
+  assert.match(source, /secrets\.PRODUCTION_DATABASE_URL_UNPOOLED/);
+  assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL[^_]/);
+
+  assert.match(source, /production:reconciliation:precheck/);
+  assert.match(source, /production-legacy-moderation-reconcile\.sql/);
+  assert.match(
+    source,
+    /prisma migrate resolve --applied 20260926103000_add_restriction_until/,
+  );
+  assert.match(source, /prisma migrate deploy/);
+  assert.match(source, /production:db:preflight/);
+  assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
+});
+
+test('Production reconciliation precheck exists and is read-only', () => {
+  const path = 'scripts/production-reconciliation-precheck.ts';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /ModerationAction/);
+  assert.match(source, /Appeal/);
+  assert.match(source, /MODERATION/);
+  assert.match(source, /restrictionUntil/);
+  assert.match(source, /20260926073000_add_moderation_actions_and_appeals/);
+  assert.doesNotMatch(source, /INSERT\s+INTO/i);
+  assert.doesNotMatch(source, /UPDATE\s+/i);
+  assert.doesNotMatch(source, /DELETE\s+FROM/i);
+  assert.doesNotMatch(source, /DROP\s+/i);
+  assert.doesNotMatch(source, /ALTER\s+/i);
+  assert.doesNotMatch(source, /CREATE\s+/i);
 });
