@@ -148,20 +148,74 @@ try {
     );
   }
 
-  console.log('Production DB read-only preflight passed.');
-  console.log({
+  const userRows = Number(
+    (await client.query(`SELECT count(*)::text AS count FROM "User"`)).rows[0]
+      ?.count ?? 0,
+  );
+  const postRows = Number(
+    (await client.query(`SELECT count(*)::text AS count FROM "Post"`)).rows[0]
+      ?.count ?? 0,
+  );
+  const followRows = (await tableExists('Follow'))
+    ? Number(
+        (await client.query(`SELECT count(*)::text AS count FROM "Follow"`))
+          .rows[0]?.count ?? 0,
+      )
+    : null;
+  const replyRows = (await tableExists('Reply'))
+    ? Number(
+        (await client.query(`SELECT count(*)::text AS count FROM "Reply"`))
+          .rows[0]?.count ?? 0,
+      )
+    : null;
+  const quotePostIdPresent = await columnExists('Post', 'quotePostId');
+  const quotedPosts = quotePostIdPresent
+    ? Number(
+        (
+          await client.query(
+            `SELECT count(*)::text AS count
+             FROM "Post"
+             WHERE "quotePostId" IS NOT NULL`,
+          )
+        ).rows[0]?.count ?? 0,
+      )
+    : null;
+
+  const destructiveRemovalBlocked =
+    (replyRows ?? 0) > 0 || (quotedPosts ?? 0) > 0;
+
+  const report = {
     hostname: safety.hostname,
     databaseName: safety.databaseName,
     localMigrationCount: localMigrations.length,
     appliedMigrationCount: applied.size,
     pendingMigrations: pending,
+    productionRowCounts: {
+      userRows,
+      postRows,
+      followRows,
+      replyRows,
+      quotedPosts,
+    },
     productionSchemaSignatures: {
       staffTotpSecretEncrypted:
         await columnExists('User', 'staffTotpSecretEncrypted'),
+      replyTable: await tableExists('Reply'),
+      quotePostId: quotePostIdPresent,
       sanctionTable: await tableExists('Sanction'),
       appealTable: await tableExists('Appeal'),
     },
-  });
+    destructiveRemovalBlocked,
+  };
+
+  console.log('Production DB read-only preflight passed.');
+  console.log(report);
+
+  if (destructiveRemovalBlocked) {
+    throw new Error(
+      'Production contains Reply or Quote data. Automatic reply/quote removal migration is blocked pending an explicit data-handling decision.',
+    );
+  }
 } finally {
   await client.end().catch(() => undefined);
 }
