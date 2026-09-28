@@ -1,0 +1,129 @@
+name: Production Vercel Candidate Verification
+run-name: Production candidate verify ${{ inputs.deployment_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact current main commit SHA intended for Production
+        required: true
+        type: string
+      deployment_id:
+        description: Vercel Preview deployment ID (dpl_...)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-production-vercel-candidate
+  cancel-in-progress: true
+
+jobs:
+  verify-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      TEAM_ID: team_P1Z1wvYF1h42LIl0YfgXoOPI
+      PROJECT_ID: prj_AcjmJFO5jcqse6sStknZzZkmfR7h
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+
+    steps:
+      - name: Verify candidate inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          [ -n "${VERCEL_TOKEN:-}" ] || { echo "VERCEL_TOKEN is not configured."; exit 1; }
+          [[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "release_sha must be a full Git SHA."; exit 1; }
+          [[ "${DEPLOYMENT_ID}" =~ ^dpl_[A-Za-z0-9]+$ ]] || { echo "deployment_id must be a Vercel deployment ID."; exit 1; }
+
+      - name: Verify release SHA is current main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/${REPOSITORY}/branches/main" --jq '.commit.sha')"
+          [ "${RELEASE_SHA}" = "${main_sha}" ] || {
+            echo "release_sha does not match current main."
+            echo "release_sha=${RELEASE_SHA}"
+            echo "main_sha=${main_sha}"
+            exit 1
+          }
+
+      - name: Verify exact READY Vercel deployment for release SHA
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          response="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://api.vercel.com/v7/deployments?projectId=${PROJECT_ID}&teamId=${TEAM_ID}&sha=${RELEASE_SHA}&state=READY&limit=100"             --header "Accept: application/json"             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+
+          candidate="$(jq -c --arg id "${DEPLOYMENT_ID}"             '.deployments[] | select((.uid // .id) == $id)' <<<"${response}" | head -n1)"
+
+          [ -n "${candidate}" ] || {
+            echo "The supplied deployment ID is not a READY deployment for this exact release SHA/project."
+            exit 1
+          }
+
+          url="$(jq -r '.url // ""' <<<"${candidate}")"
+          state="$(jq -r '.state // .readyState // ""' <<<"${candidate}")"
+          target="$(jq -r '.target // ""' <<<"${candidate}")"
+          meta_sha="$(jq -r '.meta.githubCommitSha // ""' <<<"${candidate}")"
+          meta_repo="$(jq -r '.meta.githubRepo // ""' <<<"${candidate}")"
+          meta_org="$(jq -r '.meta.githubOrg // ""' <<<"${candidate}")"
+
+          [ "${state}" = "READY" ] || { echo "Candidate is not READY."; exit 1; }
+          [ -n "${url}" ] || { echo "Candidate deployment URL is missing."; exit 1; }
+          [ "${target}" != "production" ] || { echo "Candidate is already a Production-target deployment."; exit 1; }
+          if [ -n "${meta_sha}" ]; then
+            [ "${meta_sha}" = "${RELEASE_SHA}" ] || { echo "Candidate metadata SHA mismatch."; exit 1; }
+          fi
+          if [ -n "${meta_repo}" ]; then
+            [ "${meta_repo}" = "OCD_SNS" ] || { echo "Candidate repository mismatch."; exit 1; }
+          fi
+          if [ -n "${meta_org}" ]; then
+            [ "${meta_org}" = "hiroyuki83" ] || { echo "Candidate GitHub org mismatch."; exit 1; }
+          fi
+
+          echo "url=${url}" >> "${GITHUB_OUTPUT}"
+          echo "target=${target}" >> "${GITHUB_OUTPUT}"
+
+      - name: Re-read candidate deployment details
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          details="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://api.vercel.com/v13/deployments/${DEPLOYMENT_ID}?withGitRepoInfo=true&teamId=${TEAM_ID}"             --header "Accept: application/json"             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+
+          actual_id="$(jq -r '.id // .uid // ""' <<<"${details}")"
+          actual_url="$(jq -r '.url // ""' <<<"${details}")"
+          actual_state="$(jq -r '.readyState // .state // ""' <<<"${details}")"
+
+          [ "${actual_id}" = "${DEPLOYMENT_ID}" ] || { echo "Deployment detail ID mismatch."; exit 1; }
+          [ -n "${actual_url}" ] || { echo "Deployment detail URL missing."; exit 1; }
+          [ "${actual_state}" = "READY" ] || { echo "Deployment detail is not READY."; exit 1; }
+
+      - name: Emit candidate verification summary
+        shell: bash
+        env:
+          CANDIDATE_URL: ${{ steps.candidate.outputs.url }}
+          CANDIDATE_TARGET: ${{ steps.candidate.outputs.target }}
+        run: |
+          {
+            echo "## Production Vercel candidate verification: PASS"
+            echo
+            echo "- release SHA: \`${RELEASE_SHA}\`"
+            echo "- deployment ID: \`${DEPLOYMENT_ID}\`"
+            echo "- deployment URL: \`${CANDIDATE_URL}\`"
+            echo "- current target: \`${CANDIDATE_TARGET:-preview}\`"
+            echo "- project ID: \`${PROJECT_ID}\`"
+            echo "- team ID: \`${TEAM_ID}\`"
+            echo
+            echo "This workflow is read-only and does not promote or deploy anything."
+          } >> "${GITHUB_STEP_SUMMARY}"
