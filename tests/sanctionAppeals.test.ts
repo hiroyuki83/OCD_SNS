@@ -28,6 +28,10 @@ const seed = readFileSync(
   join(process.cwd(), 'prisma', 'seed-preview.ts'),
   'utf8',
 );
+const authConfig = readFileSync(
+  join(process.cwd(), 'src', 'auth.config.ts'),
+  'utf8',
+);
 
 test('sanction appeals use a foreign-keyed one-to-one Appeal model', () => {
   assert.match(schema, /model Appeal \{/);
@@ -81,4 +85,10 @@ test('appeal page explicitly states that no normal login session is created', ()
 test('Preview seed clears test-user sanction and appeal state', () => {
   assert.match(seed, /prisma\.appeal\.deleteMany/);
   assert.match(seed, /prisma\.sanction\.deleteMany/);
+});
+
+
+test('appeal route remains outside the authenticated protected-prefix list', () => {
+  const protectedList = authConfig.match(/const protectedPrefixes = \[([\s\S]*?)\];/)?.[1] ?? '';
+  assert.equal(protectedList.includes("'\/appeal'"), false);
 });
