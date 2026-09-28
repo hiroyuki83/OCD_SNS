@@ -37,6 +37,7 @@ export type SanctionAppealSubmitState =
       status?: 'PENDING' | 'UPHELD' | 'OVERTURNED';
       resolutionNote?: string | null;
       sanctionType?: 'POST_RESTRICTION' | 'SUSPENSION';
+      sanctionReason?: string;
       endsAt?: string | null;
       errors?: { email?: string[]; password?: string[]; message?: string[] };
     }
@@ -46,6 +47,7 @@ function appealState(
   status: AppealStatus,
   resolutionNote: string | null,
   sanctionType: SanctionType,
+  sanctionReason: string,
   endsAt: Date | null,
 ): SanctionAppealSubmitState {
   return {
@@ -62,6 +64,7 @@ function appealState(
       sanctionType === SanctionType.SUSPENSION
         ? 'SUSPENSION'
         : 'POST_RESTRICTION',
+    sanctionReason,
     endsAt: endsAt?.toISOString() ?? null,
   };
 }
@@ -124,6 +127,7 @@ export async function submitSanctionAppeal(
             id: true,
             type: true,
             endsAt: true,
+            reason: true,
             appeal: {
               select: {
                 status: true,
@@ -143,6 +147,7 @@ export async function submitSanctionAppeal(
               sanction: {
                 select: {
                   type: true,
+                  reason: true,
                   endsAt: true,
                 },
               },
@@ -154,6 +159,7 @@ export async function submitSanctionAppeal(
               status: existing.status,
               resolutionNote: existing.resolutionNote,
               type: existing.sanction.type,
+              reason: existing.sanction.reason,
               endsAt: existing.sanction.endsAt,
             };
           }
@@ -166,11 +172,21 @@ export async function submitSanctionAppeal(
             status: sanction.appeal.status,
             resolutionNote: sanction.appeal.resolutionNote,
             type: sanction.type,
+            reason: sanction.reason,
             endsAt: sanction.endsAt,
           };
         }
 
-        if (Array.from(parsed.data.message).length < 10) {
+        const messageLength = Array.from(parsed.data.message).length;
+        if (messageLength === 0) {
+          return {
+            kind: 'details' as const,
+            type: sanction.type,
+            reason: sanction.reason,
+            endsAt: sanction.endsAt,
+          };
+        }
+        if (messageLength < 10) {
           return { kind: 'message-too-short' as const };
         }
 
@@ -201,6 +217,7 @@ export async function submitSanctionAppeal(
           status: AppealStatus.PENDING,
           resolutionNote: null,
           type: sanction.type,
+          reason: sanction.reason,
           endsAt: sanction.endsAt,
         };
       },
@@ -210,6 +227,19 @@ export async function submitSanctionAppeal(
     if (result.kind === 'none') {
       return {
         message: '現在、異議申立て対象となる有効な投稿制限またはアカウント停止はありません。',
+      };
+    }
+
+    if (result.kind === 'details') {
+      return {
+        ok: true,
+        message: '現在の処分内容を確認しました。異議申立てを送信する場合は、理由を10文字以上で入力してください。',
+        sanctionType:
+          result.type === SanctionType.SUSPENSION
+            ? 'SUSPENSION'
+            : 'POST_RESTRICTION',
+        sanctionReason: result.reason,
+        endsAt: result.endsAt?.toISOString() ?? null,
       };
     }
 
@@ -224,6 +254,7 @@ export async function submitSanctionAppeal(
       result.status,
       result.resolutionNote,
       result.type,
+      result.reason,
       result.endsAt,
     );
   } catch (error) {
