@@ -21,6 +21,11 @@ test('suspended user can appeal without a login session and regain access after 
   const suspensionReason = `E2E停止Appeal理由です ${token}`;
   const appealMessage = `停止処分について再確認をお願いします。 ${token}`;
   const reviewNote = `E2E審査で停止処分取消を確認しました ${token}`;
+  const restrictionReason = `E2E投稿制限Appeal理由です ${token}`;
+  const restrictionAppealMessage = `投稿制限について再確認をお願いします。 ${token}`;
+  const restrictionReviewNote = `E2E審査で投稿制限取消を確認しました ${token}`;
+  const blockedPostContent = `E2E restricted post should not publish ${token}`;
+  const restoredPostContent = `E2E post after restriction overturn ${token}`;
 
   const issuerMfa = await enrollStaffMfa(issuer, USERS.admin4, PREVIEW_PASSWORD);
   const issuerRecoveryCode = issuerMfa.recoveryCodes[0] ?? '';
@@ -141,6 +146,85 @@ test('suspended user can appeal without a login session and regain access after 
   await expect(user.getByText(reviewNote)).toBeVisible();
 
   await login(user, USERS.appeal, PREVIEW_PASSWORD);
+
+  await issuer.goto(`/admin/users?q=${encodeURIComponent(USERS.appeal)}`);
+  await issuer
+    .getByRole('link', { name: 'Preview Appeal User', exact: true })
+    .click();
+
+  const restrictionSection = issuer.locator('section').filter({
+    has: issuer.getByRole('heading', { name: '権限とアカウント状態' }),
+  });
+  const restrictionAdminPassword = restrictionSection.locator('#admin-current-password');
+  const restrictionStatusSelect = restrictionSection.locator('#admin-user-status');
+
+  await restrictionAdminPassword.fill(PREVIEW_PASSWORD);
+  await restrictionStatusSelect.selectOption('POST_RESTRICTED');
+  issuer.once('dialog', (dialog) => dialog.accept(restrictionReason));
+  await restrictionSection.getByRole('button', { name: '状態を更新' }).click();
+  await expect(restrictionAdminPassword).toHaveValue('');
+  await issuer.reload();
+  await expect(restrictionStatusSelect).toHaveValue('POST_RESTRICTED');
+
+  await user.goto('/?compose=1');
+  await user.getByLabel('投稿本文').fill(blockedPostContent);
+  await user.getByRole('button', { name: '投稿', exact: true }).click();
+  await expect(user.getByText(restrictionReason)).toBeVisible();
+  await expect(user.getByText('投稿しました。')).toHaveCount(0);
+
+  await user.goto('/settings');
+  const appealSettingsSection = user.locator('section').filter({
+    has: user.getByRole('heading', { name: '処分への異議申立て' }),
+  });
+  await appealSettingsSection
+    .getByRole('link', { name: '異議申立て・状況確認' })
+    .click();
+
+  await user.getByLabel('登録メールアドレス').fill(USERS.appeal);
+  await user.getByLabel('パスワード').fill(PREVIEW_PASSWORD);
+  await user
+    .getByLabel('異議申立ての理由')
+    .fill(restrictionAppealMessage);
+  await user
+    .getByRole('button', { name: '異議申立てを送信・状況確認' })
+    .click();
+
+  await expect(user.getByText('異議申立ては審査中です。')).toBeVisible();
+  await expect(user.getByText('投稿制限', { exact: true })).toBeVisible();
+
+  await reviewer.goto('/moderation/appeals/sanctions');
+  const restrictionAppealCard = reviewer
+    .locator('[data-sanction-appeal-card]')
+    .filter({ hasText: restrictionAppealMessage });
+  await expect(restrictionAppealCard).toBeVisible();
+  await expect(restrictionAppealCard).toContainText(restrictionReason);
+
+  await restrictionAppealCard
+    .getByLabel('審査理由')
+    .fill(restrictionReviewNote);
+  const restrictionOverturnButton = restrictionAppealCard.getByRole('button', {
+    name: '処分を取り消す',
+  });
+  await restrictionOverturnButton.click();
+
+  await expect(restrictionOverturnButton).toHaveCount(0, { timeout: 15_000 });
+  await expect(
+    restrictionAppealCard.getByText('処分取消', { exact: true }),
+  ).toBeVisible();
+  await expect(restrictionAppealCard.getByText(restrictionReviewNote)).toBeVisible();
+
+  const restrictionResultEmail = await latestEmailFor(
+    USERS.appeal,
+    'CoCo 異議申立ての審査結果',
+  );
+  expect(restrictionResultEmail.text).toContain('対象: 投稿制限');
+  expect(restrictionResultEmail.text).toContain('結果: 処分取消');
+  expect(restrictionResultEmail.text).toContain(restrictionReviewNote);
+
+  await user.goto('/?compose=1');
+  await user.getByLabel('投稿本文').fill(restoredPostContent);
+  await user.getByRole('button', { name: '投稿', exact: true }).click();
+  await expect(user.getByText('投稿しました。')).toBeVisible();
 
   await Promise.all([
     issuerContext.close(),
