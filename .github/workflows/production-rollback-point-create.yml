@@ -1,0 +1,182 @@
+name: Production Rollback Point Create
+run-name: Production rollback create ${{ inputs.branch_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type CREATE_COCO_PRODUCTION_ROLLBACK
+        required: true
+        type: string
+      release_sha:
+        description: Exact current main commit SHA
+        required: true
+        type: string
+      branch_name:
+        description: Rollback branch name (must start with backup-before-production-)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-production-rollback-create
+  cancel-in-progress: false
+
+jobs:
+  create-rollback-point:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      PROJECT_ID: withered-lab-08522436
+      CONFIRMATION: ${{ inputs.confirmation }}
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      BRANCH_NAME: ${{ inputs.branch_name }}
+
+    steps:
+      - name: Verify explicit rollback creation inputs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          [ "${CONFIRMATION}" = "CREATE_COCO_PRODUCTION_ROLLBACK" ] || {
+            echo "Exact rollback creation confirmation is required."
+            exit 1
+          }
+
+          [[ "${BRANCH_NAME}" =~ ^backup-before-production-[a-z0-9-]+$ ]] || {
+            echo "branch_name must start with backup-before-production- and contain only lowercase letters, numbers, and hyphens."
+            exit 1
+          }
+
+          [ -n "${NEON_API_KEY:-}" ] || {
+            echo "NEON_API_KEY is not configured."
+            exit 1
+          }
+
+          main_sha="$(gh api "repos/${REPOSITORY}/branches/main" --jq '.commit.sha')"
+          [ "${RELEASE_SHA}" = "${main_sha}" ] || {
+            echo "release_sha does not match current main."
+            echo "release_sha=${RELEASE_SHA}"
+            echo "main_sha=${main_sha}"
+            exit 1
+          }
+
+      - name: Resolve Production default branch
+        id: default_branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          response="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://console.neon.tech/api/v2/projects/${PROJECT_ID}/branches?limit=10000&include_deleted=false"             --header "Accept: application/json"             --header "Authorization: Bearer ${NEON_API_KEY}")"
+
+          default_id="$(jq -r '.branches[] | select(.default == true) | .id' <<<"${response}" | head -n1)"
+          [ -n "${default_id}" ] && [ "${default_id}" != "null" ] || {
+            echo "Production default branch was not found."
+            exit 1
+          }
+
+          duplicate_count="$(jq --arg name "${BRANCH_NAME}" '[.branches[] | select(.name == $name)] | length' <<<"${response}")"
+          [ "${duplicate_count}" -eq 0 ] || {
+            echo "A branch with this name already exists."
+            exit 1
+          }
+
+          echo "default_id=${default_id}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create protected rollback branch without compute
+        id: create_branch
+        shell: bash
+        env:
+          DEFAULT_BRANCH_ID: ${{ steps.default_branch.outputs.default_id }}
+        run: |
+          set -euo pipefail
+
+          payload="$(jq -n             --arg name "${BRANCH_NAME}"             --arg parent_id "${DEFAULT_BRANCH_ID}"             --arg release_sha "${RELEASE_SHA}"             '{
+              branch: {
+                name: $name,
+                parent_id: $parent_id,
+                protected: true,
+                annotation_value: {
+                  purpose: "production-rollback",
+                  release_sha: $release_sha
+                }
+              }
+            }')"
+
+          response="$(curl --fail-with-body --silent --show-error             --request POST             --url "https://console.neon.tech/api/v2/projects/${PROJECT_ID}/branches"             --header "Accept: application/json"             --header "Content-Type: application/json"             --header "Authorization: Bearer ${NEON_API_KEY}"             --data "${payload}")"
+
+          branch_id="$(jq -r '.branch.id // ""' <<<"${response}")"
+          branch_name="$(jq -r '.branch.name // ""' <<<"${response}")"
+          parent_id="$(jq -r '.branch.parent_id // ""' <<<"${response}")"
+          protected="$(jq -r '.branch.protected // false' <<<"${response}")"
+          created_at="$(jq -r '.branch.created_at // ""' <<<"${response}")"
+
+          [[ "${branch_id}" =~ ^br-[a-z0-9-]+$ ]] || {
+            echo "Neon did not return a valid branch ID."
+            exit 1
+          }
+          [ "${branch_name}" = "${BRANCH_NAME}" ] || {
+            echo "Created rollback branch name mismatch."
+            exit 1
+          }
+          [ "${parent_id}" = "${DEFAULT_BRANCH_ID}" ] || {
+            echo "Created rollback branch parent mismatch."
+            exit 1
+          }
+          [ "${protected}" = "true" ] || {
+            echo "Created rollback branch is not protected."
+            exit 1
+          }
+          [ -n "${created_at}" ] || {
+            echo "Created rollback branch timestamp is missing."
+            exit 1
+          }
+
+          echo "branch_id=${branch_id}" >> "${GITHUB_OUTPUT}"
+          echo "created_at=${created_at}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify created rollback branch with GET
+        shell: bash
+        env:
+          ROLLBACK_BRANCH_ID: ${{ steps.create_branch.outputs.branch_id }}
+          DEFAULT_BRANCH_ID: ${{ steps.default_branch.outputs.default_id }}
+        run: |
+          set -euo pipefail
+
+          response="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://console.neon.tech/api/v2/projects/${PROJECT_ID}/branches/${ROLLBACK_BRANCH_ID}"             --header "Accept: application/json"             --header "Authorization: Bearer ${NEON_API_KEY}")"
+
+          actual_id="$(jq -r '.branch.id // ""' <<<"${response}")"
+          actual_name="$(jq -r '.branch.name // ""' <<<"${response}")"
+          parent_id="$(jq -r '.branch.parent_id // ""' <<<"${response}")"
+          protected="$(jq -r '.branch.protected // false' <<<"${response}")"
+
+          [ "${actual_id}" = "${ROLLBACK_BRANCH_ID}" ] || { echo "Rollback branch GET verification ID mismatch."; exit 1; }
+          [ "${actual_name}" = "${BRANCH_NAME}" ] || { echo "Rollback branch GET verification name mismatch."; exit 1; }
+          [ "${parent_id}" = "${DEFAULT_BRANCH_ID}" ] || { echo "Rollback branch GET verification parent mismatch."; exit 1; }
+          [ "${protected}" = "true" ] || { echo "Rollback branch GET verification protection mismatch."; exit 1; }
+
+      - name: Emit rollback creation summary
+        shell: bash
+        env:
+          ROLLBACK_BRANCH_ID: ${{ steps.create_branch.outputs.branch_id }}
+          CREATED_AT: ${{ steps.create_branch.outputs.created_at }}
+        run: |
+          {
+            echo "## Production rollback point creation: PASS"
+            echo
+            echo "- project: \`${PROJECT_ID}\`"
+            echo "- rollback branch: \`${ROLLBACK_BRANCH_ID}\`"
+            echo "- branch name: \`${BRANCH_NAME}\`"
+            echo "- created at: \`${CREATED_AT}\`"
+            echo "- release SHA: \`${RELEASE_SHA}\`"
+            echo "- protected: \`true\`"
+            echo "- compute endpoint created: \`no\`"
+            echo
+            echo "Run Production Rollback Point Verification next and use its successful run ID for Stage A or Stage C."
+          } >> "${GITHUB_STEP_SUMMARY}"
