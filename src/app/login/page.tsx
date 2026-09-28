@@ -120,6 +120,9 @@ function LoginContent() {
                     <Link href="/verify-email" className="text-[#1d9bf0] hover:underline">確認メールを再送する</Link>
                 </p>
                 <p className="text-zinc-500 text-sm text-center">
+                    <Link href="/appeal" className="text-[#1d9bf0] hover:underline">投稿制限・停止への異議申立て</Link>
+                </p>
+                <p className="text-zinc-500 text-sm text-center">
                     アカウントがない場合は <Link href="/register" className="text-[#1d9bf0] hover:underline">新規登録</Link>
                 </p>
             </div>
