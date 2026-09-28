@@ -1619,3 +1619,36 @@ Run in this order:
 7. only then consider explicit approval for Production Stage A Apply
 
 Current Production mutation status remains: **NONE**
+
+
+### PR #74 — Production pre-execution self-check
+
+- merged
+- added manual read-only `Production Pre-execution Self Check`
+- checks presence of:
+  - `NEON_API_KEY`
+  - `PRODUCTION_DATABASE_URL`
+  - `PRODUCTION_DATABASE_URL_UNPOOLED`
+- validates exact Production pooled host
+- requires a distinct direct/unpooled Neon hostname
+- validates database name `neondb`
+- verifies Neon API read access to Production project `withered-lab-08522436`
+- resolves Production default branch
+- performs no SQL and no Neon mutation
+
+### Preparation status
+
+NEXT-039 Production preparation: **COMPLETE**
+
+All required release-safety workflows are now implemented and tested on isolated CI.
+
+NEXT-040 Production execution: **HOLD**
+
+No Production mutation has occurred.
+
+First operational action remains a read-only one:
+
+1. configure required GitHub Actions secrets
+2. run `Production Pre-execution Self Check`
+3. require PASS
+4. only after PASS consider explicit approval for rollback branch creation
