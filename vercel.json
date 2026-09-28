@@ -4,7 +4,8 @@
     "deploymentEnabled": {
       "security-integration-final-20260926": false,
       "feature/sanction-records-20260928": false,
-      "main": false
+      "main": false,
+      "feature/sanction-appeals-20260928": false
     }
   }
 }
