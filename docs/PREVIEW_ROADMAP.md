@@ -1652,3 +1652,101 @@ First operational action remains a read-only one:
 2. run `Production Pre-execution Self Check`
 3. require PASS
 4. only after PASS consider explicit approval for rollback branch creation
+
+
+## 2026-09-29 Production release / rollback safety completion
+
+### PR #78 — artifact-pinned current-main Production promotion
+
+- merged
+- added read-only Vercel candidate verification for an exact current-main SHA
+- added manual-only Production Vercel promotion
+- promotion uses an existing READY deployment artifact and does not rebuild it
+- Production Deploy Readiness now requires a verified Vercel candidate
+- post-deploy smoke is bound to the exact promotion run and deployment ID
+
+### PR #79 — bridge rollback compatibility after Stage C
+
+- merged
+- proves approved bridge commit `64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1` still builds and runs after Stage C
+- public routes and DB-backed feed succeed against the post-Stage-C schema
+- enables application rollback without rolling the database back
+
+### PR #80 — bridge-pinned Vercel application rollback
+
+- merged
+- rollback target must be a READY Vercel deployment of the approved bridge commit
+- manual rollback requires exact confirmation `ROLLBACK_COCO_TO_BRIDGE`
+- requires current-release promotion attestation
+- requires bridge rollback candidate verification
+- requires post-Stage-C bridge rollback compatibility validation
+- rollback changes Vercel Production traffic only
+- database rollback is intentionally excluded
+- dedicated bridge rollback smoke verifies alias + public routes + DB-backed feed
+
+### PR #81 — machine-proven bridge Production stage
+
+- merged
+- bridge Production can no longer be represented only by text confirmation
+- bridge candidate must be a READY Vercel artifact of the approved bridge SHA
+- bridge Production promotion is manual-only and attested
+- bridge Production smoke is required
+- Stage C Apply requires exact bridge deployment ID, bridge promotion run, and bridge Production smoke run
+
+### PR #84 — current-main Production release acceptance
+
+- merged
+- requires successful Production promotion and post-deploy smoke
+- re-verifies exact READY deployment and Production alias
+- scans the exact deployment for recent 5xx runtime logs
+- release acceptance requires zero 5xx entries
+- application-level error logs are surfaced as warnings
+
+### PR #85 — rollback acceptance
+
+- merged
+- requires successful bridge rollback and rollback smoke
+- re-verifies approved bridge SHA and Production alias
+- scans rollback bridge deployment for recent 5xx runtime logs
+- rollback acceptance requires zero 5xx entries
+- confirms DB remains on post-Stage-C schema
+
+### PR #86 — Vercel API access in pre-execution checks
+
+- merged
+- supersedes stale PR #82
+- adds read-only `Production Vercel API Access Check`
+- Production Pre-execution Self Check now requires:
+  - `NEON_API_KEY`
+  - `VERCEL_TOKEN`
+  - `PRODUCTION_DATABASE_URL`
+  - `PRODUCTION_DATABASE_URL_UNPOOLED`
+- verifies confirmed Vercel team/project identity before Production execution
+
+### Current execution status
+
+Production DB write: **NOT PERFORMED**
+
+Production rollback branch creation: **NOT PERFORMED**
+
+Production Stage A Apply: **NOT PERFORMED**
+
+Bridge Production promotion: **NOT PERFORMED**
+
+Production Stage C Apply: **NOT PERFORMED**
+
+Current-main Production promotion: **NOT PERFORMED**
+
+Production application rollback: **NOT PERFORMED**
+
+NEXT-039 preparation: **COMPLETE**
+
+NEXT-040 Production execution: **HOLD — explicit state-changing approval required**
+
+### Remaining operator prerequisite
+
+GitHub reports `main` as currently unprotected.
+
+Before Production execution, configure branch protection / repository rules so accidental direct pushes cannot bypass the intended PR + CI path.
+
+This repository-control item cannot be changed through the currently connected GitHub integration because administration write access is not available.
