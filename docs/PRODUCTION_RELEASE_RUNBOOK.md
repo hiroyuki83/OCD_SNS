@@ -1028,3 +1028,45 @@ Current state at the time of this documentation update:
 - Production bridge deploy: **not run**
 - Production Stage C Apply: **not run**
 - current main Production deploy: **not run**
+
+
+## Production pre-execution self-check
+
+Workflow:
+
+- `.github/workflows/production-pre-execution-self-check.yml`
+
+Run this before any Production rollback branch creation or database write.
+
+The workflow verifies, without connecting to PostgreSQL:
+
+- `NEON_API_KEY` is configured
+- `PRODUCTION_DATABASE_URL` is configured
+- `PRODUCTION_DATABASE_URL_UNPOOLED` is configured
+- pooled URL host exactly matches:
+  - `ep-billowing-smoke-ah3grpmy-pooler.c-3.us-east-1.aws.neon.tech`
+- pooled URL uses a Neon pooler hostname
+- unpooled URL is a distinct Neon hostname and does not contain `-pooler.`
+- both URLs target database `neondb`
+- Neon API can read Production project:
+  - `withered-lab-08522436`
+- Production default branch can be resolved
+
+The Preview project ID:
+
+- `plain-dawn-64792117`
+
+is checked only as an informational guard. Preview access never establishes Production identity.
+
+Required result:
+
+- `Production pre-execution self-check: PASS`
+
+The workflow performs:
+
+- no SQL
+- no Prisma migration
+- no Neon create/update/delete operation
+- no Vercel deployment
+
+After PASS, the next state-changing operation is `Production Rollback Point Create`, which still requires separate explicit approval.
