@@ -941,3 +941,90 @@ The apply workflow verifies:
 Do not place `NEON_API_KEY` in workflow YAML, commits, issues, PR descriptions, or chat.
 
 The rollback verification workflow does not create, restore, modify, or delete Neon branches.
+
+
+## Final pre-execution gate sequence
+
+Before the first Production DB write, use the following exact sequence.
+
+### 0. Neon API credential check
+
+GitHub Actions secret required:
+
+- `NEON_API_KEY`
+
+Run:
+
+- `Production Neon API Access Check`
+
+Workflow:
+
+- `.github/workflows/production-neon-api-access-check.yml`
+
+Required result:
+
+- authentication PASS
+- Production project `withered-lab-08522436` branch read PASS
+- Production default branch resolved
+
+This is GET-only and does not mutate Neon.
+
+### 1. Create rollback branch
+
+Workflow:
+
+- `.github/workflows/production-rollback-point-create.yml`
+
+Manual confirmation:
+
+- `CREATE_COCO_PRODUCTION_ROLLBACK`
+
+This is a Production-side Neon branch creation operation and therefore requires explicit approval before execution.
+
+The workflow:
+
+- checks current main SHA
+- resolves Production default branch
+- creates a protected child branch
+- creates no compute endpoint
+- records release SHA annotation
+- GET-verifies the created branch
+
+### 2. Verify rollback branch
+
+Workflow:
+
+- `.github/workflows/production-rollback-point-verify.yml`
+
+Required result:
+
+- rollback branch exists
+- active
+- exact expected name
+- direct child of Production default branch
+- sufficiently fresh
+
+The successful verification run ID is required by Stage A Apply and Stage C Apply.
+
+### 3. Re-run Production DB preflight
+
+Workflow:
+
+- `.github/workflows/production-db-preflight.yml`
+
+Use the same release SHA that will be used for Stage A.
+
+### 4. Stage A write boundary
+
+Only after all preceding checks pass may `Production Stage A Apply` be considered.
+
+The presence of workflows is not authorization to run them.
+
+Current state at the time of this documentation update:
+
+- Neon API access check against Production: **not yet run**
+- Production rollback branch creation: **not run**
+- Production Stage A Apply: **not run**
+- Production bridge deploy: **not run**
+- Production Stage C Apply: **not run**
+- current main Production deploy: **not run**

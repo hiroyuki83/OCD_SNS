@@ -1568,3 +1568,54 @@ Canonical order is now:
 - rollback branch ID is bound to the verification run
 - requires GitHub Actions secret: `NEON_API_KEY`
 - no Production branch mutation, DB write, restore, or deployment performed
+
+
+### PR #68 — Production deploy readiness gate
+
+- merged
+- read-only Stage D readiness workflow added
+- requires same-release-SHA success for:
+  - Production Stage C Apply
+  - post-Stage-C Production DB Read-only Preflight
+  - Production Final Release Validation
+  - Security integration CI
+  - CoCo E2E
+- workflow emits PASS only; it does not deploy Production
+
+### PR #71 — guarded rollback branch creation
+
+- merged
+- manual-only `Production Rollback Point Create` workflow added
+- requires exact confirmation `CREATE_COCO_PRODUCTION_ROLLBACK`
+- requires current main SHA
+- creates a protected child branch from the Production default branch
+- creates no compute endpoint
+- annotates rollback branch with release SHA / purpose
+- immediately re-reads the branch after creation
+- workflow has not been executed against Production
+
+### PR #72 — Production Neon API access check
+
+- merged
+- manual read-only `Production Neon API Access Check` workflow added
+- checks `NEON_API_KEY` authentication
+- checks read access to Production project `withered-lab-08522436`
+- resolves the Production default branch
+- GET requests only
+- workflow has not yet been run because GitHub secret availability has not been confirmed
+
+### Current immediate next step
+
+No Production mutation should occur first.
+
+Run in this order:
+
+1. configure GitHub Actions secret `NEON_API_KEY`
+2. run `Production Neon API Access Check`
+3. require PASS
+4. only then consider explicit approval for `Production Rollback Point Create`
+5. verify the created branch with `Production Rollback Point Verification`
+6. run latest Production DB Read-only Preflight
+7. only then consider explicit approval for Production Stage A Apply
+
+Current Production mutation status remains: **NONE**
