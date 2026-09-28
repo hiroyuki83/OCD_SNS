@@ -1271,3 +1271,41 @@ Production DB write: **0**
 Production deployment: **未実施**
 NEXT-039: **IN PROGRESS — Production Neon connector authorization待ち**
 NEXT-040: **HOLD**
+
+
+### NEXT-039 actual Production DB preflight
+
+GitHub Actions read-only preflightでProduction DBの実状態を取得。
+
+- main migrations: **41**
+- Production migration history rows: **28**
+- applied: **27**
+- pending: **15**
+- rolled-back historical migration: **1**
+- applied migration absent from main: **1**
+  - `20260926073000_add_moderation_actions_and_appeals`
+
+Production rows:
+
+- User 2
+- Post 3
+- Follow 1
+- Reply 0
+- Quote 0
+
+Schema:
+
+- Reply present
+- Post.quotePostId present
+- staff TOTP columns not yet present
+- Sanction absent
+- Appeal **already present**
+
+Reply / Quote destructive migrationのデータ消失gateは **CLEAR**。
+ただしmigration history分岐とpre-existing Appeal tableが新しいblocker。
+
+Production DB write: **0**
+Production migration: **未実施**
+Production deploy: **未実施**
+NEXT-039: **IN PROGRESS — migration history/schema reconciliation**
+NEXT-040: **HOLD**
