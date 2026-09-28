@@ -137,7 +137,7 @@ jobs:
           log_file="$(mktemp)"
           npx --yes vercel@59.19.1 logs             --deployment "https://${DEPLOYMENT_URL}"             --status-code 5xx             --since "${OBSERVATION_MINUTES}m"             --json             --token "${VERCEL_TOKEN}"             --scope "${VERCEL_TEAM_SLUG}" >"${log_file}"
 
-          count="$(node <<'NODE' "${log_file}"
+          count="$(node - "${log_file}" <<'NODE'
           const fs = require('node:fs');
           const path = process.argv[2];
           const lines = fs.readFileSync(path, 'utf8').split(/\r?\n/).filter((line) => line.trim());
@@ -165,7 +165,7 @@ jobs:
           log_file="$(mktemp)"
           npx --yes vercel@59.19.1 logs             --deployment "https://${DEPLOYMENT_URL}"             --level error             --since "${OBSERVATION_MINUTES}m"             --json             --token "${VERCEL_TOKEN}"             --scope "${VERCEL_TEAM_SLUG}" >"${log_file}"
 
-          count="$(node <<'NODE' "${log_file}"
+          count="$(node - "${log_file}" <<'NODE'
           const fs = require('node:fs');
           const path = process.argv[2];
           const lines = fs.readFileSync(path, 'utf8').split(/\r?\n/).filter((line) => line.trim());
