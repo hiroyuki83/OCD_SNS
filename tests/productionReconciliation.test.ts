@@ -656,3 +656,30 @@ test('Production release acceptance binds smoke, alias, deployment SHA, and 5xx-
   assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
   assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
 });
+
+
+test('Production rollback acceptance binds rollback smoke, approved bridge SHA, alias, and 5xx-free logs', () => {
+  const path = '.github/workflows/production-rollback-acceptance.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /rollback_run_id:/);
+  assert.match(source, /rollback_smoke_run_id:/);
+  assert.match(source, /observation_minutes:/);
+  assert.match(source, /production-vercel-rollback\.yml/);
+  assert.match(source, /production-bridge-rollback-smoke\.yml/);
+  assert.match(source, /64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1/);
+  assert.match(source, /v2\/deployments\/\$\{ROLLBACK_DEPLOYMENT_ID\}\/aliases/);
+  assert.match(source, /x-clone-olive-chi\.vercel\.app/);
+  assert.match(source, /vercel@59\.19\.1 logs/);
+  assert.match(source, /--status-code 5xx/);
+  assert.match(source, /--level error/);
+  assert.match(source, /Production rollback acceptance: PASS/);
+  assert.match(source, /The database remains on the post-Stage-C schema/);
+  assert.doesNotMatch(source, /prisma migrate deploy/);
+  assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
+  assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
+});
