@@ -6,7 +6,9 @@
 
 現在は `ModerationWarning` と `WarningAppeal` が1対1で結び付いており、警告については異議申立て、維持、取消、審査理由、監査ログまで実装済み。
 
-投稿制限とアカウント停止は `User.status` と期限フィールドで表現されており、「処分そのもの」を示す独立した永続レコードがない。
+2026-09-28 の段階導入で、投稿制限とアカウント停止については `Sanction` を第一級の永続レコードとして追加した。現在の `User.status` と期限フィールドは実効状態の高速判定用として維持し、`Sanction` は処分履歴・将来の異議申立て対象を明確にするために使用する。
+
+警告は既存の `ModerationWarning` / `WarningAppeal` をそのまま維持しており、まだ共通 `Appeal` モデルへ移行していない。
 
 ## 結論
 
@@ -42,3 +44,31 @@
 投稿制限・停止にもユーザー異議申立てを提供する段階で、Sanction + Appealへの段階的migrationを行う。
 
 この設計検討を `NEXT-025` の完了条件とする。実装は別タスクとして管理する。
+
+
+## 2026-09-28 段階導入状況
+
+### Phase 1: Sanction 永続化
+
+実装済み:
+
+- `SanctionType`: `WARNING / POST_RESTRICTION / SUSPENSION`
+- `SanctionStatus`: `ACTIVE / EXPIRED / REVOKED`
+- 投稿制限・停止時に `Sanction` を作成
+- 新しい処分で置き換える際、過去の有効処分を `REVOKED` として履歴保存
+- 期限を過ぎた既存処分を `EXPIRED` として整理
+- ADMINユーザー詳細で処分履歴を表示
+- モデレーション統合タイムラインへSanctionを統合
+
+### Phase 2: 共通 Appeal
+
+未実装:
+
+- `Appeal` model
+- `sanctionId` 外部キー
+- 投稿制限・停止に対するユーザー異議申立て
+- staff審査による維持 / 取消
+- 取消時の `User.status` 再計算
+- 警告の `ModerationWarning` / `WarningAppeal` から共通モデルへの段階移行
+
+Phase 2はSanction永続化のPreview検証後に進める。

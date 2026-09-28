@@ -58,6 +58,7 @@ try {
     post: await tableExists('Post'),
     warningAppeal: await tableExists('WarningAppeal'),
     staffRecoveryCode: await tableExists('StaffRecoveryCode'),
+    sanction: await tableExists('Sanction'),
     reply: await tableExists('Reply'),
     handle: await columnExists('User', 'handle'),
     sessionVersion: await columnExists('User', 'sessionVersion'),
@@ -69,34 +70,27 @@ try {
     pendingEmail: await columnExists('EmailVerificationToken', 'pendingEmail'),
   };
 
-  const requiredExisting = [
+  const expectedCurrentState = [
     ['User table', signatures.user],
     ['Post table', signatures.post],
     ['WarningAppeal table', signatures.warningAppeal],
     ['StaffRecoveryCode table', signatures.staffRecoveryCode],
     ['User.handle', signatures.handle],
     ['User.sessionVersion', signatures.sessionVersion],
+    ['Reply table already removed', !signatures.reply],
+    ['Post.quotePostId already removed', !signatures.quotePostId],
+    ['Post.imageAlt already present', signatures.imageAlt],
+    ['User.notifyLikes already present', signatures.notifyLikes],
+    ['User.notifyReactions already present', signatures.notifyReactions],
+    ['User.notifyFollows already present', signatures.notifyFollows],
+    ['EmailVerificationToken.pendingEmail already present', signatures.pendingEmail],
+    ['Sanction table not yet present', !signatures.sanction],
   ] as const;
 
-  const missing = requiredExisting.filter(([, present]) => !present).map(([name]) => name);
-  if (missing.length) {
-    throw new Error(`Preview DB is missing expected pre-baseline schema: ${missing.join(', ')}`);
-  }
-
-  const expectedPendingState = [
-    ['Reply table still present', signatures.reply],
-    ['Post.quotePostId still present', signatures.quotePostId],
-    ['Post.imageAlt not yet present', !signatures.imageAlt],
-    ['User.notifyLikes not yet present', !signatures.notifyLikes],
-    ['User.notifyReactions not yet present', !signatures.notifyReactions],
-    ['User.notifyFollows not yet present', !signatures.notifyFollows],
-    ['EmailVerificationToken.pendingEmail not yet present', !signatures.pendingEmail],
-  ] as const;
-
-  const drift = expectedPendingState.filter(([, ok]) => !ok).map(([name]) => name);
+  const drift = expectedCurrentState.filter(([, ok]) => !ok).map(([name]) => name);
   if (drift.length) {
     throw new Error(
-      `Preview DB is not in the expected pre-migration state; manual reconciliation required: ${drift.join(', ')}`,
+      `Preview DB is not in the expected pre-sanction-migration state; manual reconciliation required: ${drift.join(', ')}`,
     );
   }
 
@@ -108,10 +102,12 @@ try {
       replyTablePresent: signatures.reply,
       quotePostIdPresent: signatures.quotePostId,
       imageAltPresent: signatures.imageAlt,
-      notifyLikesPresent: signatures.notifyLikes,
-      notifyReactionsPresent: signatures.notifyReactions,
-      notifyFollowsPresent: signatures.notifyFollows,
+      notificationPreferencesPresent:
+        signatures.notifyLikes &&
+        signatures.notifyReactions &&
+        signatures.notifyFollows,
       pendingEmailPresent: signatures.pendingEmail,
+      sanctionTablePresent: signatures.sanction,
     },
   });
 } finally {

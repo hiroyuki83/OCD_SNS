@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { AccountStatus, ReportPriority, ReportStatus, Role } from '@prisma/client';
+import { AccountStatus, ReportPriority, ReportStatus, Role, SanctionStatus, SanctionType } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
 import { rateLimit } from '@/lib/rateLimit';
@@ -677,6 +677,51 @@ export async function setReportedUserStatus(
         },
       });
       if (updatedTarget.count !== 1) throw new ModerationConflictError();
+
+      const sanctionChangedAt = new Date();
+      await tx.sanction.updateMany({
+        where: {
+          targetUserId: report.targetUserId,
+          status: SanctionStatus.ACTIVE,
+          endsAt: { lte: sanctionChangedAt },
+        },
+        data: { status: SanctionStatus.EXPIRED },
+      });
+
+      await tx.sanction.updateMany({
+        where: {
+          targetUserId: report.targetUserId,
+          status: SanctionStatus.ACTIVE,
+        },
+        data: {
+          status: SanctionStatus.REVOKED,
+          revokedAt: sanctionChangedAt,
+        },
+      });
+
+      let sanctionId: string | null = null;
+      if (status !== AccountStatus.ACTIVE) {
+        const sanction = await tx.sanction.create({
+          data: {
+            type:
+              status === AccountStatus.POST_RESTRICTED
+                ? SanctionType.POST_RESTRICTION
+                : SanctionType.SUSPENSION,
+            status: SanctionStatus.ACTIVE,
+            reason: note ?? report.reason,
+            startsAt: sanctionChangedAt,
+            endsAt:
+              status === AccountStatus.POST_RESTRICTED
+                ? restrictionUntil
+                : suspendedUntil,
+            targetUserId: report.targetUserId,
+            actorUserId: actor.id,
+            reportId: report.id,
+          },
+          select: { id: true },
+        });
+        sanctionId = sanction.id;
+      }
   
       await tx.auditLog.create({
         data: {
@@ -684,6 +729,7 @@ export async function setReportedUserStatus(
           actorUserId: actor.id,
           targetUserId: report.targetUserId,
           meta: {
+            sanctionId,
             reportId: report.id,
             reason: report.reason,
             fromStatus: currentTarget.status,

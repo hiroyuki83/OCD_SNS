@@ -1,7 +1,8 @@
 # CoCo Preview Roadmap / Progress Tracker
 
 最終更新: 2026-09-28
-対象ブランチ: `security-integration-final-20260926`
+対象基準ブランチ: `main`
+現在の実装ブランチ: `feature/sanction-records-20260928`
 
 この文書を Preview 版の進捗管理表として使用する。
 
@@ -138,6 +139,8 @@
 | NEXT-038 | integration branch終了・不要な一時Neon branch整理 | P1 | IN PROGRESS |
 | NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | HOLD |
 | NEXT-040 | Productionへ明示release・post-deploy smoke / error scan | P0 | HOLD |
+| NEXT-041 | 投稿制限・停止を第一級 Sanction レコードとして永続化 | P1 | DONE |
+| NEXT-042 | Sanction を対象にした共通 Appeal を実装 | P1 | TODO |
 
 ## リリース進行フェーズ
 
@@ -570,3 +573,92 @@ Post-merge validation:
 
 現在は **PHASE-G / NEXT-038**。
 Production releaseは引き続き `NEXT-039 / NEXT-040` としてHOLDする。
+
+
+## 2026-09-28 実装バッチ6: Sanction永続化（40タスク）
+
+対象branch: `feature/sanction-records-20260928`
+
+| # | 内容 | Status |
+|---:|---|---|
+| 1 | main統合後の最新状態を再確認 | DONE |
+| 2 | 制裁タイムラインの `USER_STATUS_CHANGE` / `USER_STATUS_CHANGED` 不整合を特定 | DONE |
+| 3 | `SanctionType` enumを追加 | DONE |
+| 4 | `SanctionStatus` enumを追加 | DONE |
+| 5 | `Sanction` modelを追加 | DONE |
+| 6 | UserへSanction target/actor relationを追加 | DONE |
+| 7 | ReportへSanction relationを追加 | DONE |
+| 8 | Sanction用DB indexを追加 | DONE |
+| 9 | Sanction migrationを追加 | DONE |
+| 10 | 通報画面の投稿制限時にSanctionを永続化 | DONE |
+| 11 | 通報画面のアカウント停止時にSanctionを永続化 | DONE |
+| 12 | 新処分前に期限切れSanctionをEXPIREDへ整理 | DONE |
+| 13 | 新処分で置換される有効SanctionをREVOKEDへ変更 | DONE |
+| 14 | Audit LogへsanctionIdを記録 | DONE |
+| 15 | モデレーションタイムラインへSanctionを統合 | DONE |
+| 16 | 実際のAudit action名 `USER_STATUS_CHANGE` をタイムライン対象へ修正 | DONE |
+| 17 | 期限超過ACTIVE Sanctionを表示上EXPIREDとして扱う | DONE |
+| 18 | ADMINユーザー詳細でSanction履歴を取得 | DONE |
+| 19 | ADMINユーザー詳細へ処分履歴UIを追加 | DONE |
+| 20 | Preview migration planを既存39件 + 新migration pendingへ更新 | DONE |
+| 21 | migration plan回帰テストを更新 | DONE |
+| 22 | sanction timeline単体テストを追加 | DONE |
+| 23 | Audit action名不整合の回帰テストを追加 | DONE |
+| 24 | sanction schema回帰テストを追加 | DONE |
+| 25 | moderation sanction persistence回帰テストを追加 | DONE |
+| 26 | sanction履歴UI回帰テストを追加 | DONE |
+| 27 | Appeal設計文書を段階導入状態へ更新 | DONE |
+| 28 | Preview要件定義へSanction永続化を反映 | DONE |
+| 29 | NEXT-041 / NEXT-042をロードマップへ追加 | DONE |
+| 30 | ADMIN直接status変更でもSanctionを永続化 | DONE |
+| 31 | ADMIN直接status変更の回帰テストを追加 | DONE |
+| 32 | ADMIN status E2EでSanction有効/解除履歴を確認 | DONE |
+| 33 | Preview migration許可branchを今回feature branchへ切替 | DONE |
+| 34 | Preview seed許可branchをmigration guardと共通化 | DONE |
+| 35 | Preview DB preflightを既存39 migration適用後schemaへ更新 | DONE |
+| 36 | Preview DB verifyへSanction table/column検証を追加 | DONE |
+| 37 | 今回releaseでhistorical baselineを禁止 | DONE |
+| 38 | migration前のfeature branch Vercel deployを明示停止 | DONE |
+| 39 | Preview deploy checklist / branch情報を現行化 | DONE |
+| 40 | PR CI / E2Eで最終検証 | DONE |
+
+NEXT-041 はコード検証に加えて共有Preview DB migration / Preview受入まで完了。PR #48はmain統合ゲートへ進む。
+NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへの実適用はSanction migrationの受入順序を崩さない。
+
+### バッチ6検証
+
+- commit: `f86c527ca88e2c3f37281c104284960f6ac0ca99`
+- Security integration CI run `36355224790`: SUCCESS
+  - unit tests: **153 / 153 PASS**
+  - Prisma validate / generate: PASS
+  - lint: PASS
+  - TypeScript: PASS
+  - Next.js build: PASS
+- CoCo E2E run `36355224603`: SUCCESS
+  - isolated PostgreSQLへの全migration適用: PASS
+  - Preview seed: PASS
+  - Playwright: **15 / 15 PASS**
+  - ADMIN status変更時のSanction有効/解除履歴を含む
+
+
+
+## 2026-09-28 Sanction Preview受入
+
+- Preview DB: Neon project `coco-preview` / DB `neondb`
+- rollback point: Neon branch `backup-before-sanction-migration-2026-09-28`
+- migration: `20260928071000_add_sanction_records`
+- Prisma migration history: **40 applied**
+- `Sanction` table: verified
+- indexes: **5**
+- foreign keys: **3**
+- Preview seed users: **5 / 5 ACTIVE**
+- validated Preview commit: `12ec8cda236efc7d76c593060a036161ee68da65`
+- Vercel Preview deployment: `dpl_7ksKuNtxd9oaJzj3vmgJKeePpMNZ`
+- deployment state: **READY**
+- public smoke: `/`, `/login`, `/register`, `/explore`, `/safety` = **HTTP 200**
+- runtime error/fatal scan: **0**
+- Sanction branch auto-deploy: acceptance後に **disabledへ復帰**
+- Production auto-deploy: **disabledのまま**
+- Production DB / Production deployment: **未変更 / HOLD**
+
+最新commitの最終CI / E2E成功を確認後、PR #48をmainへ統合する。

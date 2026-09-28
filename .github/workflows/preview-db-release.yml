@@ -7,11 +7,6 @@ on:
         description: 'Type MIGRATE_COCO_PREVIEW to authorize Preview DB migration'
         required: true
         type: string
-      allow_baseline:
-        description: 'Allow baselining existing historical schema when _prisma_migrations is absent'
-        required: true
-        default: false
-        type: boolean
 
 concurrency:
   group: coco-preview-db-release
@@ -22,7 +17,7 @@ permissions:
 
 jobs:
   migrate-preview:
-    if: ${{ github.ref_name == 'security-integration-final-20260926' && inputs.confirmation == 'MIGRATE_COCO_PREVIEW' }}
+    if: ${{ github.ref_name == 'feature/sanction-records-20260928' && inputs.confirmation == 'MIGRATE_COCO_PREVIEW' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: preview
@@ -30,7 +25,7 @@ jobs:
       VERCEL_ENV: preview
       VERCEL_GIT_COMMIT_REF: ${{ github.ref_name }}
       PREVIEW_MIGRATION_CONFIRM: ${{ inputs.confirmation }}
-      PREVIEW_ALLOW_BASELINE: ${{ inputs.allow_baseline && '1' || '0' }}
+      PREVIEW_ALLOW_BASELINE: '0'
       PREVIEW_SEED_USERS: '1'
       DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
       PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
@@ -39,7 +34,7 @@ jobs:
       PREVIEW_TEST_PASSWORD: ${{ secrets.PREVIEW_TEST_PASSWORD }}
 
     steps:
-      - name: Checkout approved integration branch
+      - name: Checkout approved Preview release branch
         uses: actions/checkout@v6
 
       - name: Use Node.js

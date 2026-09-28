@@ -5,8 +5,6 @@ import {
 
 import { PREVIEW_PENDING_MIGRATIONS } from '../src/lib/previewMigrationPlan';
 
-
-
 const safety = validatePreviewMigrationSafety({
   vercelEnv: process.env.VERCEL_ENV,
   gitRef: process.env.VERCEL_GIT_COMMIT_REF,
@@ -55,11 +53,20 @@ try {
   const checks = [
     ['Reply table removed', !(await tableExists('Reply'))],
     ['Post.quotePostId removed', !(await columnExists('Post', 'quotePostId'))],
-    ['Post.imageAlt added', await columnExists('Post', 'imageAlt')],
-    ['User.notifyLikes added', await columnExists('User', 'notifyLikes')],
-    ['User.notifyReactions added', await columnExists('User', 'notifyReactions')],
-    ['User.notifyFollows added', await columnExists('User', 'notifyFollows')],
-    ['EmailVerificationToken.pendingEmail added', await columnExists('EmailVerificationToken', 'pendingEmail')],
+    ['Post.imageAlt present', await columnExists('Post', 'imageAlt')],
+    ['User.notifyLikes present', await columnExists('User', 'notifyLikes')],
+    ['User.notifyReactions present', await columnExists('User', 'notifyReactions')],
+    ['User.notifyFollows present', await columnExists('User', 'notifyFollows')],
+    ['EmailVerificationToken.pendingEmail present', await columnExists('EmailVerificationToken', 'pendingEmail')],
+    ['Sanction table added', await tableExists('Sanction')],
+    ['Sanction.type added', await columnExists('Sanction', 'type')],
+    ['Sanction.status added', await columnExists('Sanction', 'status')],
+    ['Sanction.reason added', await columnExists('Sanction', 'reason')],
+    ['Sanction.targetUserId added', await columnExists('Sanction', 'targetUserId')],
+    ['Sanction.actorUserId added', await columnExists('Sanction', 'actorUserId')],
+    ['Sanction.reportId added', await columnExists('Sanction', 'reportId')],
+    ['Sanction.endsAt added', await columnExists('Sanction', 'endsAt')],
+    ['Sanction.revokedAt added', await columnExists('Sanction', 'revokedAt')],
   ] as const;
 
   const failures = checks.filter(([, ok]) => !ok).map(([name]) => name);

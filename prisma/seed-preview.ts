@@ -10,6 +10,7 @@ const safety = validatePreviewSeedSafety({
   databaseUrl: process.env.DATABASE_URL,
   previewDatabaseUrl: process.env.PREVIEW_DATABASE_URL,
   testPassword: process.env.PREVIEW_TEST_PASSWORD,
+  e2eMode: process.env.E2E_BLOB_MODE,
 });
 
 if (!safety.ok) {
