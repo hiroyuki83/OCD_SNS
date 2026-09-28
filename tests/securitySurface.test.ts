@@ -13,7 +13,7 @@ function walk(dir: string): string[] {
     if (stat.isDirectory()) {
       files.push(...walk(full));
     } else {
-      files.push(full.replaceAll('\\\\', '/'));
+      files.push(full.split(path.sep).join('/'));
     }
   }
 
