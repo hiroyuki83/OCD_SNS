@@ -380,3 +380,42 @@ test('Production pre-execution self-check validates secret presence and Producti
   assert.doesNotMatch(source, /prisma migrate deploy/);
   assert.doesNotMatch(source, /INSERT\s+INTO|UPDATE\s+|DELETE\s+FROM|ALTER\s+|DROP\s+|CREATE\s+/i);
 });
+
+
+test('Production health endpoint exposes only release and DB health signals', () => {
+  const path = 'src/app/api/health/route.ts';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /VERCEL_GIT_COMMIT_SHA/);
+  assert.match(source, /prisma\.\$queryRaw`SELECT 1`/);
+  assert.match(source, /status: 'ok'/);
+  assert.match(source, /database: 'ok'/);
+  assert.match(source, /status: 'degraded'/);
+  assert.match(source, /database: 'unavailable'/);
+  assert.match(source, /Cache-Control/);
+  assert.doesNotMatch(source, /error\.message|stack|DATABASE_URL|POSTGRES_/);
+});
+
+test('Production post-deploy smoke binds observed runtime to the approved release SHA', () => {
+  const path = '.github/workflows/production-post-deploy-smoke.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /release_sha:/);
+  assert.match(source, /deploy_readiness_run_id:/);
+  assert.match(source, /production-deploy-readiness\.yml/);
+  assert.match(source, /https:\/\/x-clone-olive-chi\.vercel\.app/);
+  assert.match(source, /\/api\/health/);
+  assert.match(source, /releaseSha/);
+  assert.match(source, /\/api\/feed\?page=1/);
+  assert.match(source, /Verify health remains stable/);
+  assert.match(source, /read-only HTTP checks only/);
+  assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
+  assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
+});
