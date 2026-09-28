@@ -616,3 +616,79 @@ The preflight fails without writing anything if:
 - non-null quotePostId rows exist
 
 A failed preflight is a safe stop, not a reason to run migration manually.
+
+
+## Actual Production DB preflight result (2026-09-28)
+
+GitHub Actions `Production DB Read-only Preflight` run `36408876898`, attempt 3.
+
+Connection identity:
+
+- host: `ep-billowing-smoke-ah3grpmy-pooler.c-3.us-east-1.aws.neon.tech`
+- database: `neondb`
+- secret was consumed only by GitHub Actions
+- DB writes: **0**
+
+Migration state:
+
+- local/main migrations: **41**
+- Production `_prisma_migrations` rows: **28**
+- Production applied migrations: **27**
+- actual pending main migrations: **15**
+
+Pending:
+
+1. `20260926100000_add_moderation_warning`
+2. `20260926101500_add_warning_read_state`
+3. `20260926103000_add_restriction_until`
+4. `20260926104500_add_warning_appeal`
+5. `20260926111500_add_appeal_review`
+6. `20260926120000_add_session_version`
+7. `20260926123000_add_staff_totp`
+8. `20260926124500_add_staff_recovery_codes`
+9. `20260927002000_add_follow_approval`
+10. `20260928013000_remove_reply_and_quote_post`
+11. `20260928014500_add_post_image_alt`
+12. `20260928023000_add_notification_preferences`
+13. `20260928031500_add_email_change_pending`
+14. `20260928071000_add_sanction_records`
+15. `20260928110500_add_sanction_appeals`
+
+Migration history anomaly:
+
+- `20260124133259_init`
+  - state: ROLLED_BACK
+  - finishedAt: null
+  - rolledBackAt: 2026-07-06T01:31:12.807Z
+  - appliedStepsCount: 0
+- applied migration not present on current main:
+  - `20260926073000_add_moderation_actions_and_appeals`
+
+Production data counts:
+
+- User: **2**
+- Post: **3**
+- Follow: **1**
+- Reply: **0**
+- Post with non-null `quotePostId`: **0**
+
+Current schema signatures:
+
+- `User.staffTotpSecretEncrypted`: absent
+- `Reply` table: present
+- `Post.quotePostId`: present
+- `Sanction` table: absent
+- `Appeal` table: **present**
+
+Destructive Reply/Quote removal data gate:
+
+- **CLEAR**
+- no Reply or Quote rows would be deleted based on current counts
+
+Current blockers:
+
+1. historical rolled-back migration needs classification/reconciliation
+2. applied unknown migration `20260926073000_add_moderation_actions_and_appeals` needs schema reconciliation
+3. pre-existing `Appeal` table must be identified before `20260928110500_add_sanction_appeals`; blindly applying that migration would risk an object-name collision
+
+Do not run `prisma migrate deploy` against Production until these blockers are resolved and a clone/dry-run succeeds.
