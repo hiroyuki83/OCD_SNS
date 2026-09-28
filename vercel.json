@@ -3,7 +3,7 @@
   "git": {
     "deploymentEnabled": {
       "security-integration-final-20260926": false,
-      "feature/sanction-records-20260928": false,
+      "feature/sanction-records-20260928": true,
       "main": false
     }
   }
