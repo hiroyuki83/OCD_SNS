@@ -121,12 +121,134 @@ Before applying:
 
 If schema state and Prisma history disagree, stop and reconcile manually.
 
+
+## 3A. Production compatibility audit
+
+The currently deployed Production application was built from commit
+`1c57373d476a904942d4509354dfa3723d6192aa`, whose repository state contains
+28 Prisma migrations.
+
+Current `main` contains 41 migrations. If the actual Production migration
+history matches the deployed commit, the apparent delta is 13 migrations.
+The real delta must still be determined from Production `_prisma_migrations`.
+
+### Migration compatibility classification
+
+The apparent 13 migrations are classified as follows:
+
+1. `20260926103000_add_restriction_until` — additive nullable column
+2. `20260926104500_add_warning_appeal` — additive table / indexes / FKs
+3. `20260926111500_add_appeal_review` — additive enum / columns / indexes / FK
+4. `20260926120000_add_session_version` — additive column with default
+5. `20260926123000_add_staff_totp` — additive nullable columns
+6. `20260926124500_add_staff_recovery_codes` — additive table / indexes / FK
+7. `20260927002000_add_follow_approval` — additive column + existing-row backfill + indexes
+8. `20260928013000_remove_reply_and_quote_post` — **destructive / compatibility boundary**
+9. `20260928014500_add_post_image_alt` — additive nullable column
+10. `20260928023000_add_notification_preferences` — additive columns with defaults
+11. `20260928031500_add_email_change_pending` — additive nullable column
+12. `20260928071000_add_sanction_records` — additive enums / table / indexes / FKs
+13. `20260928110500_add_sanction_appeals` — additive enum / table / indexes / FKs
+
+Migration 8 drops:
+
+- `Reply`
+- `Post.quotePostId`
+- the quote-post foreign key
+
+The currently deployed Production Prisma Client still models Reply / Quote.
+Old Production code includes ordinary Prisma queries that return all Post scalar
+fields, so dropping `quotePostId` while that deployment is still serving traffic
+can produce a missing-column runtime failure.
+
+Conversely, current `main` expects columns/tables from later migrations and
+cannot safely be deployed against the current old schema before migrations.
+
+Therefore **do not run all pending migrations in one batch while the old
+Production deployment remains live.**
+
+## 3B. Staged Production release strategy
+
+A compatible historical bridge state exists at:
+
+`64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1`
+(`schema: remove reply and quote post models`)
+
+Properties of this bridge candidate:
+
+- migration files present: **35**
+- Prisma schema no longer contains `Reply`
+- Prisma schema no longer contains `Post.quotePostId`
+- requires the additive migrations through `20260927002000_add_follow_approval`
+- does **not** require imageAlt, notification-preference, pending-email, Sanction,
+  or Appeal migrations
+- a DB that still contains legacy Reply / Quote storage is compatible because
+  extra tables/columns are ignored by the newer Prisma Client
+- after the destructive Reply / Quote migration, the same bridge application
+  remains compatible
+
+The intended staged sequence, subject to actual Production migration history, is:
+
+### Stage A — additive DB preparation
+
+1. identify Production DB and read actual migration history
+2. create Production rollback point
+3. create a temporary Neon branch from the exact Production state
+4. validate only the migrations needed to reach migration count/state 35
+5. apply those additive migrations to Production
+6. verify old Production deployment still serves DB-backed reads
+
+Do **not** apply `20260928013000_remove_reply_and_quote_post` in Stage A.
+
+### Stage B — bridge application
+
+1. validate bridge source `64d5ad3f...` against a DB at Stage-A schema
+2. deploy the validated bridge application to Production
+3. smoke public + DB-backed reads
+4. scan runtime errors
+5. confirm the bridge no longer depends on Reply / Quote storage
+
+Only after the bridge is healthy may the destructive migration run.
+
+### Stage C — remaining DB migrations
+
+With the bridge application serving traffic:
+
+1. apply `20260928013000_remove_reply_and_quote_post`
+2. apply the remaining additive migrations through
+   `20260928110500_add_sanction_appeals`
+3. verify migration history and final schema
+4. confirm the bridge remains healthy
+
+### Stage D — current main application
+
+1. deploy the intended current `main` commit explicitly
+2. run post-deploy public and authenticated smoke
+3. scan Production runtime errors / 5xx
+4. record final deployment and migration state
+
+### Stop conditions
+
+Stop before each next stage if:
+
+- actual Production migration history differs from the assumed 28-migration baseline
+- Production DB identity is ambiguous
+- Stage-A migration dry run fails
+- bridge validation fails
+- bridge Production smoke fails
+- destructive migration dry run fails
+- runtime errors indicate schema mismatch
+- rollback path is not READY
+
+This staged strategy replaces a simple “migrate everything, then deploy” sequence.
+
+
 ## 4. Migration dry run
 
 Before applying to Production:
 
 1. Create a temporary branch from the exact Production state.
-2. Apply only the Production-pending Prisma migrations.
+2. Apply only the migrations for the current staged release boundary; never cross the destructive Reply / Quote boundary before the bridge application is deployed.
 3. Run schema verification.
 4. Confirm existing row counts for critical tables are unchanged unless migration intentionally changes them.
 5. Smoke insert/update/delete for new Sanction / Appeal schema if relevant.
@@ -143,7 +265,7 @@ Execution:
 1. Re-check Production identity.
 2. Re-check rollback point.
 3. Re-check Production migration history.
-4. Apply pending Prisma migrations only.
+4. Apply only the migrations authorized for the current stage; do not collapse Stage A and Stage C into one migration batch.
 5. Confirm `_prisma_migrations` records every applied migration as finished and not rolled back.
 6. Verify expected schema, indexes and foreign keys.
 
