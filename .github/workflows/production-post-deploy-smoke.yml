@@ -1,0 +1,156 @@
+name: Production Post-deploy Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact commit SHA expected to be serving Production
+        required: true
+        type: string
+      deploy_readiness_run_id:
+        description: Successful Production Deploy Readiness run ID for this release SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: coco-production-post-deploy-smoke
+  cancel-in-progress: true
+
+jobs:
+  production-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      DEPLOY_READINESS_RUN_ID: ${{ inputs.deploy_readiness_run_id }}
+      PRODUCTION_BASE_URL: https://x-clone-olive-chi.vercel.app
+
+    steps:
+      - name: Verify deploy-readiness attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          [[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "release_sha must be a full 40-character Git SHA."
+            exit 1
+          }
+
+          [[ "${DEPLOY_READINESS_RUN_ID}" =~ ^[0-9]+$ ]] || {
+            echo "deploy_readiness_run_id must be numeric."
+            exit 1
+          }
+
+          j="$(gh api "repos/${REPOSITORY}/actions/runs/${DEPLOY_READINESS_RUN_ID}")"
+
+          [ "$(jq -r '.conclusion // ""' <<<"${j}")" = "success" ] || {
+            echo "Production Deploy Readiness run did not succeed."
+            exit 1
+          }
+
+          [ "$(jq -r '.head_sha // ""' <<<"${j}")" = "${RELEASE_SHA}" ] || {
+            echo "Deploy-readiness run SHA does not match release_sha."
+            exit 1
+          }
+
+          [ "$(jq -r '.path // ""' <<<"${j}")" = ".github/workflows/production-deploy-readiness.yml" ] || {
+            echo "Referenced run is not Production Deploy Readiness."
+            exit 1
+          }
+
+      - name: Verify Production health and deployed release SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          health_file="$(mktemp)"
+          status="$(curl --silent --show-error --output "${health_file}" --write-out '%{http_code}'             "${PRODUCTION_BASE_URL}/api/health")"
+
+          [ "${status}" = "200" ] || {
+            echo "Production health returned HTTP ${status}."
+            cat "${health_file}"
+            exit 1
+          }
+
+          [ "$(jq -r '.status // ""' "${health_file}")" = "ok" ] || {
+            echo "Production health status is not ok."
+            cat "${health_file}"
+            exit 1
+          }
+
+          [ "$(jq -r '.database // ""' "${health_file}")" = "ok" ] || {
+            echo "Production database health is not ok."
+            cat "${health_file}"
+            exit 1
+          }
+
+          actual_sha="$(jq -r '.releaseSha // ""' "${health_file}")"
+          [ "${actual_sha}" = "${RELEASE_SHA}" ] || {
+            echo "Production release SHA mismatch."
+            echo "expected=${RELEASE_SHA}"
+            echo "actual=${actual_sha}"
+            exit 1
+          }
+
+      - name: Smoke Production public routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in / /login /explore /safety; do
+            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}'               "${PRODUCTION_BASE_URL}${path}")"
+            [ "${status}" = "200" ] || {
+              echo "${path} returned HTTP ${status}."
+              exit 1
+            }
+          done
+
+      - name: Smoke Production DB-backed feed
+        shell: bash
+        run: |
+          set -euo pipefail
+          feed_file="$(mktemp)"
+          status="$(curl --silent --show-error --output "${feed_file}" --write-out '%{http_code}'             "${PRODUCTION_BASE_URL}/api/feed?page=1")"
+
+          [ "${status}" = "200" ] || {
+            echo "Production feed returned HTTP ${status}."
+            cat "${feed_file}"
+            exit 1
+          }
+
+          node -e "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'))" "${feed_file}"
+
+      - name: Verify health remains stable
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            health="$(curl --fail --silent --show-error "${PRODUCTION_BASE_URL}/api/health")"
+            [ "$(jq -r '.status // ""' <<<"${health}")" = "ok" ] || exit 1
+            [ "$(jq -r '.database // ""' <<<"${health}")" = "ok" ] || exit 1
+            [ "$(jq -r '.releaseSha // ""' <<<"${health}")" = "${RELEASE_SHA}" ] || exit 1
+            if [ "${attempt}" -lt 3 ]; then sleep 5; fi
+          done
+
+      - name: Emit post-deploy smoke summary
+        shell: bash
+        run: |
+          {
+            echo "## Production post-deploy smoke: PASS"
+            echo
+            echo "- Production URL: \`${PRODUCTION_BASE_URL}\`"
+            echo "- release SHA: \`${RELEASE_SHA}\`"
+            echo "- health: ok"
+            echo "- database: ok"
+            echo "- public routes: ok"
+            echo "- DB-backed feed: ok"
+            echo "- repeated health stability: ok"
+            echo
+            echo "This workflow performs read-only HTTP checks only."
+          } >> "${GITHUB_STEP_SUMMARY}"
