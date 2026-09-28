@@ -16,7 +16,8 @@
     "test:e2e": "npm --prefix e2e test",
     "preview:db:preflight": "tsx scripts/preview-db-preflight.ts",
     "preview:db:migrate": "tsx scripts/migrate-preview.ts",
-    "preview:db:verify": "tsx scripts/preview-db-verify.ts"
+    "preview:db:verify": "tsx scripts/preview-db-verify.ts",
+    "production:db:preflight": "tsx scripts/production-db-preflight.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
