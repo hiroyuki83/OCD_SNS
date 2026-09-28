@@ -137,7 +137,7 @@ mainへmergeする前に以下を確認する。
 - 最新commitのVercel Preview deploymentがREADY
 - Preview DB migration / seedが成功
 - HTTP smoke testが成功
-- Preview test usersによる主要機能確認が成功
+- Preview test usersによる主要機能確認が成功、または同等のisolated authenticated E2E + shared Preview schema/runtime受入で代替根拠が記録済み
 - runtime logに重大な未解決エラーがない
 - GitHub CI / Playwright E2Eが成功
 - main mergeによるProduction自動deployが無効である
@@ -200,3 +200,19 @@ Production releaseはmain mergeとは別工程。
 認証付きAppealフローはisolated E2E **16 / 16 PASS** で検証済み。
 shared Previewの追加seedは認証hashの直接操作が安全チェックで停止したため未実行。
 既存5 seed usersは変更していない。
+
+
+### 認証付きshared Preview受入の代替根拠
+
+今回のSanction Appealでは以下を組み合わせて受入とする。
+
+- isolated authenticated Playwright: **16 / 16 PASS**
+- SUSPENSION Appeal: PASS
+- POST_RESTRICTION Appeal: PASS
+- shared Preview DB: **41 migrations / Appeal schema verified**
+- Vercel Preview public smoke: **6 / 6 PASS**
+- `/appeal`: 200 / UI present
+- runtime error/fatal: **0**
+
+GitHub側Preview secretが未設定のため、shared Preview DBへ直接seedする一時workflowは実行前に停止し、削除済み。
+既存seed users・認証hash・Sanction/Appealデータは変更していない。
