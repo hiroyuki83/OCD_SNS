@@ -1,7 +1,7 @@
 # CoCo Preview デプロイ・チェックリスト
 
 最終更新: 2026-09-28
-対象ブランチ: feature/sanction-appeals-20260928
+対象基準ブランチ: main（Sanction / Appeal release系列は統合済み）
 
 ## デプロイ前
 
@@ -229,3 +229,7 @@ GitHub側Preview secretが未設定のため、shared Preview DBへ直接seedす
 - main Playwright: **16 / 16 PASS**
 - Production auto-deploy: disabled
 - Production DB / deployment: untouched / HOLD
+
+
+Production releaseの実行手順は `PRODUCTION_RELEASE_RUNBOOK.md` を正本とする。
+Preview用のbranch guard / seed / migration手順をProductionへ流用しない。
