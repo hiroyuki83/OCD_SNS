@@ -137,3 +137,40 @@ test('production DB preflight is read-only and never invokes Prisma migrate', as
   assert.match(source, /_prisma_migrations/);
   assert.match(source, /resolve\(process\.cwd\(\), 'prisma', 'migrations'\)/);
 });
+
+
+test('production preflight reports destructive-migration row counts', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+
+  const source = readFileSync(
+    resolve(process.cwd(), 'scripts/production-db-preflight.ts'),
+    'utf8',
+  );
+
+  assert.match(source, /replyRows/);
+  assert.match(source, /quotedPosts/);
+  assert.match(source, /followRows/);
+  assert.match(source, /userRows/);
+  assert.match(source, /postRows/);
+});
+
+test('manual Production preflight workflow exists and uses only the Production DB secret', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+
+  const workflowPath = resolve(
+    process.cwd(),
+    '.github/workflows/production-db-preflight.yml',
+  );
+  assert.equal(existsSync(workflowPath), true);
+  if (!existsSync(workflowPath)) return;
+
+  const source = readFileSync(workflowPath, 'utf8');
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /secrets\.PRODUCTION_DATABASE_URL/);
+  assert.match(source, /ep-billowing-smoke-ah3grpmy-pooler\.c-3\.us-east-1\.aws\.neon\.tech/);
+  assert.match(source, /PRODUCTION_DATABASE_NAME: neondb/);
+  assert.match(source, /npm run production:db:preflight/);
+  assert.doesNotMatch(source, /prisma migrate deploy/);
+});
