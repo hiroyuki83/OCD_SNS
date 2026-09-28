@@ -106,3 +106,34 @@ test('accepts an explicitly identified production database', async () => {
     assert.equal(result.databaseName, 'appdb');
   }
 });
+
+
+test('production DB preflight script is wired into package scripts', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+
+  const packageJson = JSON.parse(
+    readFileSync(resolve(process.cwd(), 'package.json'), 'utf8'),
+  );
+  assert.equal(
+    packageJson.scripts?.['production:db:preflight'],
+    'tsx scripts/production-db-preflight.ts',
+  );
+  assert.equal(
+    existsSync(resolve(process.cwd(), 'scripts/production-db-preflight.ts')),
+    true,
+  );
+});
+
+test('production DB preflight is read-only and never invokes Prisma migrate', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+
+  const path = resolve(process.cwd(), 'scripts/production-db-preflight.ts');
+  if (!existsSync(path)) return;
+  const source = readFileSync(path, 'utf8');
+
+  assert.doesNotMatch(source, /prisma\s+migrate|migrate\s+deploy|spawnSync|execSync/);
+  assert.match(source, /_prisma_migrations/);
+  assert.match(source, /prisma\/migrations/);
+});
