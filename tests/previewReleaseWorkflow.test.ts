@@ -46,3 +46,10 @@ test('guarded migration runner always performs preflight and post-migration veri
   assert.ok(deploy > preflight, 'migration deploy must happen after preflight');
   assert.ok(verify > deploy, 'schema verification must happen after migration deploy');
 });
+
+
+test('Preview migration runner refuses to apply deferred migrations', () => {
+  const source = readFileSync('scripts/migrate-preview.ts', 'utf8');
+  assert.match(source, /PREVIEW_DEFERRED_MIGRATIONS\.length > 0/);
+  assert.match(source, /Preview migration is blocked because deferred migrations are present/);
+});
