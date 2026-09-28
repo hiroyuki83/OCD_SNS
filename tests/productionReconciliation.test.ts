@@ -432,3 +432,69 @@ test('Production deploy readiness accepts same-SHA manual CI for docs-only main 
   assert.match(source, /head_sha/);
   assert.match(source, /RELEASE_SHA/);
 });
+
+
+test('Production Vercel candidate verification binds a READY Preview deployment to the exact main SHA', () => {
+  const path = '.github/workflows/production-vercel-candidate-verify.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /release_sha:/);
+  assert.match(source, /deployment_id:/);
+  assert.match(source, /secrets\.VERCEL_TOKEN/);
+  assert.match(source, /team_P1Z1wvYF1h42LIl0YfgXoOPI/);
+  assert.match(source, /prj_AcjmJFO5jcqse6sStknZzZkmfR7h/);
+  assert.match(source, /api\.vercel\.com\/v7\/deployments/);
+  assert.match(source, /sha=\$\{RELEASE_SHA\}/);
+  assert.match(source, /state=READY/);
+  assert.match(source, /Candidate is already a Production-target deployment/);
+  assert.match(source, /api\.vercel\.com\/v13\/deployments/);
+  assert.match(source, /read-only and does not promote or deploy anything/);
+  assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
+});
+
+test('Production Vercel promotion is manual and requires both candidate and deploy readiness attestations', () => {
+  const path = '.github/workflows/production-vercel-promote.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /PROMOTE_COCO_PRODUCTION/);
+  assert.match(source, /candidate_verification_run_id:/);
+  assert.match(source, /deploy_readiness_run_id:/);
+  assert.match(source, /production-vercel-candidate-verify\.yml/);
+  assert.match(source, /production-deploy-readiness\.yml/);
+  assert.match(source, /Production candidate verify \$\{DEPLOYMENT_ID\}/);
+  assert.match(source, /api\.vercel\.com\/v10\/projects\/\$\{PROJECT_ID\}\/promote\/\$\{DEPLOYMENT_ID\}/);
+  assert.match(source, /201\|202/);
+  assert.match(source, /Run Production Post-deploy Smoke immediately/);
+  assert.doesNotMatch(source, /prisma migrate deploy/);
+  assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
+});
+
+test('Production deploy readiness also requires a verified Vercel promotion candidate', () => {
+  const path = '.github/workflows/production-deploy-readiness.yml';
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /candidate_verification_run_id:/);
+  assert.match(source, /CANDIDATE_VERIFICATION_RUN_ID/);
+  assert.match(source, /production-vercel-candidate-verify\.yml/);
+  assert.match(source, /Vercel promotion candidate: verified/);
+});
+
+test('Production post-deploy smoke is bound to the exact successful promotion run', () => {
+  const path = '.github/workflows/production-post-deploy-smoke.yml';
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /deployment_id:/);
+  assert.match(source, /promotion_run_id:/);
+  assert.match(source, /PROMOTION_RUN_ID/);
+  assert.match(source, /production-vercel-promote\.yml/);
+  assert.match(source, /Production promote \$\{DEPLOYMENT_ID\}/);
+  assert.match(source, /promoted deployment ID/);
+});
