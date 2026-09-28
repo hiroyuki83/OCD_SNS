@@ -1120,3 +1120,22 @@ host / DB名を推測してmigrationを実行してはならない。
 
 NEXT-039は **IN PROGRESS**。
 NEXT-040（Production migration / deploy）は **HOLD**。
+
+
+### NEXT-039 Production migration risk audit
+
+`docs/PRODUCTION_MIGRATION_AUDIT_2026-09-28.md` を追加。
+
+- 13 candidate migrations: reviewed
+- destructive data-loss migration: **1**
+  - `20260928013000_remove_reply_and_quote_post`
+- existing-row rewrite / potential write-blocking migration: **1**
+  - `20260927002000_add_follow_approval`
+- remaining additive migrations: **11**
+- required pre-migration row counts: defined
+- Production dry-run acceptance criteria: defined
+- stop conditions: defined
+
+特にReply rowsまたはnon-null quotePostIdが存在する場合は、自動migrationを停止してデータ処理方針を先に決める。
+
+Production identity / actual migration historyは引き続き未取得。
