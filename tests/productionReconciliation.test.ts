@@ -518,3 +518,52 @@ test('approved bridge remains compatible with the post-Stage-C Production schema
   assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL/);
   assert.doesNotMatch(source, /vercel promote|vercel rollback|deploy_to_vercel/i);
 });
+
+
+test('Production Vercel rollback candidate is pinned to the approved bridge commit', () => {
+  const path = '.github/workflows/production-vercel-rollback-candidate.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+  assert.match(source, /64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1/);
+  assert.match(source, /state=READY/);
+  assert.match(source, /Production rollback candidate verification: PASS/);
+  assert.match(source, /read-only and does not change Production traffic/);
+  assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
+});
+
+test('Production Vercel rollback requires approved bridge compatibility and exact candidate attestations', () => {
+  const path = '.github/workflows/production-vercel-rollback.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+  assert.match(source, /ROLLBACK_COCO_TO_BRIDGE/);
+  assert.match(source, /promotion_run_id:/);
+  assert.match(source, /rollback_candidate_run_id:/);
+  assert.match(source, /bridge_rollback_validation_run_id:/);
+  assert.match(source, /production-vercel-promote\.yml/);
+  assert.match(source, /production-vercel-rollback-candidate\.yml/);
+  assert.match(source, /production-bridge-rollback-validation\.yml/);
+  assert.match(source, /64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1/);
+  assert.match(source, /api\.vercel\.com\/v1\/projects\/\$\{PROJECT_ID\}\/rollback\/\$\{ROLLBACK_DEPLOYMENT_ID\}/);
+  assert.match(source, /The database is not rolled back by this workflow/);
+  assert.doesNotMatch(source, /prisma migrate deploy/);
+  assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
+});
+
+test('Production bridge rollback smoke verifies alias and runtime without requiring current health endpoint', () => {
+  const path = '.github/workflows/production-bridge-rollback-smoke.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+  assert.match(source, /production-vercel-rollback\.yml/);
+  assert.match(source, /x-clone-olive-chi\.vercel\.app/);
+  assert.match(source, /v2\/deployments\/\$\{ROLLBACK_DEPLOYMENT_ID\}\/aliases/);
+  assert.match(source, /api\/feed\?limit=1/);
+  assert.match(source, /Repeat bridge smoke/);
+  assert.doesNotMatch(source, /\/api\/health/);
+  assert.doesNotMatch(source, /prisma migrate deploy/);
+});
