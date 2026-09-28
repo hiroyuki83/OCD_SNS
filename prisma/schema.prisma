@@ -546,6 +546,7 @@ model Sanction {
   targetUser User    @relation("SanctionTarget", fields: [targetUserId], references: [id])
   actorUser  User    @relation("SanctionActor", fields: [actorUserId], references: [id])
   report     Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  appeal     Appeal?
 
   @@index([targetUserId, createdAt])
   @@index([targetUserId, status, endsAt])
