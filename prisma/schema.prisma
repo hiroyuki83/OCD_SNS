@@ -169,6 +169,12 @@ enum SanctionStatus {
   REVOKED
 }
 
+enum AppealStatus {
+  PENDING
+  UPHELD
+  OVERTURNED
+}
+
 enum ReportReason {
   HARASSMENT
   SPAM
