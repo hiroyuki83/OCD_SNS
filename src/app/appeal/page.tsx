@@ -139,13 +139,14 @@ export default function SanctionAppealPage() {
           <textarea
             id="appeal-message"
             name="message"
-            required
-            minLength={10}
             maxLength={1000}
             rows={6}
             placeholder="処分が適切でないと考える理由や、再確認してほしい事情を入力してください"
             className="mt-2 w-full resize-y rounded-md border border-border px-3 py-2 text-sm"
           />
+          <p className="mt-1 text-xs text-zinc-500">
+            新規申立ては10文字以上。すでに申立て済みで状況確認だけする場合は空欄でも構いません。
+          </p>
           {state?.errors?.message && (
             <p className="mt-1 text-xs text-red-700">{state.errors.message.join(' ')}</p>
           )}
