@@ -275,6 +275,8 @@ Do not run Preview seed against Production.
 
 ## 6. Production deployment
 
+Production環境変数監査は `PRODUCTION_ENV_AUDIT_2026-09-28.md` を正本とする。
+
 Requires explicit user approval after DB migration succeeds.
 
 Preconditions:
@@ -481,3 +483,20 @@ Production identity取得後、以下のどれかに該当したらmigration実�
 - pre-release rollback pointがREADYでない
 
 上記が全て解消されるまでProduction migrationはHOLD。
+
+
+## Production build coupling note
+
+Current main automatically runs `prisma migrate deploy` inside `scripts/vercel-build.mjs` when `VERCEL_ENV=production`.
+
+Therefore a Production deployment is also a potential migration trigger.
+
+Until this behavior is intentionally changed or all migration gates are complete:
+
+- do not start a Production deployment
+- finish Production DB identity/preflight first
+- finish rollback point + migration dry run first
+- verify `STAFF_MFA_ENCRYPTION_KEY` is configured
+- treat Production deploy approval as migration-capable approval
+
+This coupling is a release-safety concern, not a reason to bypass migration validation.
