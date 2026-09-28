@@ -82,7 +82,7 @@ test('dry run restores current migrations before asserting the legacy Production
 });
 
 
-test('Production reconciliation apply workflow is manual and heavily gated', () => {
+test('legacy monolithic Production reconciliation apply path is deprecated and blocked', () => {
   const path = '.github/workflows/production-reconciliation-apply.yml';
   assert.equal(existsSync(path), true);
   if (!existsSync(path)) return;
@@ -90,42 +90,11 @@ test('Production reconciliation apply workflow is manual and heavily gated', () 
   const source = readFileSync(path, 'utf8');
 
   assert.match(source, /workflow_dispatch/);
-  assert.doesNotMatch(source, /^\s*push:/m);
-  assert.doesNotMatch(source, /^\s*pull_request:/m);
-
-  assert.match(source, /confirmation:/);
-  assert.match(source, /rollback_point:/);
-  assert.match(source, /release_sha:/);
-  assert.match(source, /expected_unpooled_host:/);
-  assert.match(source, /preflight_run_id:/);
-  assert.match(source, /dry_run_run_id:/);
-  assert.match(source, /bridge_confirmation:/);
-  assert.match(source, /bridge_commit_sha:/);
-  assert.match(source, /BRIDGE_PRODUCTION_VERIFIED/);
-  assert.match(source, /64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1/);
-  assert.match(source, /APPLY_COCO_PRODUCTION_RECONCILIATION/);
-
-  assert.match(source, /secrets\.PRODUCTION_DATABASE_URL_UNPOOLED/);
-  assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL[^_]/);
-
-  assert.match(source, /actions: read/);
-  assert.match(source, /Verify successful read-only preflight attestation/);
-  assert.match(source, /repos\/\$\{REPOSITORY\}\/actions\/runs\/\$\{PREFLIGHT_RUN_ID\}/);
-  assert.match(source, /\.github\/workflows\/production-db-preflight\.yml/);
-  assert.match(source, /Verify successful reconciliation dry-run attestation/);
-  assert.match(source, /\.github\/workflows\/production-reconciliation-dry-run\.yml/);
-  assert.match(source, /DRY_RUN_RUN_ID/);
-  assert.match(source, /head_sha/);
-  assert.match(source, /workflow_dispatch/);
-
-  assert.match(source, /production:reconciliation:precheck/);
-  assert.match(source, /production-legacy-moderation-reconcile\.sql/);
-  assert.match(
-    source,
-    /prisma migrate resolve --applied 20260926103000_add_restriction_until/,
-  );
-  assert.match(source, /prisma migrate deploy/);
-  assert.match(source, /production:db:preflight/);
+  assert.match(source, /deprecated and intentionally blocked/);
+  assert.match(source, /Production Stage A Apply/);
+  assert.match(source, /Production Stage C Apply/);
+  assert.doesNotMatch(source, /prisma migrate deploy/);
+  assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL_UNPOOLED/);
   assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
 });
 
@@ -204,12 +173,54 @@ test('Production bridge validation proves the approved bridge against a Stage A 
   assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
 });
 
-test('destructive Production reconciliation requires bridge validation attestation', () => {
-  const path = '.github/workflows/production-reconciliation-apply.yml';
-  const source = readFileSync(path, 'utf8');
+test('Production Stage C precheck is read-only and requires the Stage A boundary', () => {
+  const path = 'scripts/production-stage-c-precheck.ts';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
 
-  assert.match(source, /bridge_validation_run_id:/);
-  assert.match(source, /BRIDGE_VALIDATION_RUN_ID/);
-  assert.match(source, /Verify successful bridge validation attestation/);
-  assert.match(source, /production-bridge-validation\.yml/);
+  const source = readFileSync(path, 'utf8');
+  assert.match(source, /20260927002000_add_follow_approval/);
+  assert.match(source, /20260928013000_remove_reply_and_quote_post/);
+  assert.match(source, /Reply contains/);
+  assert.match(source, /Quote data contains/);
+  assert.match(source, /legacy ModerationAction must be absent after Stage A/);
+  assert.match(source, /Appeal must be absent before Sanction Appeal migration/);
+  assert.doesNotMatch(source, /INSERT\s+INTO/i);
+  assert.doesNotMatch(source, /UPDATE\s+/i);
+  assert.doesNotMatch(source, /DELETE\s+FROM/i);
+  assert.doesNotMatch(source, /DROP\s+/i);
+  assert.doesNotMatch(source, /ALTER\s+/i);
+  assert.doesNotMatch(source, /CREATE\s+/i);
+});
+
+test('Production Stage C is independently dry-run and heavily gated', () => {
+  const dryRunPath = '.github/workflows/production-stage-c-dry-run.yml';
+  const applyPath = '.github/workflows/production-stage-c-apply.yml';
+  assert.equal(existsSync(dryRunPath), true);
+  assert.equal(existsSync(applyPath), true);
+  if (!existsSync(dryRunPath) || !existsSync(applyPath)) return;
+
+  const dryRun = readFileSync(dryRunPath, 'utf8');
+  const apply = readFileSync(applyPath, 'utf8');
+
+  assert.match(dryRun, /Verify Stage C preconditions/);
+  assert.match(dryRun, /Apply Stage C migrations/);
+  assert.match(dryRun, /Verify final current schema/);
+
+  assert.match(apply, /workflow_dispatch/);
+  assert.match(apply, /APPLY_COCO_PRODUCTION_STAGE_C/);
+  assert.match(apply, /stage_a_apply_run_id:/);
+  assert.match(apply, /stage_c_dry_run_id:/);
+  assert.match(apply, /bridge_validation_run_id:/);
+  assert.match(apply, /BRIDGE_PRODUCTION_VERIFIED/);
+  assert.match(apply, /64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1/);
+  assert.match(apply, /production-stage-a-apply\.yml/);
+  assert.match(apply, /production-stage-c-dry-run\.yml/);
+  assert.match(apply, /production-bridge-validation\.yml/);
+  assert.match(apply, /production:db:preflight/);
+  assert.match(apply, /production-stage-c-precheck\.ts/);
+  assert.match(apply, /prisma migrate deploy/);
+  assert.doesNotMatch(apply, /production-legacy-moderation-reconcile\.sql/);
+  assert.doesNotMatch(apply, /prisma migrate resolve --applied 20260926103000_add_restriction_until/);
+  assert.doesNotMatch(apply, /vercel deploy|deploy_to_vercel/i);
 });
