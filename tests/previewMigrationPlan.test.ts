@@ -3,6 +3,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
+  PREVIEW_DEFERRED_MIGRATIONS,
   PREVIEW_EXPECTED_MIGRATIONS,
   PREVIEW_HISTORICAL_MIGRATIONS,
   PREVIEW_PENDING_MIGRATIONS,
@@ -18,14 +19,30 @@ test('Preview migration plan exactly matches repository migrations', () => {
   assert.deepEqual([...PREVIEW_EXPECTED_MIGRATIONS].sort(), repositoryMigrations);
 });
 
-test('Preview historical and pending migration sets do not overlap', () => {
+test('Preview historical, pending and deferred migration sets do not overlap', () => {
   const historical = new Set<string>(PREVIEW_HISTORICAL_MIGRATIONS);
-  const duplicates = PREVIEW_PENDING_MIGRATIONS.filter((name) => historical.has(name));
-  assert.deepEqual(duplicates, []);
+  const pending = new Set<string>(PREVIEW_PENDING_MIGRATIONS);
+  assert.deepEqual(
+    PREVIEW_PENDING_MIGRATIONS.filter((name) => historical.has(name)),
+    [],
+  );
+  assert.deepEqual(
+    PREVIEW_DEFERRED_MIGRATIONS.filter(
+      (name) => historical.has(name) || pending.has(name),
+    ),
+    [],
+  );
 });
 
 test('Preview pending migration order is the release order', () => {
   assert.deepEqual(PREVIEW_PENDING_MIGRATIONS, [
     '20260928071000_add_sanction_records',
+  ]);
+});
+
+
+test('sanction appeal migration stays deferred until sanction Preview acceptance', () => {
+  assert.deepEqual(PREVIEW_DEFERRED_MIGRATIONS, [
+    '20260928110500_add_sanction_appeals',
   ]);
 });
