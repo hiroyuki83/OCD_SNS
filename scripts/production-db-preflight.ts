@@ -55,8 +55,9 @@ const columnExists = async (table: string, column: string) => {
   return Boolean(result.rows[0]?.present);
 };
 
-try {
-  await client.connect();
+async function main() {
+  try {
+    await client.connect();
 
   const database = await client.query('SELECT current_database() AS name');
   if (database.rows[0]?.name !== safety.databaseName) {
@@ -216,6 +217,12 @@ try {
       'Production contains Reply or Quote data. Automatic reply/quote removal migration is blocked pending an explicit data-handling decision.',
     );
   }
-} finally {
-  await client.end().catch(() => undefined);
+  } finally {
+    await client.end().catch(() => undefined);
+  }
 }
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
