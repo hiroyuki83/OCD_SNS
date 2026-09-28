@@ -9,18 +9,63 @@
 現在の状態:
 
 - main: Sanction + Sanction Appeal 統合済み
-- main merge commit: `fc935925c4bb0e11630063eb83839f69ee68bc2b`
+- main: Production preflight safetyまで統合済み
+- latest Production-safety merge commit: `0b39d89c5957df7d66fb4c2cc83aea909d82cc3e`
 - shared Preview DB: 41 migrations
 - Preview Sanction / Appeal schema: verified
 - Preview HTTP smoke: 6 / 6 PASS
 - Preview runtime error/fatal: 0
-- main Security CI: 173 / 173 PASS
+- main Security CI: 182 / 182 PASS
 - main Playwright: 16 / 16 PASS
 - Vercel `main` auto-deploy: disabled
 - Production DB migration: not started
-- Production deployment: not started
+- new Production deployment: not started
 
 Production release remains **HOLD** until explicit approval.
+
+## 0. Observed current Production state
+
+Read-only investigation on 2026-09-28 identified the currently aliased Vercel Production deployment.
+
+- deployment ID: `dpl_8U7SN8AU6fonvRq7fYsALJGwAzCb`
+- target: `production`
+- Git ref: `main`
+- deployed commit: `1c57373d476a904942d4509354dfa3723d6192aa`
+- deployment created: **2026-09-26 18:58 JST**
+- aliases:
+  - `x-clone-olive-chi.vercel.app`
+  - `coco-hiroyuki-desperado-yahoocojps-projects.vercel.app`
+  - `coco-git-main-hiroyuki-desperado-yahoocojps-projects.vercel.app`
+- current `main` is **1215 commits ahead** of the deployed Production commit
+- migration directories at deployed commit: **28**
+- migration directories on current main: **41**
+- potential maximum migration delta if Production DB matches deployed code history: **13**
+- actual Production `_prisma_migrations` remains **unread / unknown**
+
+Read-only smoke against the current Production alias:
+
+- `/`: 200
+- `/login`: 200
+- `/explore`: 200
+- `/safety`: 200
+- `/api/feed?page=1`: 200 / DB-backed response
+- `/api/search-posts?q=test`: 200 / DB-backed response
+
+Runtime scan immediately after smoke:
+
+- application 5xx observed: **0**
+- DB/schema exception observed: **0**
+- warning: pg connection-string SSL mode compatibility warning
+- Production app can currently serve DB-backed reads
+
+Configuration-history note:
+
+- a pre-existing Vercel `DATABASE_URL` scoped to **All Environments** existed before the dedicated Preview DB was created
+- Preview was later separated through `PREVIEW_DATABASE_URL`
+- the actual target of the pre-existing `DATABASE_URL` has **not been verified**
+- therefore it must not be assumed to be either the shared Preview DB or any particular Neon project
+
+The connected Vercel tool currently does not expose Production environment-variable values, and its project-detail endpoint is currently unusable because of an argument-schema mismatch. Production DB identity therefore remains unresolved.
 
 ## 1. Production identity gate
 
@@ -192,7 +237,7 @@ A Production release is complete only when all are recorded:
 
 ## Current gate
 
-**NEXT-039: plan ready / Production identity + backup + migration dry run not started.**
+**NEXT-039: IN PROGRESS — runbook + guarded read-only preflight merged; current Production deployment identified; Production DB identity unresolved; backup + migration dry run not started.**
 
 **NEXT-040: HOLD.**
 
