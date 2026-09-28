@@ -46,12 +46,13 @@ const ENFORCEMENT_ACTIONS = new Set([
   'POST_HIDE',
   'POST_RESTORE',
   'WARNING_APPEAL_REVIEWED',
+  'SANCTION_APPEAL_REVIEWED',
 ]);
 
 function metaSummary(meta: unknown) {
   if (!meta || typeof meta !== 'object' || Array.isArray(meta)) return null;
   const record = meta as Record<string, unknown>;
-  const preferredKeys = ['reason', 'note', 'resolutionNote', 'duration', 'postId', 'reportId'];
+  const preferredKeys = ['reason', 'note', 'resolutionNote', 'outcome', 'duration', 'postId', 'reportId'];
   const pairs = preferredKeys
     .filter((key) => record[key] !== undefined && record[key] !== null)
     .map((key) => `${key}: ${String(record[key])}`);
