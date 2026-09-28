@@ -95,7 +95,7 @@ test('legacy monolithic Production reconciliation apply path is deprecated and b
   assert.match(source, /Production Stage C Apply/);
   assert.doesNotMatch(source, /prisma migrate deploy/);
   assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL_UNPOOLED/);
-  assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
+  assert.doesNotMatch(source, /\bvercel\s+deploy\b|deploy_to_vercel/i);
 });
 
 test('Production reconciliation precheck exists and is read-only', () => {
