@@ -1139,3 +1139,29 @@ NEXT-040（Production migration / deploy）は **HOLD**。
 特にReply rowsまたはnon-null quotePostIdが存在する場合は、自動migrationを停止してデータ処理方針を先に決める。
 
 Production identity / actual migration historyは引き続き未取得。
+
+
+### NEXT-039 Production environment audit
+
+`docs/PRODUCTION_ENV_AUDIT_2026-09-28.md` を追加。
+
+- Production build-required env names: audited
+- newly required env: `STAFF_MFA_ENCRYPTION_KEY`
+- email operational env: audited
+- blob operational env: audited
+- Preview/E2E-only env: separated
+- SSL normalization behavior: audited
+- Production build currently runs `prisma migrate deploy`: confirmed
+
+重要:
+現mainではProduction deployment自体がmigration triggerになり得る。
+したがってProduction DB identity / rollback / dry-run完了前にProduction deployを開始しない。
+
+NEXT-039 remaining gates:
+
+1. exact Production DB host / database name
+2. actual Production `_prisma_migrations`
+3. Production env presence check, especially `STAFF_MFA_ENCRYPTION_KEY`
+4. migration-on-build behaviorを現運用のまま許容するか、安全に分離するか確定
+
+NEXT-040 remains HOLD.
