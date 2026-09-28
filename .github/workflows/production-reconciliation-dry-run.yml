@@ -1,0 +1,134 @@
+name: Production Reconciliation Dry Run
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'scripts/production-legacy-moderation-reconcile.sql'
+      - 'tests/fixtures/production-legacy-moderation/**'
+      - 'tests/productionReconciliation.test.ts'
+      - '.github/workflows/production-reconciliation-dry-run.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-production-reconciliation-dry-run-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  reconcile-dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coco_reconcile
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d coco_reconcile"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/coco_reconcile
+      PRODUCTION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/coco_reconcile
+      PRODUCTION_DATABASE_HOST: 127.0.0.1
+      PRODUCTION_DATABASE_NAME: coco_reconcile
+      PRODUCTION_MIGRATION_CONFIRM: CHECK_COCO_PRODUCTION
+      VERCEL_ENV: production
+      VERCEL_GIT_COMMIT_REF: main
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Stage historical Production migration set
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/coco-later-migrations
+          for dir in prisma/migrations/[0-9]*; do
+            name="$(basename "$dir")"
+            if [[ "$name" > "20260926060000_add_public_handle" ]]; then
+              mv "$dir" /tmp/coco-later-migrations/
+            fi
+          done
+          mkdir -p prisma/migrations/20260926073000_add_moderation_actions_and_appeals
+          cp tests/fixtures/production-legacy-moderation/migration.sql             prisma/migrations/20260926073000_add_moderation_actions_and_appeals/migration.sql
+
+      - name: Build legacy Production schema
+        run: npx prisma migrate deploy
+
+      - name: Confirm legacy state is blocked by read-only preflight
+        shell: bash
+        run: |
+          set +e
+          npm run production:db:preflight
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "Legacy fixture unexpectedly passed Production preflight."
+            exit 1
+          fi
+
+      - name: Restore current migration set
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf prisma/migrations/20260926073000_add_moderation_actions_and_appeals
+          for dir in /tmp/coco-later-migrations/*; do
+            mv "$dir" prisma/migrations/
+          done
+
+      - name: Apply guarded legacy reconciliation
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { Client } = require('pg');
+
+          (async () => {
+            const client = new Client({ connectionString: process.env.DATABASE_URL });
+            await client.connect();
+            try {
+              const sql = fs.readFileSync(
+                'scripts/production-legacy-moderation-reconcile.sql',
+                'utf8',
+              );
+              await client.query(sql);
+            } finally {
+              await client.end();
+            }
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Resolve already-present restrictionUntil migration
+        run: npx prisma migrate resolve --applied 20260926103000_add_restriction_until
+
+      - name: Apply remaining current migrations
+        run: npx prisma migrate deploy
+
+      - name: Verify reconciled schema with Production preflight
+        run: npm run production:db:preflight
