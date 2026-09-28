@@ -14,7 +14,7 @@ import { rateLimit } from '@/lib/rateLimit';
 import { evaluatePostSafety, validatePublicPostContent } from '@/lib/contentSafety';
 import { isEmailDeliveryConfigured } from '@/lib/email';
 import { sendEmailVerification } from '@/lib/emailVerification';
-import { validateImageUpload } from '@/lib/uploadSecurity';
+import { MAX_IMAGE_SIZE_BYTES, validateImageUpload } from '@/lib/uploadSecurity';
 import { isSuspensionActive } from '@/lib/accountStatus';
 import { normalizeAutoHashtag, normalizeProfileBio, normalizeProfileName } from '@/lib/profileInput';
 import { deleteManagedBlob, deleteManagedBlobs } from '@/lib/blobCleanup';
@@ -25,6 +25,8 @@ import { mutateBlockRelation, mutateMuteRelation } from '@/lib/userPrivacyRelati
 import { getNormalizedAccountModerationState } from '@/lib/accountModeration';
 import { isE2eBlobMode } from '@/lib/blobDeliveryMode';
 import { normalizeImageAlt } from '@/lib/postImageAlt';
+import { sanitizeImageMetadata } from '@/lib/imageSanitizationCore';
+import { logOperationalError } from '@/lib/operationalError';
 
 const RegisterSchema = z.object({
     name: z.string().trim().min(1, '名前は必須です').max(50, '名前は50文字以内です'),
@@ -179,17 +181,40 @@ async function uploadImage(file: File, pathPrefix: string) {
     }
 
     try {
-        if (isE2eBlobMode(process.env)) {
-            const bytes = Buffer.from(await file.arrayBuffer());
-            return { url: `data:${file.type};base64,${bytes.toString('base64')}` } as const;
+        const sanitized = await sanitizeImageMetadata(
+            validation.bytes,
+            validation.mime,
+        );
+
+        if (sanitized.data.byteLength > MAX_IMAGE_SIZE_BYTES) {
+            return {
+                error: '画像の再処理後サイズが5MBを超えました。別の画像をお試しください。',
+            } as const;
         }
 
-        const blob = await put(`${pathPrefix}/${validation.objectName}`, file, {
-            access: 'public',
+        if (isE2eBlobMode(process.env)) {
+            const bytes = Buffer.from(sanitized.data);
+            return {
+                url: `data:${validation.mime};base64,${bytes.toString('base64')}`,
+            } as const;
+        }
+
+        const uploadBytes = new Uint8Array(sanitized.data.byteLength);
+        uploadBytes.set(sanitized.data);
+        const body = new Blob([uploadBytes.buffer], {
+            type: validation.mime,
         });
+        const blob = await put(
+            `${pathPrefix}/${validation.objectName}`,
+            body,
+            {
+                access: 'public',
+                contentType: validation.mime,
+            },
+        );
         return { url: blob.url } as const;
     } catch (error) {
-        console.error('Failed to upload image:', error);
+        logOperationalError('IMAGE_UPLOAD_PROCESSING_FAILED', error);
         return { error: '画像のアップロードに失敗しました。' } as const;
     }
 }

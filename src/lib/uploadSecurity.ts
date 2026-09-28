@@ -6,7 +6,7 @@ import {
   readImageDimensions,
 } from '@/lib/imageDimensions';
 
-const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+export const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
 
 type SupportedImage = {
   mime: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
@@ -94,6 +94,8 @@ export async function validateImageUpload(file: File) {
   return {
     ok: true as const,
     extension: detected.extension,
+    mime: detected.mime,
+    bytes,
     objectName: `${crypto.randomUUID()}.${detected.extension}`,
     width: dimensions.width,
     height: dimensions.height,
