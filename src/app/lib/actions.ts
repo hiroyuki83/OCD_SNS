@@ -199,7 +199,9 @@ async function uploadImage(file: File, pathPrefix: string) {
             } as const;
         }
 
-        const body = new Blob([sanitized.data], {
+        const uploadBytes = new Uint8Array(sanitized.data.byteLength);
+        uploadBytes.set(sanitized.data);
+        const body = new Blob([uploadBytes.buffer], {
             type: validation.mime,
         });
         const blob = await put(
