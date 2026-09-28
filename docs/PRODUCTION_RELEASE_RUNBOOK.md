@@ -506,3 +506,30 @@ Operational consequence:
 - DB identity / backup / dry run / explicit migration approval remain mandatory
 - deploy approval and migration approval are distinct gates
 - if application code requires schema not yet present, deploy must not start until the migration gate is complete
+
+
+## Production DB identity confirmed by Vercel configuration
+
+Confirmed from Vercel Environment Variables on 2026-09-28:
+
+- Neon project ID: `withered-lab-08522436`
+- PostgreSQL host: `ep-billowing-smoke-ah3grpmy-pooler.c-3.us-east-1.aws.neon.tech`
+- database: `neondb`
+
+This identity is distinct from shared Preview:
+
+- Preview project ID: `plain-dawn-64792117`
+- Preview project name: `coco-preview`
+- Preview region: `aws-ap-southeast-1`
+
+The currently connected Neon connector can read the Preview project but returns an authorization/404 error for `withered-lab-08522436`.
+
+Therefore:
+
+- Production identity values are known
+- Production DB connectivity through the deployed app is confirmed
+- direct Neon read-only inspection is still blocked by connector authorization
+- no Production SQL write has been attempted
+- no Production backup / migration / deploy has been started
+
+Next safe action: connect or authorize the Neon account/organization that owns `withered-lab-08522436`, then run the read-only Production preflight.
