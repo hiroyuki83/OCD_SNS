@@ -8,7 +8,11 @@ on:
         required: true
         type: string
       rollback_point:
-        description: Verified Production rollback point / backup identifier
+        description: Verified Production rollback branch ID
+        required: true
+        type: string
+      rollback_verification_run_id:
+        description: Successful Production Rollback Point Verification run ID for this rollback branch
         required: true
         type: string
       release_sha:
@@ -50,6 +54,7 @@ jobs:
       VERCEL_GIT_COMMIT_REF: main
       RELEASE_SHA: ${{ inputs.release_sha }}
       ROLLBACK_POINT: ${{ inputs.rollback_point }}
+      ROLLBACK_VERIFICATION_RUN_ID: ${{ inputs.rollback_verification_run_id }}
       APPLY_CONFIRMATION: ${{ inputs.confirmation }}
       PREFLIGHT_RUN_ID: ${{ inputs.preflight_run_id }}
       STAGE_A_DRY_RUN_ID: ${{ inputs.stage_a_dry_run_id }}
@@ -60,7 +65,8 @@ jobs:
         run: |
           set -euo pipefail
           [ "${APPLY_CONFIRMATION}" = "APPLY_COCO_PRODUCTION_STAGE_A" ] || { echo "Exact Stage A confirmation is required."; exit 1; }
-          [ -n "${ROLLBACK_POINT}" ] || { echo "Verified rollback point identifier is required."; exit 1; }
+          [[ "${ROLLBACK_POINT}" =~ ^br-[a-z0-9-]+$ ]] || { echo "Verified rollback branch ID is required."; exit 1; }
+          [[ "${ROLLBACK_VERIFICATION_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Numeric rollback verification run ID is required."; exit 1; }
           [ -n "${RELEASE_SHA}" ] || { echo "Exact release SHA is required."; exit 1; }
           [[ "${PRODUCTION_DATABASE_HOST}" != *"-pooler."* ]] || { echo "Direct/unpooled hostname is required."; exit 1; }
           [ -n "${PRODUCTION_DATABASE_URL:-}" ] || { echo "PRODUCTION_DATABASE_URL_UNPOOLED is not configured."; exit 1; }
@@ -76,6 +82,20 @@ jobs:
           set -euo pipefail
           [ "${WORKFLOW_REF}" = "main" ] || { echo "Stage A must be dispatched from main."; exit 1; }
           [ "${RELEASE_SHA}" = "${WORKFLOW_SHA}" ] || { echo "release_sha must match current main."; exit 1; }
+
+      - name: Verify rollback point attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          j="$(gh api "repos/${REPOSITORY}/actions/runs/${ROLLBACK_VERIFICATION_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${j}")" = "success" ] || { echo "Rollback verification run did not succeed."; exit 1; }
+          [ "$(jq -r '.head_sha // ""' <<<"${j}")" = "${RELEASE_SHA}" ] || { echo "Rollback verification run SHA mismatch."; exit 1; }
+          [ "$(jq -r '.event // ""' <<<"${j}")" = "workflow_dispatch" ] || { echo "Rollback verification must be manually dispatched."; exit 1; }
+          [ "$(jq -r '.path // ""' <<<"${j}")" = ".github/workflows/production-rollback-point-verify.yml" ] || { echo "Referenced run is not the rollback verification workflow."; exit 1; }
+          [ "$(jq -r '.display_title // ""' <<<"${j}")" = "Production rollback verify ${ROLLBACK_POINT}" ] || { echo "Rollback verification branch ID does not match rollback_point."; exit 1; }
 
       - name: Verify read-only preflight attestation
         shell: bash

@@ -1,0 +1,94 @@
+name: Production Rollback Point Verification
+run-name: Production rollback verify ${{ inputs.rollback_branch_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      rollback_branch_id:
+        description: Neon rollback branch ID (br-...)
+        required: true
+        type: string
+      expected_branch_name:
+        description: Exact rollback branch name
+        required: true
+        type: string
+      max_age_minutes:
+        description: Maximum accepted age of the rollback branch in minutes
+        required: true
+        default: '120'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-production-rollback-verification
+  cancel-in-progress: true
+
+jobs:
+  verify-rollback-point:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      PROJECT_ID: withered-lab-08522436
+      ROLLBACK_BRANCH_ID: ${{ inputs.rollback_branch_id }}
+      EXPECTED_BRANCH_NAME: ${{ inputs.expected_branch_name }}
+      MAX_AGE_MINUTES: ${{ inputs.max_age_minutes }}
+
+    steps:
+      - name: Verify Production rollback branch through Neon API
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          [ -n "${NEON_API_KEY:-}" ] || { echo "NEON_API_KEY is not configured."; exit 1; }
+          [[ "${ROLLBACK_BRANCH_ID}" =~ ^br-[a-z0-9-]+$ ]] || { echo "rollback_branch_id must be a Neon branch ID."; exit 1; }
+          [ -n "${EXPECTED_BRANCH_NAME}" ] || { echo "expected_branch_name is required."; exit 1; }
+          [[ "${MAX_AGE_MINUTES}" =~ ^[0-9]+$ ]] || { echo "max_age_minutes must be numeric."; exit 1; }
+          [ "${MAX_AGE_MINUTES}" -gt 0 ] || { echo "max_age_minutes must be greater than zero."; exit 1; }
+          [ "${MAX_AGE_MINUTES}" -le 1440 ] || { echo "max_age_minutes cannot exceed 1440."; exit 1; }
+
+          response="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://console.neon.tech/api/v2/projects/${PROJECT_ID}/branches?limit=10000&include_deleted=false"             --header "Accept: application/json"             --header "Authorization: Bearer ${NEON_API_KEY}")"
+
+          default_id="$(jq -r '.branches[] | select(.default == true) | .id' <<<"${response}" | head -n1)"
+          [ -n "${default_id}" ] && [ "${default_id}" != "null" ] || { echo "Production default branch was not found."; exit 1; }
+
+          rollback="$(jq -c --arg id "${ROLLBACK_BRANCH_ID}" '.branches[] | select(.id == $id)' <<<"${response}" | head -n1)"
+          [ -n "${rollback}" ] || { echo "Rollback branch was not found in the Production Neon project."; exit 1; }
+
+          actual_name="$(jq -r '.name // ""' <<<"${rollback}")"
+          parent_id="$(jq -r '.parent_id // ""' <<<"${rollback}")"
+          is_default="$(jq -r '.default // false' <<<"${rollback}")"
+          created_at="$(jq -r '.created_at // ""' <<<"${rollback}")"
+
+          [ "${actual_name}" = "${EXPECTED_BRANCH_NAME}" ] || { echo "Rollback branch name mismatch."; exit 1; }
+          [ "${is_default}" = "false" ] || { echo "The Production default branch cannot be used as a rollback point."; exit 1; }
+          [ "${parent_id}" = "${default_id}" ] || { echo "Rollback branch must be a direct child of the Production default branch."; exit 1; }
+          [ -n "${created_at}" ] || { echo "Rollback branch creation timestamp is missing."; exit 1; }
+
+          created_epoch="$(date -u -d "${created_at}" +%s)"
+          now_epoch="$(date -u +%s)"
+          age_seconds="$(( now_epoch - created_epoch ))"
+          max_age_seconds="$(( MAX_AGE_MINUTES * 60 ))"
+
+          [ "${age_seconds}" -ge 0 ] || { echo "Rollback branch creation time is unexpectedly in the future."; exit 1; }
+          [ "${age_seconds}" -le "${max_age_seconds}" ] || {
+            echo "Rollback branch is older than the accepted freshness window."
+            echo "created_at=${created_at}"
+            echo "age_seconds=${age_seconds}"
+            exit 1
+          }
+
+          {
+            echo "## Production rollback point verification: PASS"
+            echo
+            echo "- project: \`${PROJECT_ID}\`"
+            echo "- rollback branch: \`${ROLLBACK_BRANCH_ID}\`"
+            echo "- branch name: \`${actual_name}\`"
+            echo "- parent/default branch: \`${default_id}\`"
+            echo "- created at: \`${created_at}\`"
+            echo "- maximum accepted age: \`${MAX_AGE_MINUTES} minutes\`"
+            echo
+            echo "This workflow is read-only. It does not create, modify, restore, or delete Neon branches."
+          } >> "${GITHUB_STEP_SUMMARY}"
