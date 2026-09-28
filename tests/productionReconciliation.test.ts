@@ -628,3 +628,31 @@ test('Production Stage C requires machine-proven bridge promotion and smoke atte
   assert.match(source, /Production bridge promote \$\{BRIDGE_DEPLOYMENT_ID\}/);
   assert.match(source, /Production bridge smoke \$\{BRIDGE_DEPLOYMENT_ID\}/);
 });
+
+
+test('Production release acceptance binds smoke, alias, deployment SHA, and 5xx-free runtime logs', () => {
+  const path = '.github/workflows/production-release-acceptance.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /promotion_run_id:/);
+  assert.match(source, /post_deploy_smoke_run_id:/);
+  assert.match(source, /observation_minutes:/);
+  assert.match(source, /production-vercel-promote\.yml/);
+  assert.match(source, /production-post-deploy-smoke\.yml/);
+  assert.match(source, /api\.vercel\.com\/v13\/deployments/);
+  assert.match(source, /v2\/deployments\/\$\{DEPLOYMENT_ID\}\/aliases/);
+  assert.match(source, /x-clone-olive-chi\.vercel\.app/);
+  assert.match(source, /vercel@59\.19\.1 logs/);
+  assert.match(source, /--status-code 5xx/);
+  assert.match(source, /--level error/);
+  assert.match(source, /Detected .* 5xx runtime log entries/);
+  assert.match(source, /Production release acceptance: PASS/);
+  assert.match(source, /Application error logs are surfaced as warnings/);
+  assert.doesNotMatch(source, /prisma migrate deploy/);
+  assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
+  assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
+});
