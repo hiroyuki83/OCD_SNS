@@ -786,3 +786,59 @@ PR #49を `main` baseへ付け替え、Appeal release safetyを次の状態へ�
 - Production: **HOLD**
 
 次のゲートは、PR #49最新headのCI / E2E成功 → Neon一時branch migration検証 → 明示承認後に共有PreviewへAppeal migration適用。
+
+
+## 2026-09-28 Appeal共有Preview受入
+
+### DB / migration
+
+- rollback branch: `backup-before-appeal-migration-2026-09-28`
+- applied migration: `20260928110500_add_sanction_appeals`
+- Prisma migration history: **41 applied**
+- `Sanction` table: present
+- `Appeal` table: present
+- `AppealStatus`: `PENDING / UPHELD / OVERTURNED`
+- Appeal indexes: **5**
+- Appeal foreign keys: **3**
+- `Appeal_sanctionId_key`: verified
+- shared Preview `Sanction` / `Appeal` rows at acceptance: **0 / 0**
+
+### migration dry run
+
+Neon temporary branchで以下を確認済み。
+
+- Appeal作成: PASS
+- PENDING → OVERTURNED更新: PASS
+- reviewer / reviewedAt / resolutionNote更新: PASS
+- Sanction削除時のAppeal CASCADE削除: PASS
+- shared Preview parentはdry run中も未変更: PASS
+
+### Preview deployment
+
+- validated Preview commit: `a8ae408eb312bdf212333c0d641e6fc6b084b0a2`
+- deployment: `dpl_HYXTdW7t9cCrjBzFnsGxBWT1rH3Z`
+- state: **READY**
+- public smoke:
+  - `/`: 200
+  - `/login`: 200
+  - `/register`: 200
+  - `/explore`: 200
+  - `/safety`: 200
+  - `/appeal`: 200 / Appeal UI present
+- runtime error/fatal scan: **0**
+- Appeal branch auto-deploy: acceptance後に **disabledへ復帰**
+- main auto-deploy: **disabled**
+- Production DB / deployment: **untouched / HOLD**
+
+### authenticated flow
+
+- isolated PostgreSQL + Playwright: **16 / 16 PASS**
+- SUSPENSION Appeal: PASS
+- POST_RESTRICTION Appeal: PASS
+- 独立reviewer / overturn / result email / status復帰: PASS
+- shared Previewの既存seedは5ユーザーのまま保持
+- shared Previewへの追加seedは、認証hashを直接扱う操作が安全チェックで停止したため未実行
+- shared Preview上の認証付き手動UI受入は未実施
+
+このためNEXT-042の **DB migration・Preview deployment・公開smokeは完了**。
+PR #49は、shared Preview認証付き受入を未実施としてDraftを維持する。
