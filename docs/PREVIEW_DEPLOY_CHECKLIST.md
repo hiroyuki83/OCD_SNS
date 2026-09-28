@@ -16,7 +16,7 @@
 - VERCEL_GIT_COMMIT_REF=feature/sanction-appeals-20260928
 - seedする場合だけ PREVIEW_SEED_USERS=1
 - PREVIEW_TEST_PASSWORD は10〜128文字
-- `_prisma_migrations` に既存40 migration（Sanctionまで）が記録済みであることを確認する
+- `_prisma_migrations` に41 migration（Sanction + Appealまで）が記録済みであることを確認する
 
 ## schema変更
 
@@ -27,11 +27,11 @@ schema変更を含むcommitをPreviewへ出す前に、Preview DBへmigrationを
 
 - `20260928071000_add_sanction_records`
 
-今回の未適用migration:
+今回の適用済みmigration:
 
 - `20260928110500_add_sanction_appeals`
 
-今回のPreview DBは既に40 migrationの履歴を持つため、historical baselineは行わない。
+今回のPreview DBは既に41 migrationの履歴を持つため、historical baselineは行わない。
 `_prisma_migrations` が欠落していた場合は自動修復せず停止し、原因を確認する。
 
 Production DBへこの手順を流用しない。
@@ -127,7 +127,7 @@ mainへmergeしただけでProduction deployが開始される設定へ戻して
 - 接続先DBがPreviewか不明
 - ProductionとPreviewのURL区別ができない
 - migration対象schemaが不明
-- migration historyが40件のSanction受入済み状態と一致しない
+- migration historyが41件のAppeal受入済み状態と一致しない
 - backup / restore経路が確認できない
 
 ## Preview受入完了後のmain統合ゲート
@@ -181,3 +181,22 @@ Production releaseはmain mergeとは別工程。
 - release branch: `feature/sanction-appeals-20260928`
 - Vercel auto-deploy: migration受入前は disabled
 - Production: untouched / HOLD
+
+
+## 今回のAppeal Preview受入結果
+
+- rollback branch: `backup-before-appeal-migration-2026-09-28`
+- Prisma migration history: **41 applied**
+- Appeal schema / indexes / foreign keys / sanction unique: verified
+- Vercel deployment: `dpl_HYXTdW7t9cCrjBzFnsGxBWT1rH3Z` READY
+- validated commit: `a8ae408eb312bdf212333c0d641e6fc6b084b0a2`
+- public HTTP smoke: **6 / 6 PASS**
+- `/appeal`: 200 / UI present
+- runtime error/fatal: **0**
+- feature branch auto-deploy: disabled again after acceptance
+- main auto-deploy: disabled
+- Production: untouched / HOLD
+
+認証付きAppealフローはisolated E2E **16 / 16 PASS** で検証済み。
+shared Previewの追加seedは認証hashの直接操作が安全チェックで停止したため未実行。
+既存5 seed usersは変更していない。
