@@ -498,3 +498,23 @@ test('Production post-deploy smoke is bound to the exact successful promotion ru
   assert.match(source, /Production promote \$\{DEPLOYMENT_ID\}/);
   assert.match(source, /promoted deployment ID/);
 });
+
+
+test('approved bridge remains compatible with the post-Stage-C Production schema for app rollback', () => {
+  const path = '.github/workflows/production-bridge-rollback-validation.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1/);
+  assert.match(source, /Apply Stage A migrations only/);
+  assert.match(source, /Verify Stage C preconditions/);
+  assert.match(source, /Apply Stage C migrations/);
+  assert.match(source, /Verify post-Stage-C current schema/);
+  assert.match(source, /Build approved bridge against post-Stage-C database/);
+  assert.match(source, /Smoke bridge rollback runtime/);
+  assert.match(source, /api\/feed\?limit=1/);
+  assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL/);
+  assert.doesNotMatch(source, /vercel promote|vercel rollback|deploy_to_vercel/i);
+});
