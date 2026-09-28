@@ -902,3 +902,63 @@ Final PR head: `d4005a0c9ff59b37715626c0087f4653284c8dac`
 
 NEXT-041 / NEXT-042のSanction + Sanction Appeal release系列はmain統合まで完了。
 Production releaseは別工程として **HOLD** を維持する。
+
+
+## 2026-09-28 NEXT-038 cleanup inventory
+
+PHASE-G / NEXT-038 は統合後整理フェーズ。
+
+### GitHub branches
+
+mainとの比較結果:
+
+#### 削除してよい候補
+
+- `feature/sanction-records-20260928`
+  - ahead of main: **0**
+  - behind main: 90
+  - PR #48 merge済み
+- `feature/sanction-appeals-20260928`
+  - ahead of main: **0**
+  - behind main: 3
+  - PR #49 merge済み
+- `security-integration-final-20260926`
+  - ahead of main: **0**
+  - behind main: 131
+  - 統合済みfinal branch
+
+現在のGitHub connectorにはbranch削除actionがないため、上記branchは未削除。
+
+#### 自動削除しない
+
+- `security-integration-20260926`: mainに対して11 commits aheadのdiverged branch
+- `security-hardening-20260926`: mainに対して42 commits aheadのdiverged branch
+- その他旧security作業branch
+
+これらは履歴差分を確認せず削除しない。
+
+### Neon branches
+
+#### 保持
+
+- `production` / `br-late-field-b3ixoym5`
+- `backup-before-sanction-migration-2026-09-28` / `br-wandering-bonus-b3fwuc0n`
+- `backup-before-appeal-migration-2026-09-28` / `br-billowing-lab-b3xo361l`
+
+2本のbackup branchはProduction release前のrollback pointとして保持。
+
+#### 削除候補
+
+- `mcp-migration-2026-09-27T21-09-15` / `br-gentle-morning-b34ef1bw`
+- `mcp-migration-2026-09-26T23-35-13` / `br-broad-surf-b3z9ya0v`
+
+Neon branch削除は破壊的操作のため、明示承認後にのみ実施する。
+
+### NEXT-038 completion condition
+
+- 上記2本のNeon一時migration branchを削除
+- GitHubのahead=0済みbranchをUI等で削除、または保持理由を明記
+- rollback用backup branchはProduction release完了まで保持
+
+それまでは NEXT-038 / PHASE-G を **IN PROGRESS** とする。
+Production release（NEXT-039 / NEXT-040）は引き続き **HOLD**。
