@@ -140,7 +140,7 @@
 | NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | HOLD |
 | NEXT-040 | Productionへ明示release・post-deploy smoke / error scan | P0 | HOLD |
 | NEXT-041 | 投稿制限・停止を第一級 Sanction レコードとして永続化 | P1 | DONE |
-| NEXT-042 | Sanction を対象にした共通 Appeal を実装 | P1 | IN PROGRESS |
+| NEXT-042 | Sanction を対象にした共通 Appeal を実装 | P1 | DONE |
 
 ## リリース進行フェーズ
 
