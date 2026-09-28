@@ -216,3 +216,16 @@ shared Previewの追加seedは認証hashの直接操作が安全チェックで�
 
 GitHub側Preview secretが未設定のため、shared Preview DBへ直接seedする一時workflowは実行前に停止し、削除済み。
 既存seed users・認証hash・Sanction/Appealデータは変更していない。
+
+
+## PR #49 main統合結果
+
+- PR #49: merged
+- merge commit: `fc935925c4bb0e11630063eb83839f69ee68bc2b`
+- shared Preview migration history: **41**
+- final branch Security CI: **173 / 173 PASS**
+- final branch Playwright: **16 / 16 PASS**
+- main Security CI: **173 / 173 PASS**
+- main Playwright: **16 / 16 PASS**
+- Production auto-deploy: disabled
+- Production DB / deployment: untouched / HOLD
