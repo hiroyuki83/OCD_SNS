@@ -692,3 +692,60 @@ Current blockers:
 3. pre-existing `Appeal` table must be identified before `20260928110500_add_sanction_appeals`; blindly applying that migration would risk an object-name collision
 
 Do not run `prisma migrate deploy` against Production until these blockers are resolved and a clone/dry-run succeeds.
+
+
+## Legacy moderation reconciliation dry-run result
+
+Actual Production read-only diagnostics identified an applied legacy migration that is not present on current main:
+
+- `20260926073000_add_moderation_actions_and_appeals`
+
+It created:
+
+- `ModerationAction`
+- legacy `Appeal`
+- legacy `AppealStatus`
+- `ModerationActionType`
+- `NotificationType.MODERATION`
+- `User.restrictionUntil`
+
+Current Production data counts relevant to reconciliation are all safe for guarded removal:
+
+- ModerationAction rows: 0
+- legacy Appeal rows: 0
+- MODERATION Notification rows: 0
+- users with restrictionUntil: 0
+- Reply rows: 0
+- Quote rows: 0
+
+Guarded reconciliation source:
+
+- `scripts/production-legacy-moderation-reconcile.sql`
+
+Isolated workflow:
+
+- `.github/workflows/production-reconciliation-dry-run.yml`
+
+Successful dry run:
+
+- run `36427568122`
+- result: **SUCCESS**
+
+The dry run proved the full sequence from the reproduced legacy Production state to current main:
+
+- legacy/current mismatch is detected
+- obsolete empty legacy moderation objects are removed transactionally
+- legacy migration history is retained and marked rolled back
+- the already-present restrictionUntil migration is resolved as applied
+- remaining current migrations apply successfully
+- final read-only Production preflight passes
+
+This dry-run success is necessary but does **not** authorize Production writes.
+
+Before Production reconciliation:
+
+1. create and verify a rollback point
+2. use a separately verified direct/unpooled Production connection
+3. run current read-only preflight again
+4. compare all guard counts to the accepted baseline
+5. obtain explicit approval for Production write
