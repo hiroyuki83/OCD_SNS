@@ -191,3 +191,24 @@ test('production DB preflight uses an async entrypoint compatible with CommonJS 
   const beforeMain = source.split('async function main()')[0] ?? '';
   assert.doesNotMatch(beforeMain, /^\s*await\s/m);
 });
+
+
+test('production preflight reports blockers only after read-only diagnostics', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+
+  const source = readFileSync(
+    resolve(process.cwd(), 'scripts/production-db-preflight.ts'),
+    'utf8',
+  );
+
+  assert.match(source, /migrationHistoryIssues/);
+  assert.match(source, /migrationHistoryRowCount/);
+  assert.match(source, /applied_steps_count/);
+  assert.match(source, /started_at/);
+
+  const reportIndex = source.indexOf("console.log(report)");
+  const blockerThrowIndex = source.indexOf("Production preflight blockers:");
+  assert.ok(reportIndex >= 0);
+  assert.ok(blockerThrowIndex > reportIndex);
+});
