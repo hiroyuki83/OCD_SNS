@@ -364,3 +364,101 @@ A Production release is complete only when all are recorded:
 **NEXT-040: HOLD.**
 
 No Production write or deployment is authorized by this document itself.
+
+
+## Current Production baseline (2026-09-28)
+
+### Vercel Production
+
+Current latest Production deployment:
+
+- deployment: `dpl_8U7SN8AU6fonvRq7fYsALJGwAzCb`
+- commit: `1c57373d476a904942d4509354dfa3723d6192aa`
+- branch: `main`
+- aliases:
+  - `x-clone-olive-chi.vercel.app`
+  - `coco-hiroyuki-desperado-yahoocojps-projects.vercel.app`
+  - `coco-git-main-hiroyuki-desperado-yahoocojps-projects.vercel.app`
+- state: READY
+
+Current public baseline:
+
+- `/`: 200
+- `/login`: 200
+- `/register`: 200
+- `/explore`: 200
+- `/safety`: 200
+- `/appeal`: 404
+
+`/appeal` 404 is expected for the currently deployed pre-Sanction-Appeal commit.
+
+Database-backed public API baseline:
+
+- `/api/feed?limit=1`: 200
+- response: valid JSON
+- Production DB connectivity through the deployed app: confirmed
+
+Recent Production runtime scan after baseline requests:
+
+- fatal errors: none observed
+- application 5xx: none observed
+- PostgreSQL client SSL compatibility warning observed
+- warning recommends explicit `sslmode=verify-full` before a future pg major-version change
+
+### Preview / Production separation evidence
+
+The shared Preview DB contains these known seed handles:
+
+- `preview-admin`
+- `preview-moderator`
+- `preview-private`
+- `preview-public-1`
+- `preview-public-2`
+
+All five returned 404 from the Production `/api/user-handle?handle=...` endpoint while they exist in the shared Preview database.
+
+This is strong operational evidence that current Production is **not connected to the shared Preview DB**.
+
+It does not replace the Production identity gate. Exact Production DB host / database name must still be identified before any migration write.
+
+### Production code migration baseline
+
+The currently deployed Production commit contains **28 Prisma migrations**.
+Its latest migration is:
+
+- `20260926101500_add_warning_read_state`
+
+Current `main` contains **41 Prisma migrations**.
+
+There are 13 migration files present on `main` but absent from the currently deployed Production commit:
+
+1. `20260926103000_add_restriction_until`
+2. `20260926104500_add_warning_appeal`
+3. `20260926111500_add_appeal_review`
+4. `20260926120000_add_session_version`
+5. `20260926123000_add_staff_totp`
+6. `20260926124500_add_staff_recovery_codes`
+7. `20260927002000_add_follow_approval`
+8. `20260928013000_remove_reply_and_quote_post`
+9. `20260928014500_add_post_image_alt`
+10. `20260928023000_add_notification_preferences`
+11. `20260928031500_add_email_change_pending`
+12. `20260928071000_add_sanction_records`
+13. `20260928110500_add_sanction_appeals`
+
+These are **candidate Production-pending migrations only**.
+
+Do not assume the Production DB has exactly 28 applied migrations. The actual `_prisma_migrations` table remains the source of truth and must be read before migration planning is finalized.
+
+### Production DB identity status
+
+- exact Neon project: unresolved
+- exact Neon branch: unresolved
+- exact endpoint host: unresolved
+- exact database name: unresolved
+- shared Preview DB exclusion: supported by public-data separation check
+- Production DB write authorization: not granted
+
+The connected Vercel tool does not expose Production environment variable values, so Production DB identity cannot be safely inferred from the current connector.
+
+The release remains **HOLD** until the exact Production DB identity is supplied or retrieved through an authorized environment-variable path and the read-only `production:db:preflight` command succeeds.
