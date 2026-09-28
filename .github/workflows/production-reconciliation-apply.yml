@@ -35,6 +35,10 @@ on:
         description: Exact bridge application commit deployed to Production
         required: true
         type: string
+      bridge_validation_run_id:
+        description: Successful Production Bridge Validation run ID for this exact release SHA
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -64,6 +68,7 @@ jobs:
       BRIDGE_CONFIRMATION: ${{ inputs.bridge_confirmation }}
       BRIDGE_COMMIT_SHA: ${{ inputs.bridge_commit_sha }}
       EXPECTED_BRIDGE_COMMIT_SHA: 64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1
+      BRIDGE_VALIDATION_RUN_ID: ${{ inputs.bridge_validation_run_id }}
 
     steps:
       - name: Verify explicit Production approval inputs
@@ -108,6 +113,10 @@ jobs:
           fi
           if [ "${BRIDGE_COMMIT_SHA}" != "${EXPECTED_BRIDGE_COMMIT_SHA}" ]; then
             echo "bridge_commit_sha must exactly match the approved bridge application commit."
+            exit 1
+          fi
+          if [[ ! "${BRIDGE_VALIDATION_RUN_ID}" =~ ^[0-9]+$ ]]; then
+            echo "A numeric successful Production bridge validation run ID is required."
             exit 1
           fi
 
@@ -184,6 +193,31 @@ jobs:
           fi
           if [ "${path}" != ".github/workflows/production-reconciliation-dry-run.yml" ]; then
             echo "Referenced run is not the Production Reconciliation Dry Run workflow."
+            exit 1
+          fi
+
+      - name: Verify successful bridge validation attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          run_json="$(gh api "repos/${REPOSITORY}/actions/runs/${BRIDGE_VALIDATION_RUN_ID}")"
+          conclusion="$(jq -r '.conclusion // ""' <<<"${run_json}")"
+          head_sha="$(jq -r '.head_sha // ""' <<<"${run_json}")"
+          path="$(jq -r '.path // ""' <<<"${run_json}")"
+
+          if [ "${conclusion}" != "success" ]; then
+            echo "Referenced Production bridge validation did not succeed."
+            exit 1
+          fi
+          if [ "${head_sha}" != "${RELEASE_SHA}" ]; then
+            echo "Referenced bridge validation head SHA does not match release_sha."
+            exit 1
+          fi
+          if [ "${path}" != ".github/workflows/production-bridge-validation.yml" ]; then
+            echo "Referenced run is not the Production Bridge Validation workflow."
             exit 1
           fi
 

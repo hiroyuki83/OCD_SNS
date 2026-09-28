@@ -1,0 +1,183 @@
+name: Production Bridge Validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/production-bridge-validation.yml'
+      - '.github/workflows/production-reconciliation-apply.yml'
+      - 'scripts/production-stage-a-verify.ts'
+      - 'scripts/production-legacy-moderation-reconcile.sql'
+      - 'tests/productionReconciliation.test.ts'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-production-bridge-validation-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  validate-bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coco_bridge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d coco_bridge"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/coco_bridge
+      PRODUCTION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/coco_bridge
+      PRODUCTION_DATABASE_HOST: 127.0.0.1
+      PRODUCTION_DATABASE_NAME: coco_bridge
+      PRODUCTION_MIGRATION_CONFIRM: CHECK_COCO_PRODUCTION
+      VERCEL_ENV: production
+      VERCEL_GIT_COMMIT_REF: main
+      AUTH_SECRET: bridge-validation-auth-secret
+      NEXTAUTH_SECRET: bridge-validation-auth-secret
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      AUTH_URL: http://127.0.0.1:3000
+      E2E_EMAIL_MODE: '1'
+      E2E_BLOB_MODE: '1'
+
+    steps:
+      - name: Checkout current release tooling
+        uses: actions/checkout@v6
+        with:
+          path: release
+
+      - name: Checkout approved bridge application
+        uses: actions/checkout@v6
+        with:
+          ref: 64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1
+          path: bridge
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - name: Install release dependencies
+        working-directory: release
+        run: npm ci
+
+      - name: Generate release Prisma client
+        working-directory: release
+        run: npx prisma generate
+
+      - name: Reproduce legacy Production state
+        working-directory: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/coco-later-migrations
+          for dir in prisma/migrations/[0-9]*; do
+            name="$(basename "$dir")"
+            if [[ "$name" > "20260926060000_add_public_handle" ]]; then
+              mv "$dir" /tmp/coco-later-migrations/
+            fi
+          done
+          mkdir -p prisma/migrations/20260926073000_add_moderation_actions_and_appeals
+          cp tests/fixtures/production-legacy-moderation/migration.sql prisma/migrations/20260926073000_add_moderation_actions_and_appeals/migration.sql
+          npx prisma migrate deploy
+          rm -rf prisma/migrations/20260926073000_add_moderation_actions_and_appeals
+          for dir in /tmp/coco-later-migrations/*; do mv "$dir" prisma/migrations/; done
+
+      - name: Require accepted legacy baseline
+        working-directory: release
+        run: npm run production:reconciliation:precheck
+
+      - name: Apply guarded legacy reconciliation
+        working-directory: release
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { Client } = require('pg');
+          (async () => {
+            const client = new Client({ connectionString: process.env.DATABASE_URL });
+            await client.connect();
+            try {
+              await client.query(fs.readFileSync('scripts/production-legacy-moderation-reconcile.sql', 'utf8'));
+            } finally {
+              await client.end();
+            }
+          })().catch((error) => { console.error(error); process.exit(1); });
+          NODE
+
+      - name: Resolve already-present restrictionUntil migration
+        working-directory: release
+        run: npx prisma migrate resolve --applied 20260926103000_add_restriction_until
+
+      - name: Apply only Stage A migrations
+        working-directory: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/coco-stage-c-migrations
+          for dir in prisma/migrations/[0-9]*; do
+            name="$(basename "$dir")"
+            if [[ "$name" > "20260927002000_add_follow_approval" ]]; then
+              mv "$dir" /tmp/coco-stage-c-migrations/
+            fi
+          done
+          npx prisma migrate deploy
+          for dir in /tmp/coco-stage-c-migrations/*; do mv "$dir" prisma/migrations/; done
+
+      - name: Verify Stage A schema boundary
+        working-directory: release
+        run: npx tsx scripts/production-stage-a-verify.ts
+
+      - name: Install bridge dependencies
+        working-directory: bridge
+        run: npm ci
+
+      - name: Validate bridge Prisma schema
+        working-directory: bridge
+        run: npx prisma validate
+
+      - name: Generate bridge Prisma client
+        working-directory: bridge
+        run: npx prisma generate
+
+      - name: Build approved bridge against Stage A database
+        working-directory: bridge
+        run: npm run build
+
+      - name: Start bridge application
+        working-directory: bridge
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 -p 3000 >/tmp/coco-bridge.log 2>&1 &
+          echo $! >/tmp/coco-bridge.pid
+
+      - name: Smoke bridge public and DB-backed routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:3000/ >/dev/null
+          curl --fail --silent http://127.0.0.1:3000/login >/dev/null
+          curl --fail --silent 'http://127.0.0.1:3000/api/feed?limit=1' >/tmp/bridge-feed.json
+          node -e "JSON.parse(require('fs').readFileSync('/tmp/bridge-feed.json','utf8'))"
+
+      - name: Show bridge log on failure
+        if: failure()
+        shell: bash
+        run: cat /tmp/coco-bridge.log || true
