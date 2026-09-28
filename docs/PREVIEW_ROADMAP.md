@@ -137,7 +137,7 @@
 | NEXT-036 | PR #47 を main へmerge | P0 | DONE |
 | NEXT-037 | main merge後のCI / E2E再確認 | P0 | DONE |
 | NEXT-038 | integration branch終了・不要な一時Neon branch整理 | P1 | IN PROGRESS（Neon完了 / GitHub branch手動削除待ち） |
-| NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | HOLD（runbook準備済み / Production identity確認前） |
+| NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | IN PROGRESS（read-only identity gate） |
 | NEXT-040 | Productionへ明示release・post-deploy smoke / error scan | P0 | HOLD |
 | NEXT-041 | 投稿制限・停止を第一級 Sanction レコードとして永続化 | P1 | DONE |
 | NEXT-042 | Sanction を対象にした共通 Appeal を実装 | P1 | DONE |
@@ -995,3 +995,72 @@ NEXT-038の残作業はGitHub上のahead=0済みbranch 3本の削除のみ。
 - Production DB / deploymentへの実操作: **未実施**
 
 NEXT-039はrunbook準備済みだが、Production identity確認前のため **HOLD** を維持する。
+
+
+## 2026-09-28 PR #50 / Production preflight safety
+
+### main統合
+
+- PR #50: **MERGED**
+- merge commit: `0b39d89c5957df7d66fb4c2cc83aea909d82cc3e`
+- `src/lib/productionMigrationSafety.ts`: added
+- `scripts/production-db-preflight.ts`: added
+- `npm run production:db:preflight`: added
+- shared Preview hostをProductionとして扱うことを明示拒否
+- Production host / database nameの完全一致を必須化
+- Production preflightはread-only
+- Prisma migrate / deploy処理: **なし**
+
+### TDD / validation
+
+RED:
+
+- Production safety module不存在: expected FAIL
+- Production preflight command不存在: expected FAIL
+
+GREEN final PR head:
+
+- Security integration CI `36382800494`: **SUCCESS**
+  - unit tests: **182 / 182 PASS**
+  - Prisma validate / generate: PASS
+  - lint: PASS
+  - TypeScript: PASS
+  - Next.js build: PASS
+- CoCo E2E `36382800477`: **SUCCESS**
+  - isolated PostgreSQL migration / seed: PASS
+  - Playwright: **16 / 16 PASS**
+
+main merge後:
+
+- Security integration CI `36383159273`: **SUCCESS**
+  - unit tests: **182 / 182 PASS**
+- CoCo E2E `36383159204`: **SUCCESS**
+  - Playwright: **16 / 16 PASS**
+- mergeによる新規Vercel Production deployment: **発生なし**
+- `main` auto-deploy: **disabled**
+
+### Current Production observation
+
+Current aliased Production:
+
+- deployment: `dpl_8U7SN8AU6fonvRq7fYsALJGwAzCb`
+- commit: `1c57373d476a904942d4509354dfa3723d6192aa`
+- created: **2026-09-26 18:58 JST**
+- current mainとの差: **1215 commits**
+- deployed commit migration dirs: **28**
+- current main migration dirs: **41**
+- maximum apparent migration delta: **13**
+- actual Production migration history: **未確認**
+
+Read-only Production smoke:
+
+- public pages: **4 / 4 HTTP 200**
+- DB-backed API reads: **2 / 2 HTTP 200**
+- 5xx / schema error: **0**
+- pg SSL compatibility warning: **1**
+
+Production DB identityは未特定。
+既存Vercel `DATABASE_URL (All Environments)` の接続先を確認できるまでは、backup / dry run / migrationを実行しない。
+
+NEXT-039は **IN PROGRESS（read-only identity gate）**。
+NEXT-040 Production releaseは引き続き **HOLD**。
