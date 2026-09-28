@@ -27,7 +27,6 @@ const AppealSchema = z.object({
   message: z
     .string()
     .transform(normalizeAppealText)
-    .refine((value) => Array.from(value).length >= 10, '異議申立ての理由を10文字以上で入力してください。')
     .refine((value) => Array.from(value).length <= 1000, '異議申立ては1000文字以内です。'),
 });
 
@@ -171,6 +170,10 @@ export async function submitSanctionAppeal(
           };
         }
 
+        if (Array.from(parsed.data.message).length < 10) {
+          return { kind: 'message-too-short' as const };
+        }
+
         const appeal = await tx.appeal.create({
           data: {
             sanctionId: sanction.id,
@@ -207,6 +210,13 @@ export async function submitSanctionAppeal(
     if (result.kind === 'none') {
       return {
         message: '現在、異議申立て対象となる有効な投稿制限またはアカウント停止はありません。',
+      };
+    }
+
+    if (result.kind === 'message-too-short') {
+      return {
+        message: '新しく異議申立てを送信する場合は、理由を10文字以上で入力してください。',
+        errors: { message: ['異議申立ての理由を10文字以上で入力してください。'] },
       };
     }
 
