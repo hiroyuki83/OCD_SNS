@@ -99,6 +99,10 @@ test('Production reconciliation apply workflow is manual and heavily gated', () 
   assert.match(source, /expected_unpooled_host:/);
   assert.match(source, /preflight_run_id:/);
   assert.match(source, /dry_run_run_id:/);
+  assert.match(source, /bridge_confirmation:/);
+  assert.match(source, /bridge_commit_sha:/);
+  assert.match(source, /BRIDGE_PRODUCTION_VERIFIED/);
+  assert.match(source, /64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1/);
   assert.match(source, /APPLY_COCO_PRODUCTION_RECONCILIATION/);
 
   assert.match(source, /secrets\.PRODUCTION_DATABASE_URL_UNPOOLED/);

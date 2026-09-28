@@ -27,6 +27,14 @@ on:
         description: Successful Production Reconciliation Dry Run ID for this exact release SHA
         required: true
         type: string
+      bridge_confirmation:
+        description: Type BRIDGE_PRODUCTION_VERIFIED after the bridge app is deployed and smoke-tested
+        required: true
+        type: string
+      bridge_commit_sha:
+        description: Exact bridge application commit deployed to Production
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -53,6 +61,9 @@ jobs:
       APPLY_CONFIRMATION: ${{ inputs.confirmation }}
       PREFLIGHT_RUN_ID: ${{ inputs.preflight_run_id }}
       DRY_RUN_RUN_ID: ${{ inputs.dry_run_run_id }}
+      BRIDGE_CONFIRMATION: ${{ inputs.bridge_confirmation }}
+      BRIDGE_COMMIT_SHA: ${{ inputs.bridge_commit_sha }}
+      EXPECTED_BRIDGE_COMMIT_SHA: 64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1
 
     steps:
       - name: Verify explicit Production approval inputs
@@ -89,6 +100,14 @@ jobs:
           fi
           if [[ ! "${DRY_RUN_RUN_ID}" =~ ^[0-9]+$ ]]; then
             echo "A numeric successful Production reconciliation dry-run ID is required."
+            exit 1
+          fi
+          if [ "${BRIDGE_CONFIRMATION}" != "BRIDGE_PRODUCTION_VERIFIED" ]; then
+            echo "The destructive Reply/Quote boundary cannot be crossed before the bridge Production deployment is verified."
+            exit 1
+          fi
+          if [ "${BRIDGE_COMMIT_SHA}" != "${EXPECTED_BRIDGE_COMMIT_SHA}" ]; then
+            echo "bridge_commit_sha must exactly match the approved bridge application commit."
             exit 1
           fi
 
