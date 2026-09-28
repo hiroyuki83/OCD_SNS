@@ -58,6 +58,42 @@ export async function verificationUrlFor(email) {
 }
 
 
+export async function latestEmailFor(email, subject) {
+  const path = process.env.E2E_EMAIL_OUTBOX_FILE;
+  if (!path) throw new Error('E2E_EMAIL_OUTBOX_FILE is not set.');
+
+  let found = null;
+  await expect
+    .poll(
+      async () => {
+        try {
+          const text = await readFile(path, 'utf8');
+          const messages = text
+            .trim()
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => JSON.parse(line));
+          found =
+            [...messages]
+              .reverse()
+              .find(
+                (item) =>
+                  item.to === email &&
+                  (!subject || item.subject === subject),
+              ) ?? null;
+          return found;
+        } catch {
+          return null;
+        }
+      },
+      { timeout: 10_000 },
+    )
+    .not.toBeNull();
+
+  return found;
+}
+
+
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 function decodeBase32(input) {
