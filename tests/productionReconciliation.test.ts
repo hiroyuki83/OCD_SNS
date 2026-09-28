@@ -269,3 +269,40 @@ test('Production deploy readiness gate verifies all same-SHA release attestation
   assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL/);
   assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
 });
+
+
+test('Production rollback point verification is read-only and validates a fresh Neon child branch', () => {
+  const path = '.github/workflows/production-rollback-point-verify.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /rollback_branch_id:/);
+  assert.match(source, /expected_branch_name:/);
+  assert.match(source, /max_age_minutes:/);
+  assert.match(source, /withered-lab-08522436/);
+  assert.match(source, /console\.neon\.tech\/api\/v2\/projects/);
+  assert.match(source, /Authorization: Bearer/);
+  assert.match(source, /\.default == true/);
+  assert.match(source, /parent_id/);
+  assert.match(source, /created_at/);
+  assert.match(source, /include_deleted=false/);
+  assert.match(source, /read-only/);
+  assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
+});
+
+test('Production Stage A and Stage C apply require rollback verification attestation', () => {
+  for (const path of [
+    '.github/workflows/production-stage-a-apply.yml',
+    '.github/workflows/production-stage-c-apply.yml',
+  ]) {
+    const source = readFileSync(path, 'utf8');
+    assert.match(source, /rollback_verification_run_id:/);
+    assert.match(source, /ROLLBACK_VERIFICATION_RUN_ID/);
+    assert.match(source, /Verify rollback point attestation/);
+    assert.match(source, /production-rollback-point-verify\.yml/);
+    assert.match(source, /Production rollback verify \$\{ROLLBACK_POINT\}/);
+  }
+});
