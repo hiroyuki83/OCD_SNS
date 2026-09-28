@@ -43,6 +43,14 @@ const TEST_USERS = [
     bio: 'フォロー・通知・ブロック確認用の公開テストユーザーです。',
   },
   {
+    email: 'coco.preview.appeal@example.com',
+    handle: 'preview-appeal-user',
+    name: 'Preview Appeal User',
+    role: Role.USER,
+    isPrivate: false,
+    bio: 'E2E処分異議申立て専用ユーザーです。',
+  },
+  {
     email: 'coco.preview.private@example.com',
     handle: 'preview-private',
     name: 'Preview 非公開ユーザー',
@@ -89,6 +97,22 @@ const TEST_USERS = [
     role: Role.ADMIN,
     isPrivate: false,
     bio: 'E2E管理操作分離用の管理者です。',
+  },
+  {
+    email: 'coco.preview.admin4@example.com',
+    handle: 'preview-admin-4',
+    name: 'Preview Admin 4',
+    role: Role.ADMIN,
+    isPrivate: false,
+    bio: 'E2E処分発行用の管理者です。',
+  },
+  {
+    email: 'coco.preview.admin5@example.com',
+    handle: 'preview-admin-5',
+    name: 'Preview Admin 5',
+    role: Role.ADMIN,
+    isPrivate: false,
+    bio: 'E2E処分異議申立て審査用の管理者です。',
   },
 ] as const;
 
@@ -141,6 +165,8 @@ async function run() {
         });
 
     await prisma.$transaction([
+      prisma.appeal.deleteMany({ where: { userId: user.id } }),
+      prisma.sanction.deleteMany({ where: { targetUserId: user.id } }),
       prisma.staffRecoveryCode.deleteMany({ where: { userId: user.id } }),
       prisma.emailVerificationToken.deleteMany({ where: { userId: user.id } }),
       prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),

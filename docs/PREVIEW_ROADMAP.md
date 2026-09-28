@@ -2,7 +2,7 @@
 
 最終更新: 2026-09-28
 対象基準ブランチ: `main`
-現在の実装ブランチ: `feature/sanction-records-20260928`
+現在の実装ブランチ: `feature/sanction-appeals-20260928`
 
 この文書を Preview 版の進捗管理表として使用する。
 
@@ -140,7 +140,7 @@
 | NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | HOLD |
 | NEXT-040 | Productionへ明示release・post-deploy smoke / error scan | P0 | HOLD |
 | NEXT-041 | 投稿制限・停止を第一級 Sanction レコードとして永続化 | P1 | DONE |
-| NEXT-042 | Sanction を対象にした共通 Appeal を実装 | P1 | TODO |
+| NEXT-042 | Sanction を対象にした共通 Appeal を実装 | P1 | DONE |
 
 ## リリース進行フェーズ
 
@@ -622,7 +622,7 @@ Production releaseは引き続き `NEXT-039 / NEXT-040` としてHOLDする。
 | 39 | Preview deploy checklist / branch情報を現行化 | DONE |
 | 40 | PR CI / E2Eで最終検証 | DONE |
 
-NEXT-041 はコード検証に加えて共有Preview DB migration / Preview受入まで完了。PR #48はmain統合ゲートへ進む。
+NEXT-041 / PR #48 は共有Preview DB migration・Preview受入・main統合まで完了。merge commit: `f4ce31ba322d8b6b6aa1f6e1241ceb509e8066b2`。
 NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへの実適用はSanction migrationの受入順序を崩さない。
 
 ### バッチ6検証
@@ -642,23 +642,218 @@ NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへ�
 
 
 
-## 2026-09-28 Sanction Preview受入
+## 2026-09-28 実装バッチ7: Sanction Appeal
 
-- Preview DB: Neon project `coco-preview` / DB `neondb`
-- rollback point: Neon branch `backup-before-sanction-migration-2026-09-28`
-- migration: `20260928071000_add_sanction_records`
-- Prisma migration history: **40 applied**
-- `Sanction` table: verified
-- indexes: **5**
-- foreign keys: **3**
-- Preview seed users: **5 / 5 ACTIVE**
-- validated Preview commit: `12ec8cda236efc7d76c593060a036161ee68da65`
-- Vercel Preview deployment: `dpl_7ksKuNtxd9oaJzj3vmgJKeePpMNZ`
-- deployment state: **READY**
-- public smoke: `/`, `/login`, `/register`, `/explore`, `/safety` = **HTTP 200**
+対象branch: `feature/sanction-appeals-20260928`
+依存: PR #48 / NEXT-041（共有Preview受入・main統合済み）
+
+| # | 内容 | Status |
+|---:|---|---|
+| 1 | Sanction Appeal用 `AppealStatus` enumを追加 | DONE |
+| 2 | `Appeal` modelを追加 | DONE |
+| 3 | `Appeal.sanctionId` を1対1外部キー化 | DONE |
+| 4 | UserへAppeal user/reviewer relationを追加 | DONE |
+| 5 | SanctionへAppeal relationを追加 | DONE |
+| 6 | Appeal migrationを追加 | DONE |
+| 7 | Appeal migrationをdeferredとしてPreview計画へ追加 | DONE |
+| 8 | 停止中ユーザー向けpublic `/appeal` を追加 | DONE |
+| 9 | メール＋パスワード再認証を追加 | DONE |
+| 10 | Appeal経路では通常ログインsessionを作らない | DONE |
+| 11 | Appeal認証へrate limit / dummy hashを追加 | DONE |
+| 12 | 投稿制限・停止の現在有効Sanctionだけを新規申立て対象化 | DONE |
+| 13 | 1 Sanction 1 AppealをDB uniqueで保証 | DONE |
+| 14 | 新規AppealをAudit Logへ記録 | DONE |
+| 15 | 既存Appealの審査状況再確認を追加 | DONE |
+| 16 | 状況確認だけなら理由再入力不要に変更 | DONE |
+| 17 | ログイン画面からAppeal導線を追加 | DONE |
+| 18 | staff用Sanction Appeal審査Actionを追加 | DONE |
+| 19 | Appeal自己審査を禁止 | DONE |
+| 20 | Sanction発行者による審査を禁止 | DONE |
+| 21 | MODERATORのstaff対象Appeal審査を禁止 | DONE |
+| 22 | Appeal維持処理を追加 | DONE |
+| 23 | Appeal取消でSanctionをREVOKED化 | DONE |
+| 24 | より新しい有効Sanctionがある場合はUser.statusを解除しない | DONE |
+| 25 | 取消時のUser.status ACTIVE復帰を追加 | DONE |
+| 26 | 審査結果Audit Logを追加 | DONE |
+| 27 | 審査結果メール通知を追加 | DONE |
+| 28 | staff用Appeal検索 / status filter / paginationを追加 | DONE |
+| 29 | 既存Warning Appeal画面からSanction Appeal画面への導線を追加 | DONE |
+| 30 | account deletion時にAppeal本文を匿名化 | DONE |
+| 31 | account exportへSanction / Appeal履歴を追加 | DONE |
+| 32 | moderation timelineへSanction Appeal審査結果を追加 | DONE |
+| 33 | Preview seed再実行時にSanction / Appeal状態を初期化 | DONE |
+| 34 | Appeal専用E2E Admin 4 / Admin 5を追加し処分発行者と審査者を分離 | DONE |
+| 35 | stacked branchのVercel Preview自動deployを明示停止 | DONE |
+| 36 | Appeal schema / auth / review安全境界の回帰テストを追加 | DONE |
+| 37 | account deletion privacy回帰テストを追加 | DONE |
+| 38 | account export privacy回帰テストを追加 | DONE |
+| 39 | 停止→Appeal→取消→再ログインE2Eを追加 | DONE |
+| 40 | Appeal専用ユーザーを追加し既存social E2Eから状態を分離 | DONE |
+| 41 | 停止ログイン失敗時のalert locatorをNext route announcerから分離 | DONE |
+| 42 | 本人確認後に処分理由・期限を確認してから申立てるE2Eを追加 | DONE |
+| 43 | ADMINユーザー詳細へSanction Appeal履歴を統合 | DONE |
+| 44 | モデレーションTOPへ未審査Sanction Appeal件数を追加 | DONE |
+| 45 | 審査結果メール送信をE2Eで検証 | DONE |
+| 46 | 停止中Appeal routeがpublicのままであることを回帰テスト | DONE |
+| 47 | 停止AppealフローのCI / E2E検証 | DONE |
+| 48 | 投稿制限→設定Appeal→独立審査→取消→投稿再開E2Eを追加 | DONE |
+| 49 | 投稿制限・停止の両Appealを含むPR #49最終CI / E2E | DONE |
+
+Sanction migrationの共有Preview受入が完了したため、Appeal migrationを次のPreview pending migrationへ昇格する。
+
+
+### バッチ7検証
+
+- code commit: `ceb5d93318a94a17ba79990685400882354f9c84`
+- Security integration CI run `36370678553`: **SUCCESS**
+  - unit tests: **169 / 169 PASS**
+  - Prisma validate / generate: PASS
+  - lint: PASS
+  - TypeScript: PASS
+  - Next.js build: PASS
+- CoCo E2E run `36370678559`: **SUCCESS**
+  - isolated PostgreSQLへの全migration適用: PASS
+  - Preview seed: PASS
+  - Playwright: **16 / 16 PASS**
+  - 停止ユーザーの処分内容確認: PASS
+  - 停止中のSanction Appeal送信: PASS
+  - 処分発行者とAppeal審査者の分離: PASS
+  - Appeal取消によるSanction解除 / 再ログイン: PASS
+  - 審査結果メール通知: PASS
+
+NEXT-042 はコード実装・隔離DB検証まで完了。
+共有Preview DBはSanction migration適用済み40 migrationの状態。次は `20260928110500_add_sanction_appeals` のPreview release gateを実行する。
+
+
+### バッチ7追加検証対象
+
+`POST_RESTRICTION` についても実ブラウザE2Eへ追加:
+
+- 制限中は既存sessionを維持
+- 投稿試行を拒否し、制限理由を表示
+- 設定画面から `/appeal` へ遷移
+- Sanction Appealを送信
+- Sanction発行者とは別のADMINが取消審査
+- 結果メールを確認
+- 取消後に投稿を再開できることを確認
+
+
+### バッチ7 最終検証（投稿制限 + 停止）
+
+- validated commit: `d588466f4eee95ebfa3f234ca23ef91d75a50ece`
+- Security integration CI run `36371259057`: **SUCCESS**
+  - unit tests: **169 / 169 PASS**
+  - Prisma validate / generate: PASS
+  - lint: PASS
+  - TypeScript: PASS
+  - Next.js build: PASS
+- CoCo E2E run `36371259021`: **SUCCESS**
+  - isolated PostgreSQLへの全migration適用: PASS
+  - Preview seed: PASS
+  - Playwright: **16 / 16 PASS**
+  - SUSPENSION: 処分内容確認 → Appeal → 独立審査 → 取消 → 結果メール → 再ログイン: PASS
+  - POST_RESTRICTION: 投稿拒否 → 設定Appeal → 独立審査 → 取消 → 結果メール → 投稿再開: PASS
+
+NEXT-042 のコード実装と隔離環境検証は完了。
+共有PreviewへのAppeal migrationはSanction受入済み状態をpreflightで確認したうえで実施する。
+
+
+## 2026-09-28 PR #48 main統合・Appeal Previewリリース準備
+
+### Sanction release完了
+
+- PR #48: **MERGED**
+- main merge commit: `f4ce31ba322d8b6b6aa1f6e1241ceb509e8066b2`
+- shared Preview DB: **40 migrations applied**
+- `Sanction` schema: verified
+- Sanction Preview deployment: `dpl_7ksKuNtxd9oaJzj3vmgJKeePpMNZ` READY
+- public HTTP smoke: **5 / 5 PASS**
+- runtime error/fatal: **0**
+- Production auto-deploy: **disabled**
+- Production DB / deployment: **untouched / HOLD**
+
+### NEXT-042 release gate
+
+PR #49を `main` baseへ付け替え、Appeal release safetyを次の状態へ更新する。
+
+- historical migrations: **40**（Sanction migrationを含む）
+- pending migration: `20260928110500_add_sanction_appeals`
+- deferred migrations: **0**
+- preflight: `Sanction` が存在し、`Appeal` が存在しないことを要求
+- post-migration verify: `Appeal` table / columns / migration historyを要求
+- Preview migration / seed許可branch: `feature/sanction-appeals-20260928`
+- Appeal branch Vercel auto-deploy: migration受入前は **disabled**
+- Production: **HOLD**
+
+次のゲートは、PR #49最新headのCI / E2E成功 → Neon一時branch migration検証 → 明示承認後に共有PreviewへAppeal migration適用。
+
+
+## 2026-09-28 Appeal共有Preview受入
+
+### DB / migration
+
+- rollback branch: `backup-before-appeal-migration-2026-09-28`
+- applied migration: `20260928110500_add_sanction_appeals`
+- Prisma migration history: **41 applied**
+- `Sanction` table: present
+- `Appeal` table: present
+- `AppealStatus`: `PENDING / UPHELD / OVERTURNED`
+- Appeal indexes: **5**
+- Appeal foreign keys: **3**
+- `Appeal_sanctionId_key`: verified
+- shared Preview `Sanction` / `Appeal` rows at acceptance: **0 / 0**
+
+### migration dry run
+
+Neon temporary branchで以下を確認済み。
+
+- Appeal作成: PASS
+- PENDING → OVERTURNED更新: PASS
+- reviewer / reviewedAt / resolutionNote更新: PASS
+- Sanction削除時のAppeal CASCADE削除: PASS
+- shared Preview parentはdry run中も未変更: PASS
+
+### Preview deployment
+
+- validated Preview commit: `a8ae408eb312bdf212333c0d641e6fc6b084b0a2`
+- deployment: `dpl_HYXTdW7t9cCrjBzFnsGxBWT1rH3Z`
+- state: **READY**
+- public smoke:
+  - `/`: 200
+  - `/login`: 200
+  - `/register`: 200
+  - `/explore`: 200
+  - `/safety`: 200
+  - `/appeal`: 200 / Appeal UI present
 - runtime error/fatal scan: **0**
-- Sanction branch auto-deploy: acceptance後に **disabledへ復帰**
-- Production auto-deploy: **disabledのまま**
-- Production DB / Production deployment: **未変更 / HOLD**
+- Appeal branch auto-deploy: acceptance後に **disabledへ復帰**
+- main auto-deploy: **disabled**
+- Production DB / deployment: **untouched / HOLD**
 
-最新commitの最終CI / E2E成功を確認後、PR #48をmainへ統合する。
+### authenticated flow
+
+- isolated PostgreSQL + Playwright: **16 / 16 PASS**
+- SUSPENSION Appeal: PASS
+- POST_RESTRICTION Appeal: PASS
+- 独立reviewer / overturn / result email / status復帰: PASS
+- shared Previewの既存seedは5ユーザーのまま保持
+- shared Previewへの追加seedは、認証hashを直接扱う操作が安全チェックで停止したため未実行
+- shared Preview上の認証付き手動UI受入は未実施
+
+このためNEXT-042の **DB migration・Preview deployment・公開smokeは完了**。
+shared Preview認証付き手動UI受入は、GitHub Preview secretが未設定で自動実行できなかった。既存seed認証情報を直接操作せず、安全上の理由から追加seedは行わない。shared Preview DB 41 migrations / Vercel Preview 6/6 smoke / runtime error 0 / isolated authenticated Playwright 16/16を受入根拠として、この手動確認は重複検証として省略する。
+
+
+### Shared Preview認証付き手動受入の扱い
+
+一時的にGitHub Actionsからshared Previewへseedし、認証付きSanction Appeal E2Eを実行する経路を検証したが、GitHub側に `PREVIEW_DATABASE_URL` / `PREVIEW_TEST_PASSWORD` secretが未設定だったため開始前に停止した。
+
+- shared Preview DBへの追加書き込み: **なし**
+- 既存seed users: **5のまま**
+- Sanction / Appeal rows: **0 / 0**
+- temporary workflow: **削除済み**
+- 既存seed password hash: **未変更**
+
+認証フロー自体はisolated PostgreSQL上のPlaywrightで **16 / 16 PASS**、shared PreviewではDB schema・Vercel runtime・公開routeを別々に受入済み。
+このため、shared Previewでの重複した手動ログイン操作はmain統合の必須条件から外す。
+Production releaseは引き続きHOLD。

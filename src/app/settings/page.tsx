@@ -107,6 +107,18 @@ export default async function SettingsPage({
           notifyReactions={user.notifyReactions}
           notifyFollows={user.notifyFollows}
         />
+        <section className="mb-6 rounded-lg border border-border p-4">
+          <h2 className="text-base font-semibold text-zinc-900">処分への異議申立て</h2>
+          <p className="mt-1 text-sm text-zinc-600">
+            投稿制限・アカウント停止について再審査を依頼したり、申立て済みの審査状況を確認できます。
+          </p>
+          <Link
+            href="/appeal"
+            className="mt-3 inline-flex rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+          >
+            異議申立て・状況確認
+          </Link>
+        </section>
         <ProfileEditForm name={user.name} bio={user.bio} autoHashtag={user.autoHashtag} />
         {isStaff && (
           <StaffTotpSetting

@@ -60,15 +60,18 @@
 - ADMINユーザー詳細で処分履歴を表示
 - モデレーション統合タイムラインへSanctionを統合
 
-### Phase 2: 共通 Appeal
+### Phase 2: Sanction Appeal
 
-未実装:
+`feature/sanction-appeals-20260928` で実装中:
 
-- `Appeal` model
-- `sanctionId` 外部キー
+- `Appeal` model と `sanctionId` 外部キー
 - 投稿制限・停止に対するユーザー異議申立て
+- 停止中でも利用できる、通常セッションを作らない本人確認付き `/appeal`
 - staff審査による維持 / 取消
-- 取消時の `User.status` 再計算
-- 警告の `ModerationWarning` / `WarningAppeal` から共通モデルへの段階移行
+- 自分自身の申立て、または自分が出した処分の審査禁止
+- 取消時に、より新しい有効処分が無い場合だけ `User.status` を `ACTIVE` に戻す
+- 審査結果のメール通知
+- アカウントexport / 削除時匿名化 / 管理タイムラインへの統合
 
-Phase 2はSanction永続化のPreview検証後に進める。
+現時点では警告の `ModerationWarning` / `WarningAppeal` は既存系を維持する。
+Appeal migrationはSanction migrationのPreview受入前には実適用せず、deferred migrationとして管理する。

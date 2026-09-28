@@ -1,4 +1,4 @@
-export const PREVIEW_GIT_REF = 'feature/sanction-records-20260928';
+export const PREVIEW_GIT_REF = 'feature/sanction-appeals-20260928';
 export const PREVIEW_DATABASE_NAME = 'neondb';
 export const PREVIEW_DATABASE_HOSTS = new Set([
   'ep-aged-darkness-b3se3dw1.c-4.ap-southeast-1.aws.neon.tech',

@@ -59,6 +59,7 @@ try {
     warningAppeal: await tableExists('WarningAppeal'),
     staffRecoveryCode: await tableExists('StaffRecoveryCode'),
     sanction: await tableExists('Sanction'),
+    appeal: await tableExists('Appeal'),
     reply: await tableExists('Reply'),
     handle: await columnExists('User', 'handle'),
     sessionVersion: await columnExists('User', 'sessionVersion'),
@@ -84,13 +85,14 @@ try {
     ['User.notifyReactions already present', signatures.notifyReactions],
     ['User.notifyFollows already present', signatures.notifyFollows],
     ['EmailVerificationToken.pendingEmail already present', signatures.pendingEmail],
-    ['Sanction table not yet present', !signatures.sanction],
+    ['Sanction table already present', signatures.sanction],
+    ['Appeal table not yet present', !signatures.appeal],
   ] as const;
 
   const drift = expectedCurrentState.filter(([, ok]) => !ok).map(([name]) => name);
   if (drift.length) {
     throw new Error(
-      `Preview DB is not in the expected pre-sanction-migration state; manual reconciliation required: ${drift.join(', ')}`,
+      `Preview DB is not in the expected pre-appeal-migration state; manual reconciliation required: ${drift.join(', ')}`,
     );
   }
 
@@ -108,6 +110,7 @@ try {
         signatures.notifyFollows,
       pendingEmailPresent: signatures.pendingEmail,
       sanctionTablePresent: signatures.sanction,
+      appealTablePresent: signatures.appeal,
     },
   });
 } finally {

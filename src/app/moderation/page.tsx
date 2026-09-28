@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AccountStatus, Prisma, ReportPriority, ReportReason, ReportStatus, Role, WarningAppealStatus } from '@prisma/client';
+import { AccountStatus, AppealStatus, Prisma, ReportPriority, ReportReason, ReportStatus, Role, WarningAppealStatus } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { requireAnyRole } from '@/lib/rbac';
 import PaginationLinks from '@/components/shared/PaginationLinks';
@@ -188,7 +188,13 @@ export default async function ModerationPage({
     AND: [{ status: statusFilter }, ...baseFilters],
   };
 
-  const [counts, filteredCount, moderatorUsers, pendingAppealCount] = await Promise.all([
+  const [
+    counts,
+    filteredCount,
+    moderatorUsers,
+    pendingWarningAppealCount,
+    pendingSanctionAppealCount,
+  ] = await Promise.all([
     prisma.report.groupBy({
       by: ['status'],
       where: countWhere,
@@ -205,6 +211,9 @@ export default async function ModerationPage({
     }),
     prisma.warningAppeal.count({
       where: { status: WarningAppealStatus.PENDING },
+    }),
+    prisma.appeal.count({
+      where: { status: AppealStatus.PENDING },
     }),
   ]);
 
@@ -261,12 +270,26 @@ export default async function ModerationPage({
               通報を確認し、投稿非表示やユーザー制限を実行します。
             </p>
           </div>
-          <Link
-            href="/moderation/appeals"
-            className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-700 hover:text-zinc-900"
-          >
-            異議申立てを見る{pendingAppealCount > 0 ? `（未審査 ${pendingAppealCount}）` : ''}
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/moderation/appeals"
+              className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-700 hover:text-zinc-900"
+            >
+              警告の異議申立て
+              {pendingWarningAppealCount > 0
+                ? `（未審査 ${pendingWarningAppealCount}）`
+                : ''}
+            </Link>
+            <Link
+              href="/moderation/appeals/sanctions"
+              className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-zinc-700 hover:text-zinc-900"
+            >
+              処分の異議申立て
+              {pendingSanctionAppealCount > 0
+                ? `（未審査 ${pendingSanctionAppealCount}）`
+                : ''}
+            </Link>
+          </div>
         </div>
       </div>
 

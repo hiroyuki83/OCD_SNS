@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AccountStatus, ReportReason, ReportStatus, Role, SanctionStatus, SanctionType } from "@prisma/client";
+import { AccountStatus, AppealStatus, ReportReason, ReportStatus, Role, SanctionStatus, SanctionType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/rbac";
 import AdminNotesPanel from "../AdminNotesPanel";
@@ -42,6 +42,12 @@ const sanctionStatusLabels: Record<SanctionStatus, string> = {
   ACTIVE: "有効",
   EXPIRED: "期限切れ",
   REVOKED: "解除済み",
+};
+
+const appealStatusLabels: Record<AppealStatus, string> = {
+  PENDING: "異議申立て審査中",
+  UPHELD: "異議申立て結果: 処分維持",
+  OVERTURNED: "異議申立て結果: 処分取消",
 };
 
 const formatDate = (date: Date | null) =>
@@ -195,6 +201,17 @@ export default async function AdminUserDetailPage({
         reason: true,
         reportId: true,
         actorUser: { select: { id: true, email: true, name: true } },
+        appeal: {
+          select: {
+            id: true,
+            createdAt: true,
+            message: true,
+            status: true,
+            resolutionNote: true,
+            reviewedAt: true,
+            reviewer: { select: { id: true, email: true, name: true } },
+          },
+        },
       },
     }),
     prisma.adminNote.findMany({
@@ -411,6 +428,30 @@ export default async function AdminUserDetailPage({
                     actor: {sanction.actorUser.email ?? sanction.actorUser.name ?? sanction.actorUser.id}
                     {sanction.reportId ? ` / report: ${sanction.reportId}` : ""}
                   </div>
+                  {sanction.appeal && (
+                    <div className="mt-3 rounded-md border border-border bg-white p-3">
+                      <div className="text-xs font-semibold text-zinc-700">
+                        {appealStatusLabels[sanction.appeal.status]}
+                      </div>
+                      <div className="mt-2 whitespace-pre-wrap break-words text-xs text-zinc-700">
+                        申立て: {sanction.appeal.message}
+                      </div>
+                      {sanction.appeal.resolutionNote && (
+                        <div className="mt-2 whitespace-pre-wrap break-words text-xs text-zinc-700">
+                          審査理由: {sanction.appeal.resolutionNote}
+                        </div>
+                      )}
+                      <div className="mt-2 text-xs text-zinc-500">
+                        申立て日時: {formatDate(sanction.appeal.createdAt)}
+                        {sanction.appeal.reviewedAt
+                          ? ` / 審査日時: ${formatDate(sanction.appeal.reviewedAt)}`
+                          : ""}
+                        {sanction.appeal.reviewer
+                          ? ` / reviewer: ${sanction.appeal.reviewer.email ?? sanction.appeal.reviewer.name ?? sanction.appeal.reviewer.id}`
+                          : ""}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })

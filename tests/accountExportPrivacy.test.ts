@@ -32,3 +32,13 @@ test('account export route applies an authenticated userId scope to self-test qu
     assert.match(route, query);
   }
 });
+
+
+test('account export scopes sanction history to the authenticated user', () => {
+  assert.match(
+    route,
+    /prisma\.sanction\.findMany\(\{\s*where:\s*\{\s*targetUserId:\s*userId\s*\}/,
+  );
+  assert.match(route, /appeal:\s*\{\s*select:/);
+  assert.match(route, /moderation:\s*\{ reportsMade, reportsTargetingUser, warnings, sanctions \}/);
+});

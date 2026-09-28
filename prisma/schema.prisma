@@ -69,6 +69,8 @@ model User {
   warningAppealsReviewed    WarningAppeal[] @relation("AppealReviewer")
   sanctionsReceived         Sanction[] @relation("SanctionTarget")
   sanctionsCreated          Sanction[] @relation("SanctionActor")
+  sanctionAppeals           Appeal[] @relation("SanctionAppealUser")
+  sanctionAppealsReviewed   Appeal[] @relation("SanctionAppealReviewer")
   staffRecoveryCodes        StaffRecoveryCode[]
 }
 
@@ -167,6 +169,12 @@ enum SanctionStatus {
   ACTIVE
   EXPIRED
   REVOKED
+}
+
+enum AppealStatus {
+  PENDING
+  UPHELD
+  OVERTURNED
 }
 
 enum ReportReason {
@@ -538,11 +546,32 @@ model Sanction {
   targetUser User    @relation("SanctionTarget", fields: [targetUserId], references: [id])
   actorUser  User    @relation("SanctionActor", fields: [actorUserId], references: [id])
   report     Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  appeal     Appeal?
 
   @@index([targetUserId, createdAt])
   @@index([targetUserId, status, endsAt])
   @@index([actorUserId, createdAt])
   @@index([reportId])
+}
+
+model Appeal {
+  id             String       @id @default(cuid())
+  createdAt      DateTime     @default(now())
+  message        String
+  status         AppealStatus @default(PENDING)
+  resolutionNote String?
+  reviewedAt     DateTime?
+  reviewerId     String?
+  sanctionId     String       @unique
+  userId         String
+
+  sanction Sanction @relation(fields: [sanctionId], references: [id], onDelete: Cascade)
+  user     User     @relation("SanctionAppealUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User?    @relation("SanctionAppealReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([reviewerId, createdAt])
 }
 
 model ModerationWarning {

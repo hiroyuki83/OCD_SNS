@@ -2,7 +2,7 @@
 
 最終更新: 2026-09-28
 対象基準ブランチ: `main`
-現在の実装ブランチ: `feature/sanction-records-20260928`
+現在の実装ブランチ: `feature/sanction-appeals-20260928`
 
 この文書を CoCo Preview 版の仕様上の正本（source of truth）とする。
 仕様変更があった場合は、この文書と `PREVIEW_ROADMAP.md` を更新する。
@@ -250,7 +250,26 @@ SanctionStatus:
 - 自分が出した警告の異議申立てを自分で審査しない
 - 必要な操作は Audit Log に記録
 
-警告以外の処分への拡張方針は `APPEAL_MODEL_DESIGN.md` を正本とする。投稿制限・停止の第一級 `Sanction` レコード化は実装済みで、次段階として `sanctionId` を参照する共通 Appeal を導入する。
+警告以外の処分への拡張方針は `APPEAL_MODEL_DESIGN.md` を正本とする。投稿制限・停止は `Sanction` を正本とし、`Appeal.sanctionId` で申立て対象を一意に参照する。
+
+投稿制限・停止Appealの要件:
+
+- 停止中ユーザーも申立てできる
+- Appeal専用経路ではメール＋パスワードで本人確認する
+- Appeal専用経路では通常のログインセッションを作成しない
+- 新規申立て理由は10〜1000文字
+- 既に申立て済みの場合は理由欄なしで審査状況を再確認できる
+- 1つのSanctionにつきAppealは1件
+- 審査結果は維持 / 取消
+- 自分自身の申立ては審査しない
+- 自分が発行したSanctionのAppealは審査しない
+- MODERATORは通常ユーザーのAppealのみ審査可能
+- 取消時は別の有効Sanctionが無い場合だけアカウント状態をACTIVEへ戻す
+- 審査結果はメール通知し、Appealページからも再認証して確認できる
+- Appeal本文はアカウント削除時に匿名化する
+- 本人データexportにはSanction / Appeal履歴を含める
+
+Appeal migrationはSanction migrationのPreview受入まではdeferredとして扱い、共有Preview DBへ同時適用しない。
 
 ## 13. 管理画面
 

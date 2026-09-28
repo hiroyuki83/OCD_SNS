@@ -143,10 +143,20 @@ export default async function AppealListPage({
         <Link href="/moderation" className="text-sm text-zinc-500 hover:text-zinc-900">
           モデレーションへ戻る
         </Link>
-        <h1 className="mt-3 text-2xl font-semibold">異議申立て</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          警告に対する異議申立てを審査します。
-        </p>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold">異議申立て</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              警告に対する異議申立てを審査します。
+            </p>
+          </div>
+          <Link
+            href="/moderation/appeals/sanctions"
+            className="rounded-full border border-border px-4 py-2 text-sm font-semibold"
+          >
+            投稿制限・停止の異議申立て
+          </Link>
+        </div>
       </div>
 
       <div className="mb-5 flex flex-wrap gap-2">

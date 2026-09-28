@@ -141,3 +141,21 @@ test('summarizes only selected enforcement metadata fields', () => {
   assert.equal(item.detail, 'reason: rule / reportId: r1');
   assert.equal(item.detail?.includes('password'), false);
 });
+
+
+test('includes sanction appeal review audit events and outcome metadata', () => {
+  const [item] = buildModerationTimeline({
+    warnings: [],
+    reports: [],
+    auditLogs: [
+      {
+        id: 'appeal-review',
+        createdAt: new Date(),
+        action: 'SANCTION_APPEAL_REVIEWED',
+        meta: { outcome: 'OVERTURNED', note: 'reviewed' },
+      },
+    ],
+  });
+  assert.equal(item.id, 'audit-appeal-review');
+  assert.equal(item.detail, 'note: reviewed / outcome: OVERTURNED');
+});
