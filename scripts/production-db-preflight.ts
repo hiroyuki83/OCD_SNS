@@ -61,6 +61,62 @@ const columnExists = async (table: string, column: string) => {
   return Boolean(result.rows[0]?.present);
 };
 
+const tableColumns = async (table: string) => {
+  if (!(await tableExists(table))) return [];
+  const result = await client.query(
+    `SELECT column_name AS "columnName",
+            data_type AS "dataType",
+            udt_name AS "udtName",
+            is_nullable AS "isNullable",
+            column_default AS "columnDefault"
+     FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name = $1
+     ORDER BY ordinal_position ASC`,
+    [table],
+  );
+  return result.rows;
+};
+
+const tableConstraints = async (table: string) => {
+  if (!(await tableExists(table))) return [];
+  const result = await client.query(
+    `SELECT con.conname AS "name",
+            con.contype AS "type",
+            pg_get_constraintdef(con.oid, true) AS "definition"
+     FROM pg_constraint con
+     JOIN pg_class rel ON rel.oid = con.conrelid
+     JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+     WHERE nsp.nspname = 'public'
+       AND rel.relname = $1
+     ORDER BY con.conname ASC`,
+    [table],
+  );
+  return result.rows;
+};
+
+const enumValues = async (enumName: string) => {
+  const result = await client.query(
+    `SELECT e.enumlabel AS "value"
+     FROM pg_type t
+     JOIN pg_enum e ON e.enumtypid = t.oid
+     JOIN pg_namespace n ON n.oid = t.typnamespace
+     WHERE n.nspname = 'public'
+       AND t.typname = $1
+     ORDER BY e.enumsortorder ASC`,
+    [enumName],
+  );
+  return result.rows.map((row) => String(row.value));
+};
+
+const optionalRowCount = async (table: string) => {
+  if (!(await tableExists(table))) return null;
+  const result = await client.query(
+    `SELECT count(*)::text AS count FROM "${table}"`,
+  );
+  return Number(result.rows[0]?.count ?? 0);
+};
+
 // Keep the entrypoint compatible with tsx's CommonJS execution mode.
 async function main() {
   try {
@@ -114,6 +170,70 @@ async function main() {
       .filter((name) => !localMigrations.includes(name))
       .sort();
 
+    const moderationWarningTable = await tableExists('ModerationWarning');
+    const warningAppealTable = await tableExists('WarningAppeal');
+    const appealTable = await tableExists('Appeal');
+    const sanctionTable = await tableExists('Sanction');
+
+    const pendingObjectCollisions: string[] = [];
+
+    if (
+      pending.includes('20260926100000_add_moderation_warning') &&
+      moderationWarningTable
+    ) {
+      pendingObjectCollisions.push(
+        'ModerationWarning table already exists before its pending migration',
+      );
+    }
+
+    if (
+      pending.includes('20260926101500_add_warning_read_state') &&
+      moderationWarningTable &&
+      (await columnExists('ModerationWarning', 'readAt'))
+    ) {
+      pendingObjectCollisions.push(
+        'ModerationWarning.readAt already exists before its pending migration',
+      );
+    }
+
+    if (
+      pending.includes('20260926104500_add_warning_appeal') &&
+      warningAppealTable
+    ) {
+      pendingObjectCollisions.push(
+        'WarningAppeal table already exists before its pending migration',
+      );
+    }
+
+    if (
+      pending.includes('20260926111500_add_appeal_review') &&
+      ((warningAppealTable && await columnExists('WarningAppeal', 'status')) ||
+        (moderationWarningTable &&
+          await columnExists('ModerationWarning', 'revokedAt')))
+    ) {
+      pendingObjectCollisions.push(
+        'warning appeal review schema already exists before its pending migration',
+      );
+    }
+
+    if (
+      pending.includes('20260928071000_add_sanction_records') &&
+      sanctionTable
+    ) {
+      pendingObjectCollisions.push(
+        'Sanction table already exists before its pending migration',
+      );
+    }
+
+    if (
+      pending.includes('20260928110500_add_sanction_appeals') &&
+      appealTable
+    ) {
+      pendingObjectCollisions.push(
+        'Appeal table already exists before the pending Sanction Appeal migration',
+      );
+    }
+
     const blockers: string[] = [];
 
     if (migrationHistoryIssues.length) {
@@ -127,6 +247,12 @@ async function main() {
     if (unknown.length) {
       blockers.push(
         `applied migrations not present on main: ${unknown.join(', ')}`,
+      );
+    }
+
+    if (pendingObjectCollisions.length) {
+      blockers.push(
+        `pending migration object collisions: ${pendingObjectCollisions.join('; ')}`,
       );
     }
 
@@ -211,6 +337,31 @@ async function main() {
     const destructiveRemovalBlocked =
       (replyRows ?? 0) > 0 || (quotedPosts ?? 0) > 0;
 
+    const moderationConflictDiagnostics = {
+      ModerationWarning: {
+        present: moderationWarningTable,
+        rowCount: await optionalRowCount('ModerationWarning'),
+        columns: await tableColumns('ModerationWarning'),
+        constraints: await tableConstraints('ModerationWarning'),
+      },
+      WarningAppeal: {
+        present: warningAppealTable,
+        rowCount: await optionalRowCount('WarningAppeal'),
+        columns: await tableColumns('WarningAppeal'),
+        constraints: await tableConstraints('WarningAppeal'),
+      },
+      Appeal: {
+        present: appealTable,
+        rowCount: await optionalRowCount('Appeal'),
+        columns: await tableColumns('Appeal'),
+        constraints: await tableConstraints('Appeal'),
+      },
+      enums: {
+        WarningAppealStatus: await enumValues('WarningAppealStatus'),
+        AppealStatus: await enumValues('AppealStatus'),
+      },
+    };
+
     if (destructiveRemovalBlocked) {
       blockers.push(
         'Production contains Reply or Quote data; automatic reply/quote removal is blocked pending an explicit data-handling decision',
@@ -226,6 +377,8 @@ async function main() {
       pendingMigrations: pending,
       migrationHistoryIssues,
       unknownAppliedMigrations: unknown,
+      pendingObjectCollisions,
+      moderationConflictDiagnostics,
       productionRowCounts: {
         userRows,
         postRows,
@@ -238,8 +391,8 @@ async function main() {
           await columnExists('User', 'staffTotpSecretEncrypted'),
         replyTable: await tableExists('Reply'),
         quotePostId: quotePostIdPresent,
-        sanctionTable: await tableExists('Sanction'),
-        appealTable: await tableExists('Appeal'),
+        sanctionTable,
+        appealTable,
       },
       destructiveRemovalBlocked,
       blockers,
