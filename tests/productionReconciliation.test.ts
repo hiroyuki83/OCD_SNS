@@ -419,3 +419,16 @@ test('Production post-deploy smoke binds observed runtime to the approved releas
   assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
   assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
 });
+
+
+test('Production deploy readiness accepts same-SHA manual CI for docs-only main commits', () => {
+  const path = '.github/workflows/production-deploy-readiness.yml';
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /push,workflow_dispatch/);
+  assert.match(source, /allowed_events/);
+  assert.match(source, /security-integration-ci\.yml/);
+  assert.match(source, /e2e\.yml/);
+  assert.match(source, /head_sha/);
+  assert.match(source, /RELEASE_SHA/);
+});
