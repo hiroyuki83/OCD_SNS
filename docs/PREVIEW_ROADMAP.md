@@ -1750,3 +1750,65 @@ GitHub reports `main` as currently unprotected.
 Before Production execution, configure branch protection / repository rules so accidental direct pushes cannot bypass the intended PR + CI path.
 
 This repository-control item cannot be changed through the currently connected GitHub integration because administration write access is not available.
+
+
+## 2026-09-29 repository cleanup / Production execution blocker
+
+### PR cleanup
+
+Historical implementation PRs #5–#44 have been reviewed against the consolidated integration in PR #47.
+
+- PRs #34–#44 were confirmed `ahead=0` against current main and closed.
+- remaining historical PRs in #5–#29 were closed as superseded by PR #47 after their feature areas were confirmed present in the consolidated integration / roadmap.
+- open pull requests after cleanup: **0**
+
+### NEXT-038 status
+
+Neon temporary branch cleanup: **COMPLETE**
+
+Historical GitHub PR cleanup: **COMPLETE**
+
+GitHub branch deletion: **MANUAL REMAINDER**
+
+The connected GitHub integration does not expose a delete-branch / delete-ref action.
+
+Current repository branch count at inventory time:
+
+- 94 total branches
+- 1 main branch
+- remaining branches are historical feature / fix / docs / integration branches pending manual cleanup
+
+NEXT-038 remains **IN PROGRESS (manual GitHub branch deletion only)**.
+
+Do not delete `main`.
+
+Review and delete historical merged / superseded branches in GitHub's Branches UI after confirming no branch is intentionally retained.
+
+### NEXT-039 execution blocker
+
+Production preparation code / workflows: **COMPLETE**
+
+Production pre-execution self-check now requires:
+
+- exact current release SHA
+- workflow dispatched from `main`
+- `main` reported by GitHub as protected
+- Neon API / Production project identity PASS
+- Vercel API / project identity PASS
+- pooled / unpooled Production DB URL identity PASS
+
+GitHub currently reports:
+
+- `main protected = false`
+
+Therefore Production execution is intentionally blocked until branch protection or an equivalent repository ruleset is enabled.
+
+### Operational release freeze
+
+After `Production Pre-execution Self Check` passes for a release SHA:
+
+- do not merge additional changes into `main`
+- keep that SHA unchanged through Stage A, bridge, Stage C, current-main promotion, smoke, and release acceptance
+- if `main` changes, treat existing release attestations as stale and restart from the pre-execution self-check for the new SHA
+
+This is enforced by same-SHA attestation checks throughout the state-changing workflows.
