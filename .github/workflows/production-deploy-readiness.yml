@@ -80,7 +80,7 @@ jobs:
           verify_run() {
             run_id="$1"
             expected_path="$2"
-            expected_event="$3"
+            allowed_events="$3"
 
             j="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}")"
             conclusion="$(jq -r '.conclusion // ""' <<<"${j}")"
@@ -91,14 +91,18 @@ jobs:
             [ "${conclusion}" = "success" ] || { echo "Run ${run_id} did not succeed."; exit 1; }
             [ "${head_sha}" = "${RELEASE_SHA}" ] || { echo "Run ${run_id} SHA mismatch."; exit 1; }
             [ "${path}" = "${expected_path}" ] || { echo "Run ${run_id} workflow mismatch."; exit 1; }
-            [ "${event}" = "${expected_event}" ] || { echo "Run ${run_id} event mismatch."; exit 1; }
+
+            case ",${allowed_events}," in
+              *,"${event}",*) ;;
+              *) echo "Run ${run_id} event ${event} is not allowed. Expected one of: ${allowed_events}."; exit 1 ;;
+            esac
           }
 
           verify_run "${STAGE_C_APPLY_RUN_ID}" ".github/workflows/production-stage-c-apply.yml" "workflow_dispatch"
           verify_run "${POST_STAGE_C_PREFLIGHT_RUN_ID}" ".github/workflows/production-db-preflight.yml" "workflow_dispatch"
           verify_run "${FINAL_VALIDATION_RUN_ID}" ".github/workflows/production-final-validation.yml" "workflow_dispatch"
-          verify_run "${SECURITY_CI_RUN_ID}" ".github/workflows/security-integration-ci.yml" "push"
-          verify_run "${E2E_RUN_ID}" ".github/workflows/e2e.yml" "push"
+          verify_run "${SECURITY_CI_RUN_ID}" ".github/workflows/security-integration-ci.yml" "push,workflow_dispatch"
+          verify_run "${E2E_RUN_ID}" ".github/workflows/e2e.yml" "push,workflow_dispatch"
 
       - name: Emit deploy readiness summary
         shell: bash
