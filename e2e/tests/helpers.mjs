@@ -14,6 +14,7 @@ export const USERS = {
   admin2: 'coco.preview.admin2@example.com',
   admin3: 'coco.preview.admin3@example.com',
   admin4: 'coco.preview.admin4@example.com',
+  admin5: 'coco.preview.admin5@example.com',
 };
 
 export async function login(page, email, password = PREVIEW_PASSWORD) {
