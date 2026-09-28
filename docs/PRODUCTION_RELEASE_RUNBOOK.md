@@ -1304,3 +1304,16 @@ Current open PR count after cleanup: **0**.
 GitHub branch deletion remains manual because the connected GitHub integration exposes branch creation/update but no delete-ref operation.
 
 Use the GitHub Branches UI to remove merged / superseded historical branches. Never delete `main`.
+
+
+## GitHub main ruleset setup guide
+
+The exact repository-side configuration required by the Production pre-execution gate is documented in:
+
+- `docs/GITHUB_MAIN_RULESET_SETUP.md`
+
+After configuring the ruleset in GitHub Settings, run:
+
+- `Repository Main Guard Check`
+
+Do not begin Production execution until it reports PASS.
