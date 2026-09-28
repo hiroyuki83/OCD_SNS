@@ -31,9 +31,9 @@ test('suspended user can appeal without a login session and regain access after 
     PREVIEW_PASSWORD,
   );
 
-  await issuer.goto(`/admin/users?q=${encodeURIComponent(USERS.public2)}`);
+  await issuer.goto(`/admin/users?q=${encodeURIComponent(USERS.appeal)}`);
   await issuer
-    .getByRole('link', { name: 'Preview 公開ユーザー2', exact: true })
+    .getByRole('link', { name: 'Preview Appeal User', exact: true })
     .click();
 
   const accessSection = issuer.locator('section').filter({
@@ -51,23 +51,25 @@ test('suspended user can appeal without a login session and regain access after 
   await expect(statusSelect).toHaveValue('SUSPENDED');
 
   await user.goto('/login');
-  await user.getByLabel('メールアドレス').fill(USERS.public2);
+  await user.getByLabel('メールアドレス').fill(USERS.appeal);
   await user.getByLabel('パスワード').fill(PREVIEW_PASSWORD);
   await user
     .locator('#main-content')
     .getByRole('button', { name: 'ログイン', exact: true })
     .click();
   await expect(user).toHaveURL(/\/login/);
-  await expect(user.getByRole('alert')).toContainText(
-    'メールアドレス、パスワード、または必要な2段階認証を確認してください。',
-  );
+  await expect(
+    user.locator('p[role="alert"]').filter({
+      hasText: 'メールアドレス、パスワード、または必要な2段階認証を確認してください。',
+    }),
+  ).toBeVisible();
 
   await user.getByRole('link', { name: '投稿制限・停止への異議申立て' }).click();
   await expect(
     user.getByRole('heading', { name: '処分への異議申立て' }),
   ).toBeVisible();
 
-  await user.getByLabel('登録メールアドレス').fill(USERS.public2);
+  await user.getByLabel('登録メールアドレス').fill(USERS.appeal);
   await user.getByLabel('パスワード').fill(PREVIEW_PASSWORD);
   await user.getByLabel('異議申立ての理由').fill(appealMessage);
   await user
@@ -106,7 +108,7 @@ test('suspended user can appeal without a login session and regain access after 
   await expect(appealCard.getByText(reviewNote)).toBeVisible();
 
   await user.goto('/appeal');
-  await user.getByLabel('登録メールアドレス').fill(USERS.public2);
+  await user.getByLabel('登録メールアドレス').fill(USERS.appeal);
   await user.getByLabel('パスワード').fill(PREVIEW_PASSWORD);
   await user
     .getByRole('button', { name: '異議申立てを送信・状況確認' })
@@ -117,7 +119,7 @@ test('suspended user can appeal without a login session and regain access after 
   ).toBeVisible();
   await expect(user.getByText(reviewNote)).toBeVisible();
 
-  await login(user, USERS.public2, PREVIEW_PASSWORD);
+  await login(user, USERS.appeal, PREVIEW_PASSWORD);
 
   await Promise.all([
     issuerContext.close(),
