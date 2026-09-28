@@ -16,9 +16,14 @@ on:
         description: Rollback branch name (must start with backup-before-production-)
         required: true
         type: string
+      pre_execution_self_check_run_id:
+        description: Successful Production Pre-execution Self Check run ID for this release SHA
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: coco-production-rollback-create
@@ -34,6 +39,7 @@ jobs:
       CONFIRMATION: ${{ inputs.confirmation }}
       RELEASE_SHA: ${{ inputs.release_sha }}
       BRANCH_NAME: ${{ inputs.branch_name }}
+      PRE_EXECUTION_SELF_CHECK_RUN_ID: ${{ inputs.pre_execution_self_check_run_id }}
 
     steps:
       - name: Verify explicit rollback creation inputs
@@ -59,6 +65,11 @@ jobs:
             exit 1
           }
 
+          [[ "${PRE_EXECUTION_SELF_CHECK_RUN_ID}" =~ ^[0-9]+$ ]] || {
+            echo "pre_execution_self_check_run_id must be numeric."
+            exit 1
+          }
+
           main_sha="$(gh api "repos/${REPOSITORY}/branches/main" --jq '.commit.sha')"
           [ "${RELEASE_SHA}" = "${main_sha}" ] || {
             echo "release_sha does not match current main."
@@ -66,6 +77,21 @@ jobs:
             echo "main_sha=${main_sha}"
             exit 1
           }
+
+      - name: Verify pre-execution self-check attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          j="$(gh api "repos/${REPOSITORY}/actions/runs/${PRE_EXECUTION_SELF_CHECK_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${j}")" = "success" ] || { echo "Pre-execution self-check did not succeed."; exit 1; }
+          [ "$(jq -r '.head_sha // ""' <<<"${j}")" = "${RELEASE_SHA}" ] || { echo "Pre-execution self-check SHA mismatch."; exit 1; }
+          [ "$(jq -r '.event // ""' <<<"${j}")" = "workflow_dispatch" ] || { echo "Pre-execution self-check must be manually dispatched."; exit 1; }
+          [ "$(jq -r '.path // ""' <<<"${j}")" = ".github/workflows/production-pre-execution-self-check.yml" ] || { echo "Referenced run is not Production Pre-execution Self Check."; exit 1; }
+          [ "$(jq -r '.display_title // ""' <<<"${j}")" = "Production pre-execution self-check ${RELEASE_SHA}" ] || { echo "Pre-execution self-check release SHA binding mismatch."; exit 1; }
 
       - name: Resolve Production default branch
         id: default_branch
