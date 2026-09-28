@@ -791,3 +791,33 @@ test('repository branch cleanup verify-only mode performs no mutation', () => {
   assert.ok(verifyIndex >= 0);
   assert.ok(deleteIndex > verifyIndex);
 });
+
+
+test('CoCo E2E exposes an always-present required gate while skipping expensive browser E2E for docs-only changes', () => {
+  const path = '.github/workflows/e2e.yml';
+  const source = readFileSync(path, 'utf8');
+
+  assert.doesNotMatch(source, /paths-ignore:/);
+  assert.match(source, /classify-changes:/);
+  assert.match(source, /run_e2e:/);
+  assert.match(source, /grep -Ev '\^docs\/'/);
+  assert.match(source, /browser-e2e:/);
+  assert.match(source, /if: needs\.classify-changes\.outputs\.run_e2e == 'true'/);
+  assert.match(source, /e2e-required-gate:/);
+  assert.match(source, /if: always\(\)/);
+  assert.match(source, /Required E2E gate passed/);
+});
+
+test('Production pre-execution self-check requires active main rules and stable required CI contexts', () => {
+  const path = '.github/workflows/production-pre-execution-self-check.yml';
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /rules\/branches\/main/);
+  assert.match(source, /require_rule deletion/);
+  assert.match(source, /require_rule non_fast_forward/);
+  assert.match(source, /require_rule pull_request/);
+  assert.match(source, /require_rule required_status_checks/);
+  assert.match(source, /Required status check context is missing: verify/);
+  assert.match(source, /Required status check context is missing: e2e-required-gate/);
+  assert.match(source, /required status checks: verify \+ e2e-required-gate/);
+});
