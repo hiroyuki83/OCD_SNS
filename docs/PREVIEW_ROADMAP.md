@@ -1242,3 +1242,32 @@ main merge後:
 
 NEXT-039はProduction DB identity gate待ち。
 NEXT-040 remains **HOLD**。
+
+
+### NEXT-039 Production Neon identity confirmed
+
+Vercel Environment VariablesからProduction DB識別情報を確認。
+
+- Neon project ID: `withered-lab-08522436`
+- PostgreSQL host: `ep-billowing-smoke-ah3grpmy-pooler.c-3.us-east-1.aws.neon.tech`
+- database: `neondb`
+
+shared Preview:
+
+- project ID: `plain-dawn-64792117`
+- project name: `coco-preview`
+- region: `aws-ap-southeast-1`
+
+Production / Preview identityは明確に分離。
+
+ただし現在のNeon connectorは:
+
+- Preview project: readable
+- Production project: authorization / HTTP 404
+
+このためactual Production `_prisma_migrations`、Reply/Quote/Follow row counts、rollback branch作成はまだ未実施。
+
+Production DB write: **0**
+Production deployment: **未実施**
+NEXT-039: **IN PROGRESS — Production Neon connector authorization待ち**
+NEXT-040: **HOLD**
