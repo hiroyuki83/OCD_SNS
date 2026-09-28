@@ -187,5 +187,7 @@ test('production DB preflight uses an async entrypoint compatible with CommonJS 
 
   assert.match(source, /async function main\(\)/);
   assert.match(source, /main\(\)\.catch/);
-  assert.doesNotMatch(source, /^\s*await\s/m);
+
+  const beforeMain = source.split('async function main()')[0] ?? '';
+  assert.doesNotMatch(beforeMain, /^\s*await\s/m);
 });
