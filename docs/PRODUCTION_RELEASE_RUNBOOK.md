@@ -1070,3 +1070,160 @@ The workflow performs:
 - no Vercel deployment
 
 After PASS, the next state-changing operation is `Production Rollback Point Create`, which still requires separate explicit approval.
+
+
+# Canonical Production release sequence — superseding earlier partial sequences
+
+This section supersedes older release-order notes above where they conflict.
+
+## Required GitHub Actions secrets
+
+- `NEON_API_KEY`
+- `VERCEL_TOKEN`
+- `PRODUCTION_DATABASE_URL`
+- `PRODUCTION_DATABASE_URL_UNPOOLED`
+
+Do not place secret values in commits, workflow inputs, PRs, issues, documentation, or chat.
+
+## Repository prerequisite
+
+GitHub currently reports the `main` branch as unprotected.
+
+Before the first state-changing Production operation, enable branch protection or an equivalent repository ruleset so that direct pushes cannot bypass the PR / CI release path.
+
+Recommended minimum repository controls:
+
+- require pull requests for changes to `main`
+- require successful Security integration CI
+- require successful CoCo E2E for release-affecting code
+- block force pushes
+- block branch deletion
+
+The currently connected GitHub integration does not have repository-administration write capability, so this setting must be applied in GitHub repository settings.
+
+## Phase 0 — read-only prerequisites
+
+Run:
+
+1. `Production Neon API Access Check`
+2. `Production Vercel API Access Check`
+3. `Production Pre-execution Self Check`
+4. `Production DB Read-only Preflight`
+
+All must PASS before any state-changing Production action is considered.
+
+The self-check verifies:
+
+- confirmed Neon Production project
+- confirmed Vercel team/project
+- pooled Production DB URL identity
+- direct/unpooled Production DB URL identity
+- required credential presence
+
+## Phase 1 — Stage A
+
+1. explicit approval → `Production Rollback Point Create`
+2. `Production Rollback Point Verification`
+3. `Production Stage A Dry Run`
+4. explicit approval → `Production Stage A Apply`
+5. verify Stage A result
+
+Stage A must stop before the destructive Reply / Quote migration.
+
+## Phase 2 — bridge Production stage
+
+Approved bridge SHA:
+
+- `64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1`
+
+Required sequence:
+
+1. `Production Bridge Validation`
+2. `Production Bridge Candidate Verification`
+3. explicit approval → `Production Bridge Promote`
+4. `Production Bridge Production Smoke`
+
+The bridge artifact must be an exact READY Vercel deployment of the approved bridge SHA.
+
+A text statement that the bridge was checked is not sufficient for Stage C.
+
+## Phase 3 — Stage C
+
+Before Stage C:
+
+1. explicit approval → create a fresh Stage C rollback point
+2. `Production Rollback Point Verification`
+3. `Production DB Read-only Preflight`
+4. `Production Stage C Dry Run`
+
+Then:
+
+5. explicit approval → `Production Stage C Apply`
+6. final `Production DB Read-only Preflight`
+
+Stage C requires machine-verifiable bridge Production promotion and smoke attestations.
+
+## Phase 4 — current-main release
+
+1. `Production Final Release Validation`
+2. run Security integration CI for the exact release SHA
+3. run CoCo E2E for the exact release SHA
+4. `Production Vercel Candidate Verification`
+5. `Production Deploy Readiness`
+6. explicit approval → `Production Vercel Promote`
+7. `Production Post-deploy Smoke`
+8. `Production Release Acceptance`
+
+The current-main deployment uses an already-built, verified READY Vercel artifact.
+
+It is promoted without rebuilding.
+
+Release Acceptance requires:
+
+- exact deployment remains READY
+- Production alias remains assigned
+- post-deploy smoke PASS
+- zero recent 5xx runtime entries for the exact deployment
+
+Application error logs that are not 5xx are emitted as warnings and must be reviewed.
+
+## Emergency application rollback after Stage C
+
+The preferred application rollback target is the approved bridge artifact.
+
+The database remains on the post-Stage-C schema.
+
+Prerequisites:
+
+1. `Production Bridge Rollback Compatibility` PASS for the release SHA
+2. `Production Vercel Rollback Candidate Verification` PASS for an exact READY deployment of the approved bridge SHA
+
+Rollback sequence:
+
+3. explicit approval → `Production Vercel Rollback`
+4. `Production Bridge Rollback Smoke`
+5. `Production Rollback Acceptance`
+
+Rollback Acceptance requires:
+
+- exact bridge deployment remains READY
+- Production alias remains assigned to it
+- rollback smoke PASS
+- zero recent 5xx runtime entries for the exact bridge deployment
+
+Do not automatically roll the database back when performing this application rollback.
+
+## Production state as of this update
+
+The workflows and validation paths above are implemented and tested in isolated CI.
+
+The following state-changing Production actions have **not** been executed in this sequence:
+
+- Neon Production rollback branch creation
+- Production Stage A migration
+- bridge Production promotion
+- Production Stage C migration
+- current-main Production promotion
+- Production application rollback
+
+Production execution remains on HOLD until explicit approval at each state-changing boundary.
