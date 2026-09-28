@@ -554,6 +554,26 @@ model Sanction {
   @@index([reportId])
 }
 
+model Appeal {
+  id             String       @id @default(cuid())
+  createdAt      DateTime     @default(now())
+  message        String
+  status         AppealStatus @default(PENDING)
+  resolutionNote String?
+  reviewedAt     DateTime?
+  reviewerId     String?
+  sanctionId     String       @unique
+  userId         String
+
+  sanction Sanction @relation(fields: [sanctionId], references: [id], onDelete: Cascade)
+  user     User     @relation("SanctionAppealUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User?    @relation("SanctionAppealReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([reviewerId, createdAt])
+}
+
 model ModerationWarning {
   id           String    @id @default(cuid())
   createdAt    DateTime  @default(now())
