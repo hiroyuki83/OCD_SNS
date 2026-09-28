@@ -43,6 +43,14 @@ const TEST_USERS = [
     bio: 'フォロー・通知・ブロック確認用の公開テストユーザーです。',
   },
   {
+    email: 'coco.preview.appeal@example.com',
+    handle: 'preview-appeal-user',
+    name: 'Preview Appeal User',
+    role: Role.USER,
+    isPrivate: false,
+    bio: 'E2E処分異議申立て専用ユーザーです。',
+  },
+  {
     email: 'coco.preview.private@example.com',
     handle: 'preview-private',
     name: 'Preview 非公開ユーザー',
