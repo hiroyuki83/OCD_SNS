@@ -1,0 +1,216 @@
+name: Repository Branch Cleanup
+run-name: Branch cleanup ${{ inputs.operation }} ${{ inputs.branch_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch_name:
+        description: Exact non-main branch name to verify or delete
+        required: true
+        type: string
+      operation:
+        description: VERIFY_ONLY performs no mutation; DELETE removes one fully-merged branch
+        required: true
+        default: VERIFY_ONLY
+        type: choice
+        options:
+          - VERIFY_ONLY
+          - DELETE
+      confirmation:
+        description: For DELETE, type DELETE_MERGED_BRANCH
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: coco-repository-branch-cleanup-${{ inputs.branch_name }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BRANCH_NAME: ${{ inputs.branch_name }}
+      OPERATION: ${{ inputs.operation }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Validate cleanup request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          [ -n "${BRANCH_NAME}" ] || { echo "branch_name is required."; exit 1; }
+          [ "${BRANCH_NAME}" != "main" ] || { echo "main can never be deleted by this workflow."; exit 1; }
+
+          default_branch="$(gh api "repos/${REPOSITORY}" --jq '.default_branch')"
+          [ "${BRANCH_NAME}" != "${default_branch}" ] || {
+            echo "The repository default branch can never be deleted."
+            exit 1
+          }
+
+          case "${OPERATION}" in
+            VERIFY_ONLY) ;;
+            DELETE)
+              [ "${CONFIRMATION}" = "DELETE_MERGED_BRANCH" ] || {
+                echo "DELETE requires exact confirmation DELETE_MERGED_BRANCH."
+                exit 1
+              }
+              ;;
+            *)
+              echo "Unsupported operation."
+              exit 1
+              ;;
+          esac
+
+      - name: Verify branch exists and is not protected
+        id: branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          encoded="$(jq -nr --arg v "${BRANCH_NAME}" '$v|@uri')"
+          branch_json="$(gh api "repos/${REPOSITORY}/branches/${encoded}")"
+
+          protected="$(jq -r '.protected // false' <<<"${branch_json}")"
+          sha="$(jq -r '.commit.sha // ""' <<<"${branch_json}")"
+
+          [ "${protected}" = "false" ] || {
+            echo "Protected branches are not eligible for cleanup."
+            exit 1
+          }
+
+          [[ "${sha}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "Could not resolve branch commit SHA."
+            exit 1
+          }
+
+          echo "sha=${sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Refuse branches with open pull requests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          owner="${REPOSITORY%%/*}"
+          open_count="$(gh api --method GET "repos/${REPOSITORY}/pulls"             -f state=open             -f head="${owner}:${BRANCH_NAME}"             --jq 'length')"
+
+          [ "${open_count}" -eq 0 ] || {
+            echo "Branch has an open pull request and will not be deleted."
+            exit 1
+          }
+
+      - name: Require zero commits ahead of main
+        id: compare
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          encoded="$(jq -nr --arg v "${BRANCH_NAME}" '$v|@uri')"
+          compare="$(gh api "repos/${REPOSITORY}/compare/main...${encoded}")"
+
+          ahead="$(jq -r '.ahead_by // -1' <<<"${compare}")"
+          behind="$(jq -r '.behind_by // -1' <<<"${compare}")"
+          status="$(jq -r '.status // ""' <<<"${compare}")"
+
+          [ "${ahead}" -eq 0 ] || {
+            echo "Branch has ${ahead} commit(s) not contained in main."
+            echo "Only ahead=0 branches are eligible for automated deletion."
+            exit 1
+          }
+
+          echo "ahead=${ahead}" >> "${GITHUB_OUTPUT}"
+          echo "behind=${behind}" >> "${GITHUB_OUTPUT}"
+          echo "status=${status}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify-only summary
+        if: inputs.operation == 'VERIFY_ONLY'
+        shell: bash
+        env:
+          BRANCH_SHA: ${{ steps.branch.outputs.sha }}
+          AHEAD: ${{ steps.compare.outputs.ahead }}
+          BEHIND: ${{ steps.compare.outputs.behind }}
+          STATUS: ${{ steps.compare.outputs.status }}
+        run: |
+          {
+            echo "## Repository branch cleanup verification: PASS"
+            echo
+            echo "- branch: \`${BRANCH_NAME}\`"
+            echo "- SHA: \`${BRANCH_SHA}\`"
+            echo "- ahead of main: \`${AHEAD}\`"
+            echo "- behind main: \`${BEHIND}\`"
+            echo "- compare status: \`${STATUS}\`"
+            echo "- open PRs: \`0\`"
+            echo "- protected: \`false\`"
+            echo
+            echo "No branch was deleted. Re-run with operation DELETE and the exact confirmation if deletion is desired."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Delete fully merged branch
+        if: inputs.operation == 'DELETE'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          ref="heads/${BRANCH_NAME}"
+          encoded_ref="$(jq -nr --arg v "${ref}" '$v|@uri')"
+          gh api --method DELETE "repos/${REPOSITORY}/git/refs/${encoded_ref}"
+
+      - name: Verify branch deletion
+        if: inputs.operation == 'DELETE'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          encoded="$(jq -nr --arg v "${BRANCH_NAME}" '$v|@uri')"
+          if gh api "repos/${REPOSITORY}/branches/${encoded}" >/tmp/deleted-branch.json 2>/tmp/deleted-branch.err; then
+            echo "Branch still exists after delete request."
+            cat /tmp/deleted-branch.json
+            exit 1
+          fi
+
+          if grep -q "404" /tmp/deleted-branch.err; then
+            echo "Branch deletion verified."
+          else
+            echo "Could not verify branch deletion."
+            cat /tmp/deleted-branch.err
+            exit 1
+          fi
+
+      - name: Emit deletion summary
+        if: inputs.operation == 'DELETE'
+        shell: bash
+        env:
+          BRANCH_SHA: ${{ steps.branch.outputs.sha }}
+        run: |
+          {
+            echo "## Repository branch cleanup: DELETED"
+            echo
+            echo "- branch: \`${BRANCH_NAME}\`"
+            echo "- previous SHA: \`${BRANCH_SHA}\`"
+            echo "- ahead of main before deletion: \`0\`"
+            echo "- open PRs before deletion: \`0\`"
+            echo "- protected before deletion: \`false\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
