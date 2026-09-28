@@ -24,6 +24,10 @@ const appealPage = readFileSync(
   join(process.cwd(), 'src', 'app', 'appeal', 'page.tsx'),
   'utf8',
 );
+const seed = readFileSync(
+  join(process.cwd(), 'prisma', 'seed-preview.ts'),
+  'utf8',
+);
 
 test('sanction appeals use a foreign-keyed one-to-one Appeal model', () => {
   assert.match(schema, /model Appeal \{/);
@@ -71,4 +75,10 @@ test('review persists audit evidence and sends a result email when configured', 
 test('appeal page explicitly states that no normal login session is created', () => {
   assert.match(appealPage, /通常のログインセッションは作成されません/);
   assert.match(appealPage, /異議申立てを送信・状況確認/);
+});
+
+
+test('Preview seed clears test-user sanction and appeal state', () => {
+  assert.match(seed, /prisma\.appeal\.deleteMany/);
+  assert.match(seed, /prisma\.sanction\.deleteMany/);
 });
