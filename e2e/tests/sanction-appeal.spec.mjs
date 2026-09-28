@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   enrollStaffMfa,
+  latestEmailFor,
   login,
   loginStaffWithRecoveryCode,
   PREVIEW_PASSWORD,
@@ -117,6 +118,13 @@ test('suspended user can appeal without a login session and regain access after 
   await expect(overturnButton).toHaveCount(0, { timeout: 15_000 });
   await expect(appealCard.getByText('処分取消', { exact: true })).toBeVisible();
   await expect(appealCard.getByText(reviewNote)).toBeVisible();
+
+  const resultEmail = await latestEmailFor(
+    USERS.appeal,
+    'CoCo 異議申立ての審査結果',
+  );
+  expect(resultEmail.text).toContain('結果: 処分取消');
+  expect(resultEmail.text).toContain(reviewNote);
 
   await user.goto('/appeal');
   await user.getByLabel('登録メールアドレス').fill(USERS.appeal);
