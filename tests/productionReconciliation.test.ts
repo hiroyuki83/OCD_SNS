@@ -821,3 +821,26 @@ test('Production pre-execution self-check requires active main rules and stable 
   assert.match(source, /Required status check context is missing: e2e-required-gate/);
   assert.match(source, /required status checks: verify \+ e2e-required-gate/);
 });
+
+
+test('Repository Main Guard Check is read-only and verifies exact required rules', () => {
+  const path = '.github/workflows/repository-main-guard-check.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /branches\/main/);
+  assert.match(source, /main is not protected/);
+  assert.match(source, /rules\/branches\/main/);
+  assert.match(source, /require_rule deletion/);
+  assert.match(source, /require_rule non_fast_forward/);
+  assert.match(source, /require_rule pull_request/);
+  assert.match(source, /require_rule required_status_checks/);
+  assert.match(source, /Required status check context is missing: verify/);
+  assert.match(source, /Required status check context is missing: e2e-required-gate/);
+  assert.match(source, /Repository main guard: PASS/);
+  assert.match(source, /read-only and does not modify repository settings/);
+  assert.doesNotMatch(source, /--method POST|--method PATCH|--method PUT|--method DELETE/);
+});

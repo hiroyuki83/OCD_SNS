@@ -1,0 +1,96 @@
+name: Repository Main Guard Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-repository-main-guard-check
+  cancel-in-progress: true
+
+jobs:
+  verify-main-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Verify main is protected
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          branch_json="$(gh api "repos/${REPOSITORY}/branches/main")"
+          protected="$(jq -r '.protected // false' <<<"${branch_json}")"
+          sha="$(jq -r '.commit.sha // ""' <<<"${branch_json}")"
+
+          [ "${protected}" = "true" ] || {
+            echo "main is not protected."
+            exit 1
+          }
+
+          [[ "${sha}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "Could not resolve main SHA."
+            exit 1
+          }
+
+      - name: Verify active rules applied to main
+        id: rules
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          rules="$(gh api             -H "Accept: application/vnd.github+json"             -H "X-GitHub-Api-Version: 2026-03-10"             "repos/${REPOSITORY}/rules/branches/main")"
+
+          require_rule() {
+            type="$1"
+            jq -e --arg type "${type}" 'any(.[]; .type == $type)' <<<"${rules}" >/dev/null || {
+              echo "Required active main rule is missing: ${type}"
+              exit 1
+            }
+          }
+
+          require_rule deletion
+          require_rule non_fast_forward
+          require_rule pull_request
+          require_rule required_status_checks
+
+          checks="$(jq -r '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context' <<<"${rules}")"
+
+          grep -Fxq "verify" <<<"${checks}" || {
+            echo "Required status check context is missing: verify"
+            exit 1
+          }
+
+          grep -Fxq "e2e-required-gate" <<<"${checks}" || {
+            echo "Required status check context is missing: e2e-required-gate"
+            exit 1
+          }
+
+          echo "rule_count=$(jq 'length' <<<"${rules}")" >> "${GITHUB_OUTPUT}"
+
+      - name: Emit main guard summary
+        shell: bash
+        env:
+          RULE_COUNT: ${{ steps.rules.outputs.rule_count }}
+        run: |
+          {
+            echo "## Repository main guard: PASS"
+            echo
+            echo "- main protected: \`true\`"
+            echo "- pull request rule: \`present\`"
+            echo "- force-push protection: \`present\`"
+            echo "- branch deletion protection: \`present\`"
+            echo "- required check: \`verify\`"
+            echo "- required check: \`e2e-required-gate\`"
+            echo "- active rules returned: \`${RULE_COUNT}\`"
+            echo
+            echo "This workflow is read-only and does not modify repository settings."
+          } >> "${GITHUB_STEP_SUMMARY}"
