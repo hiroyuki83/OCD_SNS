@@ -2,7 +2,7 @@
 
 最終更新: 2026-09-28
 対象基準ブランチ: `main`
-現在の実装ブランチ: `feature/sanction-records-20260928`
+現在の実装ブランチ: `feature/sanction-appeals-20260928`
 
 この文書を Preview 版の進捗管理表として使用する。
 
@@ -140,7 +140,7 @@
 | NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | HOLD |
 | NEXT-040 | Productionへ明示release・post-deploy smoke / error scan | P0 | HOLD |
 | NEXT-041 | 投稿制限・停止を第一級 Sanction レコードとして永続化 | P1 | DONE |
-| NEXT-042 | Sanction を対象にした共通 Appeal を実装 | P1 | TODO |
+| NEXT-042 | Sanction を対象にした共通 Appeal を実装 | P1 | IN PROGRESS |
 
 ## リリース進行フェーズ
 
@@ -640,3 +640,54 @@ NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへ�
   - Playwright: **15 / 15 PASS**
   - ADMIN status変更時のSanction有効/解除履歴を含む
 
+
+
+## 2026-09-28 実装バッチ7: Sanction Appeal
+
+対象branch: `feature/sanction-appeals-20260928`
+依存: PR #48 / NEXT-041
+
+| # | 内容 | Status |
+|---:|---|---|
+| 1 | Sanction Appeal用 `AppealStatus` enumを追加 | DONE |
+| 2 | `Appeal` modelを追加 | DONE |
+| 3 | `Appeal.sanctionId` を1対1外部キー化 | DONE |
+| 4 | UserへAppeal user/reviewer relationを追加 | DONE |
+| 5 | SanctionへAppeal relationを追加 | DONE |
+| 6 | Appeal migrationを追加 | DONE |
+| 7 | Appeal migrationをdeferredとしてPreview計画へ追加 | DONE |
+| 8 | 停止中ユーザー向けpublic `/appeal` を追加 | DONE |
+| 9 | メール＋パスワード再認証を追加 | DONE |
+| 10 | Appeal経路では通常ログインsessionを作らない | DONE |
+| 11 | Appeal認証へrate limit / dummy hashを追加 | DONE |
+| 12 | 投稿制限・停止の現在有効Sanctionだけを新規申立て対象化 | DONE |
+| 13 | 1 Sanction 1 AppealをDB uniqueで保証 | DONE |
+| 14 | 新規AppealをAudit Logへ記録 | DONE |
+| 15 | 既存Appealの審査状況再確認を追加 | DONE |
+| 16 | 状況確認だけなら理由再入力不要に変更 | DONE |
+| 17 | ログイン画面からAppeal導線を追加 | DONE |
+| 18 | staff用Sanction Appeal審査Actionを追加 | DONE |
+| 19 | Appeal自己審査を禁止 | DONE |
+| 20 | Sanction発行者による審査を禁止 | DONE |
+| 21 | MODERATORのstaff対象Appeal審査を禁止 | DONE |
+| 22 | Appeal維持処理を追加 | DONE |
+| 23 | Appeal取消でSanctionをREVOKED化 | DONE |
+| 24 | より新しい有効Sanctionがある場合はUser.statusを解除しない | DONE |
+| 25 | 取消時のUser.status ACTIVE復帰を追加 | DONE |
+| 26 | 審査結果Audit Logを追加 | DONE |
+| 27 | 審査結果メール通知を追加 | DONE |
+| 28 | staff用Appeal検索 / status filter / paginationを追加 | DONE |
+| 29 | 既存Warning Appeal画面からSanction Appeal画面への導線を追加 | DONE |
+| 30 | account deletion時にAppeal本文を匿名化 | DONE |
+| 31 | account exportへSanction / Appeal履歴を追加 | DONE |
+| 32 | moderation timelineへSanction Appeal審査結果を追加 | DONE |
+| 33 | Preview seed再実行時にSanction / Appeal状態を初期化 | DONE |
+| 34 | Appeal専用E2E Admin 4を追加 | DONE |
+| 35 | stacked branchのVercel Preview自動deployを明示停止 | DONE |
+| 36 | Appeal schema / auth / review安全境界の回帰テストを追加 | DONE |
+| 37 | account deletion privacy回帰テストを追加 | DONE |
+| 38 | account export privacy回帰テストを追加 | DONE |
+| 39 | 停止→Appeal→取消→再ログインE2Eを追加 | DONE |
+| 40 | PR #49 CI / E2E最終検証 | IN PROGRESS |
+
+Preview DBへのAppeal migration実適用はNEXT-041 / PR #48のSanction migration受入後に行う。
