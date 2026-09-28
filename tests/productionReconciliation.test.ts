@@ -97,10 +97,18 @@ test('Production reconciliation apply workflow is manual and heavily gated', () 
   assert.match(source, /rollback_point:/);
   assert.match(source, /release_sha:/);
   assert.match(source, /expected_unpooled_host:/);
+  assert.match(source, /preflight_run_id:/);
   assert.match(source, /APPLY_COCO_PRODUCTION_RECONCILIATION/);
 
   assert.match(source, /secrets\.PRODUCTION_DATABASE_URL_UNPOOLED/);
   assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL[^_]/);
+
+  assert.match(source, /actions: read/);
+  assert.match(source, /Verify successful read-only preflight attestation/);
+  assert.match(source, /repos\/\$\{REPOSITORY\}\/actions\/runs\/\$\{PREFLIGHT_RUN_ID\}/);
+  assert.match(source, /\.github\/workflows\/production-db-preflight\.yml/);
+  assert.match(source, /head_sha/);
+  assert.match(source, /workflow_dispatch/);
 
   assert.match(source, /production:reconciliation:precheck/);
   assert.match(source, /production-legacy-moderation-reconcile\.sql/);
