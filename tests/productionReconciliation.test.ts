@@ -243,3 +243,29 @@ test('Production final release validation exercises current main after the full 
   assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL/);
   assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
 });
+
+
+test('Production deploy readiness gate verifies all same-SHA release attestations without deploying', () => {
+  const path = '.github/workflows/production-deploy-readiness.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /stage_c_apply_run_id:/);
+  assert.match(source, /post_stage_c_preflight_run_id:/);
+  assert.match(source, /final_validation_run_id:/);
+  assert.match(source, /security_ci_run_id:/);
+  assert.match(source, /e2e_run_id:/);
+  assert.match(source, /branches\/main/);
+  assert.match(source, /production-stage-c-apply\.yml/);
+  assert.match(source, /production-db-preflight\.yml/);
+  assert.match(source, /production-final-validation\.yml/);
+  assert.match(source, /security-integration-ci\.yml/);
+  assert.match(source, /e2e\.yml/);
+  assert.match(source, /Production deploy readiness: PASS/);
+  assert.match(source, /does not deploy Production/);
+  assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL/);
+  assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
+});
