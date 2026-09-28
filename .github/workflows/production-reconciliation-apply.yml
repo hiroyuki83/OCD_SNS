@@ -1,0 +1,154 @@
+name: Production Reconciliation Apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type APPLY_COCO_PRODUCTION_RECONCILIATION
+        required: true
+        type: string
+      rollback_point:
+        description: Verified Production rollback point / backup identifier
+        required: true
+        type: string
+      release_sha:
+        description: Exact current main commit SHA to release
+        required: true
+        type: string
+      expected_unpooled_host:
+        description: Exact direct/unpooled Production Neon hostname
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-production-reconciliation-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+      PRODUCTION_DATABASE_HOST: ${{ inputs.expected_unpooled_host }}
+      PRODUCTION_DATABASE_NAME: neondb
+      PRODUCTION_MIGRATION_CONFIRM: CHECK_COCO_PRODUCTION
+      VERCEL_ENV: production
+      VERCEL_GIT_COMMIT_REF: main
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      ROLLBACK_POINT: ${{ inputs.rollback_point }}
+      APPLY_CONFIRMATION: ${{ inputs.confirmation }}
+
+    steps:
+      - name: Verify explicit Production approval inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${APPLY_CONFIRMATION}" != "APPLY_COCO_PRODUCTION_RECONCILIATION" ]; then
+            echo "Exact Production reconciliation confirmation is required."
+            exit 1
+          fi
+          if [ -z "${ROLLBACK_POINT}" ]; then
+            echo "A verified rollback point identifier is required."
+            exit 1
+          fi
+          if [ -z "${RELEASE_SHA}" ]; then
+            echo "An exact release commit SHA is required."
+            exit 1
+          fi
+          if [ -z "${PRODUCTION_DATABASE_HOST}" ]; then
+            echo "The expected direct Production hostname is required."
+            exit 1
+          fi
+          if [[ "${PRODUCTION_DATABASE_HOST}" == *"-pooler."* ]]; then
+            echo "Production reconciliation requires the direct/unpooled Neon hostname."
+            exit 1
+          fi
+          if [ -z "${PRODUCTION_DATABASE_URL:-}" ]; then
+            echo "PRODUCTION_DATABASE_URL_UNPOOLED secret is not configured."
+            exit 1
+          fi
+
+      - name: Verify workflow is running from main release commit
+        shell: bash
+        env:
+          WORKFLOW_SHA: ${{ github.sha }}
+          WORKFLOW_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "${WORKFLOW_REF}" != "main" ]; then
+            echo "Production reconciliation must be dispatched from main."
+            exit 1
+          fi
+          if [ "${RELEASE_SHA}" != "${WORKFLOW_SHA}" ]; then
+            echo "release_sha must exactly match the current main workflow commit."
+            exit 1
+          fi
+
+      - name: Checkout exact release commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.release_sha }}
+
+      - name: Verify checked out release commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [ "${actual}" != "${RELEASE_SHA}" ]; then
+            echo "Checked out commit does not match release_sha."
+            exit 1
+          fi
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run read-only Production reconciliation precheck
+        run: npm run production:reconciliation:precheck
+
+      - name: Apply guarded legacy reconciliation
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { Client } = require('pg');
+
+          (async () => {
+            const client = new Client({ connectionString: process.env.DATABASE_URL });
+            await client.connect();
+            try {
+              const sql = fs.readFileSync(
+                'scripts/production-legacy-moderation-reconcile.sql',
+                'utf8',
+              );
+              await client.query(sql);
+            } finally {
+              await client.end();
+            }
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Resolve already-present restrictionUntil migration
+        run: npx prisma migrate resolve --applied 20260926103000_add_restriction_until
+
+      - name: Apply remaining current migrations
+        run: npx prisma migrate deploy
+
+      - name: Verify final Production schema read-only
+        run: npm run production:db:preflight
