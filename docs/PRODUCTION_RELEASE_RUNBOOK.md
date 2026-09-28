@@ -780,3 +780,111 @@ Before any write, the precheck requires the current Production state to still ma
 The workflow then performs only the DB reconciliation/migration sequence. It does not trigger or promote a Production Vercel deployment.
 
 The presence of this workflow does not authorize its execution.
+
+
+## Staged workflow implementation status — 2026-09-28
+
+The staged release strategy is now represented directly in GitHub Actions.
+
+### Stage A — pre-bridge additive DB preparation
+
+Workflows:
+
+- `.github/workflows/production-stage-a-dry-run.yml`
+- `.github/workflows/production-stage-a-apply.yml`
+
+Verifier:
+
+- `scripts/production-stage-a-verify.ts`
+
+Stage A intentionally stops after:
+
+- `20260927002000_add_follow_approval`
+
+It must leave the following migration pending:
+
+- `20260928013000_remove_reply_and_quote_post`
+
+The Production Stage A apply workflow is manual-only and requires:
+
+- exact confirmation
+- exact main release SHA
+- verified rollback point identifier
+- direct / unpooled Production DB hostname
+- successful Production read-only preflight attestation
+- successful Stage A dry-run attestation
+
+### Stage B — bridge compatibility gate
+
+Workflow:
+
+- `.github/workflows/production-bridge-validation.yml`
+
+Approved bridge commit:
+
+- `64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1`
+
+The isolated validation reproduces Stage A, builds the historical bridge against that DB state, starts it, and smokes public + DB-backed routes.
+
+Actual Production bridge deployment remains a separate explicit approval step.
+
+### Stage C — destructive boundary + remaining migrations
+
+Workflows:
+
+- `.github/workflows/production-stage-c-dry-run.yml`
+- `.github/workflows/production-stage-c-apply.yml`
+
+Precheck:
+
+- `scripts/production-stage-c-precheck.ts`
+
+Stage C requires:
+
+- successful Stage A Apply run for the exact release SHA
+- successful Production read-only preflight after Stage A
+- successful Stage C dry run
+- successful bridge compatibility validation
+- exact approved bridge commit
+- explicit bridge Production smoke confirmation
+- verified Stage C rollback point
+- Reply rows = 0
+- quoted Post rows = 0
+
+The old monolithic workflow:
+
+- `.github/workflows/production-reconciliation-apply.yml`
+
+is now intentionally blocked and deprecated. It must not be used as an alternate release path.
+
+### Stage D — current main compatibility validation
+
+Workflow:
+
+- `.github/workflows/production-final-validation.yml`
+
+The workflow reproduces the complete historical migration path through Stage A and Stage C, then:
+
+- requires final Production-schema preflight PASS
+- builds current main
+- starts current main
+- smokes public routes
+- smokes a DB-backed feed route
+
+Actual current-main Production deployment remains a separate explicit approval step.
+
+### Current safety state
+
+All workflows above are preparation / validation mechanisms.
+
+They do not constitute authorization to mutate Production or deploy Production.
+
+As of this update:
+
+- Production DB write: **not performed**
+- Production Stage A apply: **not performed**
+- Production bridge deploy: **not performed**
+- Production Stage C apply: **not performed**
+- current main Production deploy: **not performed**
+
+Production execution remains **HOLD** until explicit approval at each write/deploy boundary.
