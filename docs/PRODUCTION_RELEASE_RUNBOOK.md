@@ -749,3 +749,34 @@ Before Production reconciliation:
 3. run current read-only preflight again
 4. compare all guard counts to the accepted baseline
 5. obtain explicit approval for Production write
+
+
+## Guarded Production reconciliation apply workflow
+
+Implementation:
+
+- `.github/workflows/production-reconciliation-apply.yml`
+- `scripts/production-reconciliation-precheck.ts`
+
+The workflow is manual only and does not deploy Vercel.
+
+Required inputs:
+
+- confirmation: `APPLY_COCO_PRODUCTION_RECONCILIATION`
+- rollback point identifier
+- exact current main SHA
+- exact direct/unpooled Production hostname
+
+Required GitHub Secret:
+
+- `PRODUCTION_DATABASE_URL_UNPOOLED`
+
+Do not use the pooled `POSTGRES_PRISMA_URL` for the Production migration write.
+
+The workflow refuses a hostname containing `-pooler.` and validates the URL host/database through the Production migration safety layer.
+
+Before any write, the precheck requires the current Production state to still match the accepted legacy baseline and all live-data counts relevant to schema removal to remain zero.
+
+The workflow then performs only the DB reconciliation/migration sequence. It does not trigger or promote a Production Vercel deployment.
+
+The presence of this workflow does not authorize its execution.
