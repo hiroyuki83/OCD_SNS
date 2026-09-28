@@ -1812,3 +1812,113 @@ After `Production Pre-execution Self Check` passes for a release SHA:
 - if `main` changes, treat existing release attestations as stale and restart from the pre-execution self-check for the new SHA
 
 This is enforced by same-SHA attestation checks throughout the state-changing workflows.
+
+
+## 2026-09-29 repository guard / cleanup hardening
+
+### PR #88 — protected-main pre-execution attestation
+
+- merged
+- `Production Pre-execution Self Check` is bound to an exact release SHA
+- self-check must run from `main`
+- release SHA must equal both workflow SHA and current main SHA
+- self-check requires GitHub to report `main protected = true`
+- `Production Rollback Point Create` requires the successful same-SHA self-check run
+- `Production Stage A Apply` independently requires the same self-check attestation
+
+### PR #90 — guarded merged-branch cleanup
+
+- merged
+- added manual `Repository Branch Cleanup`
+- default mode is `VERIFY_ONLY`
+- DELETE requires exact confirmation `DELETE_MERGED_BRANCH`
+- default branch / `main` cannot be deleted
+- protected branches cannot be deleted
+- branches with open PRs cannot be deleted
+- automated deletion requires `ahead_of_main = 0`
+- one branch per workflow run
+- no branch deletion has been executed through this workflow yet
+
+### PR #91 — stable required E2E gate / active rules verification
+
+- merged
+- CoCo E2E now always exposes stable check context `e2e-required-gate`
+- release-affecting change → browser E2E must succeed
+- docs-only change → browser E2E may be skipped while the required gate still succeeds
+- Production self-check now requires active main rules:
+  - pull-request rule
+  - branch deletion protection
+  - non-fast-forward / force-push protection
+  - required status checks
+  - `verify`
+  - `e2e-required-gate`
+
+### PR #92 — standalone Repository Main Guard Check
+
+- merged
+- added read-only `Repository Main Guard Check`
+- verifies repository guard independently from Production secrets
+- expected PASS conditions match the Production pre-execution self-check
+
+### PR #93 — exact GitHub ruleset setup guide
+
+- merged
+- added `docs/GITHUB_MAIN_RULESET_SETUP.md`
+- documents exact GitHub UI setup
+- docs-only PR validated the required-check design:
+  - `browser-e2e = skipped`
+  - `e2e-required-gate = success`
+
+### PR #94 — read-only branch inventory
+
+- merged
+- added manual `Repository Branch Inventory`
+- classifies repository branches as:
+  - `safe-delete`
+  - `review-required`
+  - `open-pr`
+  - `protected-review`
+  - `default-branch`
+- `safe-delete` requires:
+  - non-main
+  - unprotected
+  - no open PR
+  - `ahead_of_main = 0`
+- uploads JSON + Markdown inventory artifacts
+- never deletes or moves a branch
+
+### NEXT-038 current state
+
+Historical open PR cleanup: **COMPLETE**
+
+Neon temporary branch cleanup: **COMPLETE**
+
+GitHub branch cleanup tooling: **COMPLETE**
+
+Actual historical GitHub branch deletion: **NOT YET EXECUTED**
+
+Recommended cleanup sequence:
+
+1. run `Repository Branch Inventory`
+2. review `safe-delete` candidates
+3. run `Repository Branch Cleanup` with `VERIFY_ONLY`
+4. only after review, explicitly run DELETE for one branch at a time
+
+NEXT-038 remains **IN PROGRESS — guarded branch deletion pending explicit execution**.
+
+### Production execution blocker
+
+Current repository state still reports:
+
+- `main protected = false`
+
+Production execution therefore remains blocked.
+
+Required next repository action:
+
+1. configure the ruleset described in `docs/GITHUB_MAIN_RULESET_SETUP.md`
+2. run `Repository Main Guard Check`
+3. require PASS
+4. only then proceed to Production pre-execution checks
+
+No Production state-changing action has been executed.
