@@ -622,7 +622,7 @@ Production releaseは引き続き `NEXT-039 / NEXT-040` としてHOLDする。
 | 39 | Preview deploy checklist / branch情報を現行化 | DONE |
 | 40 | PR CI / E2Eで最終検証 | DONE |
 
-NEXT-041 はコード検証まで完了。PR #48はPreview DB migration / Preview受入前のためDraftを維持する。
+NEXT-041 / PR #48 は共有Preview DB migration・Preview受入・main統合まで完了。merge commit: `f4ce31ba322d8b6b6aa1f6e1241ceb509e8066b2`。
 NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへの実適用はSanction migrationの受入順序を崩さない。
 
 ### バッチ6検証
@@ -645,7 +645,7 @@ NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへ�
 ## 2026-09-28 実装バッチ7: Sanction Appeal
 
 対象branch: `feature/sanction-appeals-20260928`
-依存: PR #48 / NEXT-041
+依存: PR #48 / NEXT-041（共有Preview受入・main統合済み）
 
 | # | 内容 | Status |
 |---:|---|---|
@@ -699,7 +699,7 @@ NEXT-042 はPR #48を土台にした別branchで実装を進め、Preview DBへ�
 | 48 | 投稿制限→設定Appeal→独立審査→取消→投稿再開E2Eを追加 | DONE |
 | 49 | 投稿制限・停止の両Appealを含むPR #49最終CI / E2E | DONE |
 
-Preview DBへのAppeal migration実適用はNEXT-041 / PR #48のSanction migration受入後に行う。
+Sanction migrationの共有Preview受入が完了したため、Appeal migrationを次のPreview pending migrationへ昇格する。
 
 
 ### バッチ7検証
@@ -722,7 +722,7 @@ Preview DBへのAppeal migration実適用はNEXT-041 / PR #48のSanction migrati
   - 審査結果メール通知: PASS
 
 NEXT-042 はコード実装・隔離DB検証まで完了。
-共有Preview DBへの `20260928110500_add_sanction_appeals` 適用は、PR #48 / NEXT-041 のSanction migrationをPreviewで受入れた後に行う。
+共有Preview DBはSanction migration適用済み40 migrationの状態。次は `20260928110500_add_sanction_appeals` のPreview release gateを実行する。
 
 
 ### バッチ7追加検証対象
@@ -755,4 +755,34 @@ NEXT-042 はコード実装・隔離DB検証まで完了。
   - POST_RESTRICTION: 投稿拒否 → 設定Appeal → 独立審査 → 取消 → 結果メール → 投稿再開: PASS
 
 NEXT-042 のコード実装と隔離環境検証は完了。
-共有PreviewへのAppeal migrationは、NEXT-041のSanction migrationを共有Previewで受入れた後にのみ実施する。
+共有PreviewへのAppeal migrationはSanction受入済み状態をpreflightで確認したうえで実施する。
+
+
+## 2026-09-28 PR #48 main統合・Appeal Previewリリース準備
+
+### Sanction release完了
+
+- PR #48: **MERGED**
+- main merge commit: `f4ce31ba322d8b6b6aa1f6e1241ceb509e8066b2`
+- shared Preview DB: **40 migrations applied**
+- `Sanction` schema: verified
+- Sanction Preview deployment: `dpl_7ksKuNtxd9oaJzj3vmgJKeePpMNZ` READY
+- public HTTP smoke: **5 / 5 PASS**
+- runtime error/fatal: **0**
+- Production auto-deploy: **disabled**
+- Production DB / deployment: **untouched / HOLD**
+
+### NEXT-042 release gate
+
+PR #49を `main` baseへ付け替え、Appeal release safetyを次の状態へ更新する。
+
+- historical migrations: **40**（Sanction migrationを含む）
+- pending migration: `20260928110500_add_sanction_appeals`
+- deferred migrations: **0**
+- preflight: `Sanction` が存在し、`Appeal` が存在しないことを要求
+- post-migration verify: `Appeal` table / columns / migration historyを要求
+- Preview migration / seed許可branch: `feature/sanction-appeals-20260928`
+- Appeal branch Vercel auto-deploy: migration受入前は **disabled**
+- Production: **HOLD**
+
+次のゲートは、PR #49最新headのCI / E2E成功 → Neon一時branch migration検証 → 明示承認後に共有PreviewへAppeal migration適用。
