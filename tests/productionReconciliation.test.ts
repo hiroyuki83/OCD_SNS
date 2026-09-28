@@ -55,7 +55,7 @@ test('reconciliation dry run never uses Production secrets or remote deployment'
   assert.match(workflow, /postgres:16/);
   assert.match(workflow, /127\.0\.0\.1:5432\/coco_reconcile/);
   assert.doesNotMatch(workflow, /secrets\.PRODUCTION_DATABASE_URL/);
-  assert.doesNotMatch(workflow, /deploy_to_vercel|vercel deploy|production deployment/i);
+  assert.doesNotMatch(workflow, /deploy_to_vercel|\bvercel\s+deploy\b|production deployment/i);
 });
 
 test('reconciliation dry run reproduces legacy state and validates the final current schema', () => {
@@ -222,7 +222,7 @@ test('Production Stage C is independently dry-run and heavily gated', () => {
   assert.match(apply, /prisma migrate deploy/);
   assert.doesNotMatch(apply, /production-legacy-moderation-reconcile\.sql/);
   assert.doesNotMatch(apply, /prisma migrate resolve --applied 20260926103000_add_restriction_until/);
-  assert.doesNotMatch(apply, /vercel deploy|deploy_to_vercel/i);
+  assert.doesNotMatch(apply, /\bvercel\s+deploy\b|deploy_to_vercel/i);
 });
 
 
@@ -566,4 +566,65 @@ test('Production bridge rollback smoke verifies alias and runtime without requir
   assert.match(source, /Repeat bridge smoke/);
   assert.doesNotMatch(source, /\/api\/health/);
   assert.doesNotMatch(source, /prisma migrate deploy/);
+});
+
+
+test('Production bridge candidate verification is pinned to the approved historical bridge commit', () => {
+  const path = '.github/workflows/production-bridge-vercel-candidate.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+  assert.match(source, /64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1/);
+  assert.match(source, /state=READY/);
+  assert.match(source, /Production bridge Vercel candidate: PASS/);
+  assert.match(source, /read-only and does not change Production traffic/);
+  assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
+});
+
+test('Production bridge promotion requires Stage A, bridge validation, and exact bridge candidate', () => {
+  const path = '.github/workflows/production-bridge-vercel-promote.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+  assert.match(source, /PROMOTE_COCO_BRIDGE_PRODUCTION/);
+  assert.match(source, /stage_a_apply_run_id:/);
+  assert.match(source, /bridge_validation_run_id:/);
+  assert.match(source, /bridge_candidate_run_id:/);
+  assert.match(source, /production-stage-a-apply\.yml/);
+  assert.match(source, /production-bridge-validation\.yml/);
+  assert.match(source, /production-bridge-vercel-candidate\.yml/);
+  assert.match(source, /api\.vercel\.com\/v10\/projects\/\$\{PROJECT_ID\}\/promote\/\$\{DEPLOYMENT_ID\}/);
+  assert.match(source, /Run Production Bridge Production Smoke immediately/);
+  assert.doesNotMatch(source, /prisma migrate deploy/);
+});
+
+test('Production bridge smoke proves the promoted deployment owns the Production alias and serves DB-backed traffic', () => {
+  const path = '.github/workflows/production-bridge-production-smoke.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+  assert.match(source, /production-bridge-vercel-promote\.yml/);
+  assert.match(source, /Production bridge promote \$\{DEPLOYMENT_ID\}/);
+  assert.match(source, /v2\/deployments\/\$\{DEPLOYMENT_ID\}\/aliases/);
+  assert.match(source, /x-clone-olive-chi\.vercel\.app/);
+  assert.match(source, /api\/feed\?limit=1/);
+  assert.match(source, /Stage C may proceed only with this successful smoke attestation/);
+});
+
+test('Production Stage C requires machine-proven bridge promotion and smoke attestations', () => {
+  const path = '.github/workflows/production-stage-c-apply.yml';
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /bridge_deployment_id:/);
+  assert.match(source, /bridge_promotion_run_id:/);
+  assert.match(source, /bridge_smoke_run_id:/);
+  assert.match(source, /BRIDGE_PROMOTION_RUN_ID/);
+  assert.match(source, /BRIDGE_SMOKE_RUN_ID/);
+  assert.match(source, /production-bridge-vercel-promote\.yml/);
+  assert.match(source, /production-bridge-production-smoke\.yml/);
+  assert.match(source, /Production bridge promote \$\{BRIDGE_DEPLOYMENT_ID\}/);
+  assert.match(source, /Production bridge smoke \$\{BRIDGE_DEPLOYMENT_ID\}/);
 });

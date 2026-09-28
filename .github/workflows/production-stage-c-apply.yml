@@ -47,6 +47,18 @@ on:
         description: Exact bridge application commit deployed to Production
         required: true
         type: string
+      bridge_deployment_id:
+        description: Exact Vercel deployment ID serving the approved bridge in Production
+        required: true
+        type: string
+      bridge_promotion_run_id:
+        description: Successful Production Bridge Vercel Promote run ID
+        required: true
+        type: string
+      bridge_smoke_run_id:
+        description: Successful Production Bridge Production Smoke run ID
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -79,6 +91,9 @@ jobs:
       BRIDGE_CONFIRMATION: ${{ inputs.bridge_confirmation }}
       BRIDGE_COMMIT_SHA: ${{ inputs.bridge_commit_sha }}
       EXPECTED_BRIDGE_COMMIT_SHA: 64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1
+      BRIDGE_DEPLOYMENT_ID: ${{ inputs.bridge_deployment_id }}
+      BRIDGE_PROMOTION_RUN_ID: ${{ inputs.bridge_promotion_run_id }}
+      BRIDGE_SMOKE_RUN_ID: ${{ inputs.bridge_smoke_run_id }}
 
     steps:
       - name: Verify explicit Stage C approval inputs
@@ -90,6 +105,9 @@ jobs:
           [[ "${ROLLBACK_VERIFICATION_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Numeric rollback verification run ID is required."; exit 1; }
           [ "${BRIDGE_CONFIRMATION}" = "BRIDGE_PRODUCTION_VERIFIED" ] || { echo "Verified bridge Production smoke is required."; exit 1; }
           [ "${BRIDGE_COMMIT_SHA}" = "${EXPECTED_BRIDGE_COMMIT_SHA}" ] || { echo "Unexpected bridge commit."; exit 1; }
+          [[ "${BRIDGE_DEPLOYMENT_ID}" =~ ^dpl_[A-Za-z0-9]+$ ]] || { echo "Valid bridge deployment ID is required."; exit 1; }
+          [[ "${BRIDGE_PROMOTION_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Numeric bridge promotion run ID is required."; exit 1; }
+          [[ "${BRIDGE_SMOKE_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Numeric bridge smoke run ID is required."; exit 1; }
           [[ "${PRODUCTION_DATABASE_HOST}" != *"-pooler."* ]] || { echo "Direct/unpooled hostname is required."; exit 1; }
           [ -n "${PRODUCTION_DATABASE_URL:-}" ] || { echo "PRODUCTION_DATABASE_URL_UNPOOLED is not configured."; exit 1; }
           for id in "${PREFLIGHT_RUN_ID}" "${STAGE_A_APPLY_RUN_ID}" "${STAGE_C_DRY_RUN_ID}" "${BRIDGE_VALIDATION_RUN_ID}"; do
@@ -139,6 +157,18 @@ jobs:
           verify_run "${STAGE_A_APPLY_RUN_ID}" ".github/workflows/production-stage-a-apply.yml"
           verify_run "${STAGE_C_DRY_RUN_ID}" ".github/workflows/production-stage-c-dry-run.yml"
           verify_run "${BRIDGE_VALIDATION_RUN_ID}" ".github/workflows/production-bridge-validation.yml"
+
+          bridge_promotion="$(gh api "repos/${REPOSITORY}/actions/runs/${BRIDGE_PROMOTION_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${bridge_promotion}")" = "success" ] || { echo "Bridge promotion run did not succeed."; exit 1; }
+          [ "$(jq -r '.head_sha // ""' <<<"${bridge_promotion}")" = "${RELEASE_SHA}" ] || { echo "Bridge promotion SHA mismatch."; exit 1; }
+          [ "$(jq -r '.path // ""' <<<"${bridge_promotion}")" = ".github/workflows/production-bridge-vercel-promote.yml" ] || { echo "Bridge promotion workflow mismatch."; exit 1; }
+          [ "$(jq -r '.display_title // ""' <<<"${bridge_promotion}")" = "Production bridge promote ${BRIDGE_DEPLOYMENT_ID}" ] || { echo "Bridge promotion deployment mismatch."; exit 1; }
+
+          bridge_smoke="$(gh api "repos/${REPOSITORY}/actions/runs/${BRIDGE_SMOKE_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${bridge_smoke}")" = "success" ] || { echo "Bridge Production smoke did not succeed."; exit 1; }
+          [ "$(jq -r '.head_sha // ""' <<<"${bridge_smoke}")" = "${RELEASE_SHA}" ] || { echo "Bridge smoke SHA mismatch."; exit 1; }
+          [ "$(jq -r '.path // ""' <<<"${bridge_smoke}")" = ".github/workflows/production-bridge-production-smoke.yml" ] || { echo "Bridge smoke workflow mismatch."; exit 1; }
+          [ "$(jq -r '.display_title // ""' <<<"${bridge_smoke}")" = "Production bridge smoke ${BRIDGE_DEPLOYMENT_ID}" ] || { echo "Bridge smoke deployment mismatch."; exit 1; }
 
       - uses: actions/checkout@v6
         with:
