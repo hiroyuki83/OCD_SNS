@@ -356,3 +356,27 @@ test('Production Neon API access check is read-only and scoped to the Production
   assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
   assert.doesNotMatch(source, /prisma migrate deploy/);
 });
+
+
+test('Production pre-execution self-check validates secret presence and Production identities without mutation', () => {
+  const path = '.github/workflows/production-pre-execution-self-check.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /secrets\.NEON_API_KEY/);
+  assert.match(source, /secrets\.PRODUCTION_DATABASE_URL/);
+  assert.match(source, /secrets\.PRODUCTION_DATABASE_URL_UNPOOLED/);
+  assert.match(source, /withered-lab-08522436/);
+  assert.match(source, /plain-dawn-64792117/);
+  assert.match(source, /ep-billowing-smoke-ah3grpmy-pooler\.c-3\.us-east-1\.aws\.neon\.tech/);
+  assert.match(source, /neondb/);
+  assert.match(source, /pooled and unpooled hosts must differ/);
+  assert.match(source, /Production pre-execution self-check: PASS/);
+  assert.match(source, /read-only/);
+  assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
+  assert.doesNotMatch(source, /prisma migrate deploy/);
+  assert.doesNotMatch(source, /INSERT\s+INTO|UPDATE\s+|DELETE\s+FROM|ALTER\s+|DROP\s+|CREATE\s+/i);
+});
