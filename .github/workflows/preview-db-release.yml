@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   migrate-preview:
-    if: ${{ github.ref_name == 'feature/sanction-records-20260928' && inputs.confirmation == 'MIGRATE_COCO_PREVIEW' }}
+    if: ${{ github.ref_name == 'feature/sanction-appeals-20260928' && inputs.confirmation == 'MIGRATE_COCO_PREVIEW' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: preview
