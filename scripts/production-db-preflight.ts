@@ -20,13 +20,15 @@ if (!safety.ok) {
   process.exit(1);
 }
 
+const approvedSafety = safety;
+
 const migrationDir = resolve(process.cwd(), 'prisma', 'migrations');
 const localMigrations = readdirSync(migrationDir, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort();
 
-const client = new Client({ connectionString: safety.productionDatabaseUrl });
+const client = new Client({ connectionString: approvedSafety.productionDatabaseUrl });
 
 const tableExists = async (table: string) => {
   const result = await client.query(
@@ -60,7 +62,7 @@ async function main() {
     await client.connect();
 
   const database = await client.query('SELECT current_database() AS name');
-  if (database.rows[0]?.name !== safety.databaseName) {
+  if (database.rows[0]?.name !== approvedSafety.databaseName) {
     throw new Error(
       'Connected database name does not match the approved Production database.',
     );
@@ -186,8 +188,8 @@ async function main() {
     (replyRows ?? 0) > 0 || (quotedPosts ?? 0) > 0;
 
   const report = {
-    hostname: safety.hostname,
-    databaseName: safety.databaseName,
+    hostname: approvedSafety.hostname,
+    databaseName: approvedSafety.databaseName,
     localMigrationCount: localMigrations.length,
     appliedMigrationCount: applied.size,
     pendingMigrations: pending,
