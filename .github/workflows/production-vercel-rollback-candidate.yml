@@ -1,0 +1,94 @@
+name: Production Vercel Rollback Candidate Verification
+run-name: Production rollback candidate verify ${{ inputs.deployment_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact current main SHA whose release may need rollback
+        required: true
+        type: string
+      deployment_id:
+        description: Vercel deployment ID for the approved bridge application
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-production-vercel-rollback-candidate
+  cancel-in-progress: true
+
+jobs:
+  verify-rollback-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      TEAM_ID: team_P1Z1wvYF1h42LIl0YfgXoOPI
+      PROJECT_ID: prj_AcjmJFO5jcqse6sStknZzZkmfR7h
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+      BRIDGE_SHA: 64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1
+
+    steps:
+      - name: Verify rollback candidate inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${VERCEL_TOKEN:-}" ] || { echo "VERCEL_TOKEN is not configured."; exit 1; }
+          [[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "release_sha must be a full Git SHA."; exit 1; }
+          [[ "${DEPLOYMENT_ID}" =~ ^dpl_[A-Za-z0-9]+$ ]] || { echo "deployment_id must be a Vercel deployment ID."; exit 1; }
+
+      - name: Verify release SHA is current main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/${REPOSITORY}/branches/main" --jq '.commit.sha')"
+          [ "${RELEASE_SHA}" = "${main_sha}" ] || { echo "release_sha does not match current main."; exit 1; }
+
+      - name: Verify exact READY bridge deployment
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          response="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://api.vercel.com/v7/deployments?projectId=${PROJECT_ID}&teamId=${TEAM_ID}&sha=${BRIDGE_SHA}&state=READY&limit=100"             --header "Accept: application/json"             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+
+          candidate="$(jq -c --arg id "${DEPLOYMENT_ID}" '.deployments[] | select((.uid // .id) == $id)' <<<"${response}" | head -n1)"
+          [ -n "${candidate}" ] || {
+            echo "The supplied rollback deployment is not a READY deployment of the approved bridge commit."
+            exit 1
+          }
+
+          url="$(jq -r '.url // ""' <<<"${candidate}")"
+          meta_sha="$(jq -r '.meta.githubCommitSha // ""' <<<"${candidate}")"
+          meta_repo="$(jq -r '.meta.githubRepo // ""' <<<"${candidate}")"
+          meta_org="$(jq -r '.meta.githubOrg // ""' <<<"${candidate}")"
+
+          [ -n "${url}" ] || { echo "Rollback deployment URL is missing."; exit 1; }
+          if [ -n "${meta_sha}" ]; then [ "${meta_sha}" = "${BRIDGE_SHA}" ] || { echo "Bridge SHA mismatch."; exit 1; }; fi
+          if [ -n "${meta_repo}" ]; then [ "${meta_repo}" = "OCD_SNS" ] || { echo "Repository mismatch."; exit 1; }; fi
+          if [ -n "${meta_org}" ]; then [ "${meta_org}" = "hiroyuki83" ] || { echo "GitHub org mismatch."; exit 1; }; fi
+
+          echo "url=${url}" >> "${GITHUB_OUTPUT}"
+
+      - name: Emit rollback candidate summary
+        shell: bash
+        env:
+          CANDIDATE_URL: ${{ steps.candidate.outputs.url }}
+        run: |
+          {
+            echo "## Production rollback candidate verification: PASS"
+            echo
+            echo "- current release SHA: \`${RELEASE_SHA}\`"
+            echo "- approved bridge SHA: \`${BRIDGE_SHA}\`"
+            echo "- rollback deployment ID: \`${DEPLOYMENT_ID}\`"
+            echo "- rollback deployment URL: \`${CANDIDATE_URL}\`"
+            echo
+            echo "This workflow is read-only and does not change Production traffic."
+          } >> "${GITHUB_STEP_SUMMARY}"
