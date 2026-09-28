@@ -77,6 +77,41 @@ jobs:
             exit 1
           }
 
+      - name: Verify active main repository rules
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          rules="$(gh api             -H "Accept: application/vnd.github+json"             -H "X-GitHub-Api-Version: 2026-03-10"             "repos/${REPOSITORY}/rules/branches/main")"
+
+          require_rule() {
+            type="$1"
+            jq -e --arg type "${type}" 'any(.[]; .type == $type)' <<<"${rules}" >/dev/null || {
+              echo "Required active main rule is missing: ${type}"
+              exit 1
+            }
+          }
+
+          require_rule deletion
+          require_rule non_fast_forward
+          require_rule pull_request
+          require_rule required_status_checks
+
+          checks="$(jq -r '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]?.context' <<<"${rules}")"
+
+          grep -Fxq "verify" <<<"${checks}" || {
+            echo "Required status check context is missing: verify"
+            exit 1
+          }
+
+          grep -Fxq "e2e-required-gate" <<<"${checks}" || {
+            echo "Required status check context is missing: e2e-required-gate"
+            exit 1
+          }
+
       - name: Verify required secrets are configured
         shell: bash
         run: |
@@ -201,6 +236,10 @@ jobs:
             echo
             echo "- release SHA: \`${RELEASE_SHA}\`"
             echo "- main branch protection: verified"
+            echo "- pull request rule: verified"
+            echo "- force-push protection: verified"
+            echo "- branch deletion protection: verified"
+            echo "- required status checks: verify + e2e-required-gate"
             echo "- NEON_API_KEY: configured and Production project readable"
             echo "- VERCEL_TOKEN: configured and confirmed Vercel project readable"
             echo "- Vercel team ID: \`${VERCEL_TEAM_ID}\`"
