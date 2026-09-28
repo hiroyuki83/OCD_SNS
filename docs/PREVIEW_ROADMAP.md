@@ -136,7 +136,7 @@
 | NEXT-035 | main統合前ゲート確認（NEXT-006/007/034完了、Production自動deployの有無確認） | P0 | DONE |
 | NEXT-036 | PR #47 を main へmerge | P0 | DONE |
 | NEXT-037 | main merge後のCI / E2E再確認 | P0 | DONE |
-| NEXT-038 | integration branch終了・不要な一時Neon branch整理 | P1 | IN PROGRESS |
+| NEXT-038 | integration branch終了・不要な一時Neon branch整理 | P1 | IN PROGRESS（Neon完了 / GitHub branch手動削除待ち） |
 | NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | HOLD |
 | NEXT-040 | Productionへ明示release・post-deploy smoke / error scan | P0 | HOLD |
 | NEXT-041 | 投稿制限・停止を第一級 Sanction レコードとして永続化 | P1 | DONE |
@@ -154,7 +154,7 @@ mainへ統合する位置を、以下のゲートで固定する。
 | PHASE-D | Preview最終受入 | 最新commitのVercel Previewでsmoke・主要機能・runtime error確認 | DONE |
 | PHASE-E | main統合ゲート | PHASE-C/D完了、Production自動deployの有無と影響を確認 | DONE |
 | PHASE-F | mainへ統合 | PR #47をmainへmergeし、main上のCI/E2Eを再確認 | DONE |
-| PHASE-G | 統合後整理 | integration branchと不要な一時Neon branchを整理 | IN PROGRESS |
+| PHASE-G | 統合後整理 | integration branchと不要な一時Neon branchを整理 | IN PROGRESS（Neon完了 / GitHub branch手動削除待ち） |
 | PHASE-H | Production release | 別途明示承認のうえProduction DB migration→deploy→smoke | HOLD |
 
 ### mainへ統合するタイミング
@@ -949,10 +949,10 @@ mainとの比較結果:
 
 #### 削除候補
 
-- `mcp-migration-2026-09-27T21-09-15` / `br-gentle-morning-b34ef1bw`
-- `mcp-migration-2026-09-26T23-35-13` / `br-broad-surf-b3z9ya0v`
+- `mcp-migration-2026-09-27T21-09-15` / `br-gentle-morning-b34ef1bw` — **削除済み**
+- `mcp-migration-2026-09-26T23-35-13` / `br-broad-surf-b3z9ya0v` — **削除済み**
 
-Neon branch削除は破壊的操作のため、明示承認後にのみ実施する。
+2026-09-28 明示承認後に削除し、再一覧で存在しないことを確認済み。
 
 ### NEXT-038 completion condition
 
@@ -962,3 +962,22 @@ Neon branch削除は破壊的操作のため、明示承認後にのみ実施す
 
 それまでは NEXT-038 / PHASE-G を **IN PROGRESS** とする。
 Production release（NEXT-039 / NEXT-040）は引き続き **HOLD**。
+
+
+### Neon cleanup実施結果
+
+2026-09-28、明示承認後に以下の一時migration branchを削除。
+
+- `br-gentle-morning-b34ef1bw` / `mcp-migration-2026-09-27T21-09-15`: **DELETED**
+- `br-broad-surf-b3z9ya0v` / `mcp-migration-2026-09-26T23-35-13`: **DELETED**
+
+削除後のNeon branchは3本のみ。
+
+- `production` / `br-late-field-b3ixoym5`
+- `backup-before-sanction-migration-2026-09-28` / `br-wandering-bonus-b3fwuc0n`
+- `backup-before-appeal-migration-2026-09-28` / `br-billowing-lab-b3xo361l`
+
+rollback用backup 2本はProduction release完了まで保持。
+
+NEXT-038の残作業はGitHub上のahead=0済みbranch 3本の削除のみ。
+現在のGitHub connectorにはbranch delete actionがないため、UIでの手動削除待ち。
