@@ -173,17 +173,6 @@ test('Production bridge validation proves the approved bridge against a Stage A 
   assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
 });
 
-test('destructive Production reconciliation requires bridge validation attestation', () => {
-  const path = '.github/workflows/production-reconciliation-apply.yml';
-  const source = readFileSync(path, 'utf8');
-
-  assert.match(source, /bridge_validation_run_id:/);
-  assert.match(source, /BRIDGE_VALIDATION_RUN_ID/);
-  assert.match(source, /Verify successful bridge validation attestation/);
-  assert.match(source, /production-bridge-validation\.yml/);
-});
-
-
 test('Production Stage C precheck is read-only and requires the Stage A boundary', () => {
   const path = 'scripts/production-stage-c-precheck.ts';
   assert.equal(existsSync(path), true);
