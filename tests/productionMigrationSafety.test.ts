@@ -207,7 +207,7 @@ test('production preflight reports blockers only after read-only diagnostics', a
   assert.match(source, /applied_steps_count/);
   assert.match(source, /started_at/);
 
-  const reportIndex = source.indexOf("console.log(report)");
+  const reportIndex = source.indexOf("console.log(JSON.stringify(report, null, 2))");
   const blockerThrowIndex = source.indexOf("Production preflight blockers:");
   assert.ok(reportIndex >= 0);
   assert.ok(blockerThrowIndex > reportIndex);
@@ -231,4 +231,21 @@ test('production preflight diagnoses pending schema object collisions', async ()
   assert.match(source, /ModerationWarning/);
   assert.match(source, /WarningAppeal/);
   assert.match(source, /Appeal/);
+});
+
+
+test('Production preflight expands legacy moderation reconciliation diagnostics', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+
+  const source = readFileSync(
+    resolve(process.cwd(), 'scripts/production-db-preflight.ts'),
+    'utf8',
+  );
+
+  assert.match(source, /ModerationAction:/);
+  assert.match(source, /optionalRowCount\('ModerationAction'\)/);
+  assert.match(source, /tableColumns\('ModerationAction'\)/);
+  assert.match(source, /tableConstraints\('ModerationAction'\)/);
+  assert.match(source, /JSON\.stringify\(report, null, 2\)/);
 });

@@ -338,6 +338,12 @@ async function main() {
       (replyRows ?? 0) > 0 || (quotedPosts ?? 0) > 0;
 
     const moderationConflictDiagnostics = {
+      ModerationAction: {
+        present: await tableExists('ModerationAction'),
+        rowCount: await optionalRowCount('ModerationAction'),
+        columns: await tableColumns('ModerationAction'),
+        constraints: await tableConstraints('ModerationAction'),
+      },
       ModerationWarning: {
         present: moderationWarningTable,
         rowCount: await optionalRowCount('ModerationWarning'),
@@ -399,7 +405,7 @@ async function main() {
     };
 
     console.log('Production DB read-only preflight completed.');
-    console.log(report);
+    console.log(JSON.stringify(report, null, 2));
 
     if (blockers.length) {
       throw new Error(`Production preflight blockers: ${blockers.join(' | ')}`);
