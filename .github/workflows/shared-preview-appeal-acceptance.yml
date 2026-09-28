@@ -1,0 +1,118 @@
+name: Shared Preview Appeal Acceptance
+
+on:
+  push:
+    branches:
+      - feature/sanction-appeals-20260928
+    paths:
+      - '.github/workflows/shared-preview-appeal-acceptance.yml'
+
+concurrency:
+  group: coco-shared-preview-appeal-acceptance
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  appeal-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: preview
+    env:
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      POSTGRES_URL_NON_POOLING: ${{ secrets.PREVIEW_DATABASE_URL }}
+      POSTGRES_PRISMA_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      PREVIEW_TEST_PASSWORD: ${{ secrets.PREVIEW_TEST_PASSWORD }}
+      PREVIEW_SEED_USERS: '1'
+      PREVIEW_MIGRATION_CONFIRM: MIGRATE_COCO_PREVIEW
+      VERCEL_ENV: preview
+      VERCEL_GIT_COMMIT_REF: feature/sanction-appeals-20260928
+      AUTH_SECRET: shared-preview-acceptance-auth-secret
+      NEXTAUTH_SECRET: shared-preview-acceptance-auth-secret
+      STAFF_MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      NEXTAUTH_URL: http://127.0.0.1:3000
+      AUTH_URL: http://127.0.0.1:3000
+      E2E_EMAIL_MODE: '1'
+      E2E_BLOB_MODE: '1'
+      E2E_EMAIL_OUTBOX_FILE: /tmp/coco-shared-preview-mails.jsonl
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Verify accepted shared Preview schema
+        run: npm run preview:db:verify
+
+      - name: Seed shared Preview users with repository secret
+        run: npm run seed:preview
+
+      - name: Build application
+        run: npm run build
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Run shared Preview sanction-appeal acceptance
+        working-directory: e2e
+        run: npx playwright test tests/sanction-appeal.spec.mjs
+
+      - name: Reset shared Preview users and sanction state
+        if: always()
+        run: npm run seed:preview
+
+      - name: Remove shared Preview appeal test post
+        if: always()
+        run: |
+          node <<'NODE'
+          const { Client } = require('pg');
+          (async () => {
+            const client = new Client({ connectionString: process.env.PREVIEW_DATABASE_URL });
+            await client.connect();
+            try {
+              await client.query(
+                `DELETE FROM "Post"
+                 WHERE "authorId" = (
+                   SELECT id FROM "User"
+                   WHERE email = 'coco.preview.appeal@example.com'
+                   LIMIT 1
+                 )
+                 AND content LIKE 'E2E post after restriction overturn %'`,
+              );
+            } finally {
+              await client.end();
+            }
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-preview-appeal-playwright-report
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 7
