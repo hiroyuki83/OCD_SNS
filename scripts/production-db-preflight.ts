@@ -57,6 +57,7 @@ const columnExists = async (table: string, column: string) => {
   return Boolean(result.rows[0]?.present);
 };
 
+// Keep the entrypoint compatible with tsx's CommonJS execution mode.
 async function main() {
   try {
     await client.connect();
