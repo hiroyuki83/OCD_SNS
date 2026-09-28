@@ -149,6 +149,8 @@ async function run() {
         });
 
     await prisma.$transaction([
+      prisma.appeal.deleteMany({ where: { userId: user.id } }),
+      prisma.sanction.deleteMany({ where: { targetUserId: user.id } }),
       prisma.staffRecoveryCode.deleteMany({ where: { userId: user.id } }),
       prisma.emailVerificationToken.deleteMany({ where: { userId: user.id } }),
       prisma.passwordResetToken.deleteMany({ where: { userId: user.id } }),
