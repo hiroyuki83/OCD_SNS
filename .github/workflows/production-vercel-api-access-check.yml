@@ -1,0 +1,104 @@
+name: Production Vercel API Access Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-production-vercel-api-access-check
+  cancel-in-progress: true
+
+jobs:
+  verify-vercel-api-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      TEAM_ID: team_P1Z1wvYF1h42LIl0YfgXoOPI
+      PROJECT_ID: prj_AcjmJFO5jcqse6sStknZzZkmfR7h
+      PROJECT_NAME: coco
+
+    steps:
+      - name: Verify Vercel API token and project read access
+        id: access
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          [ -n "${VERCEL_TOKEN:-}" ] || {
+            echo "VERCEL_TOKEN is not configured."
+            exit 1
+          }
+
+          response="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://api.vercel.com/v7/deployments?projectId=${PROJECT_ID}&teamId=${TEAM_ID}&limit=20"             --header "Accept: application/json"             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+
+          count="$(jq '.deployments | length' <<<"${response}")"
+          [ "${count}" -ge 1 ] || {
+            echo "Vercel token authenticated but no deployments are visible for the confirmed project."
+            exit 1
+          }
+
+          names="$(jq -r '.deployments[].name // empty' <<<"${response}" | sort -u)"
+          if ! grep -Fxq "${PROJECT_NAME}" <<<"${names}"; then
+            echo "Visible deployments do not belong to expected project name ${PROJECT_NAME}."
+            exit 1
+          fi
+
+          latest_id="$(jq -r '.deployments[0].uid // .deployments[0].id // ""' <<<"${response}")"
+          latest_url="$(jq -r '.deployments[0].url // ""' <<<"${response}")"
+
+          [[ "${latest_id}" =~ ^dpl_[A-Za-z0-9]+$ ]] || {
+            echo "Latest deployment ID is missing or invalid."
+            exit 1
+          }
+          [ -n "${latest_url}" ] || {
+            echo "Latest deployment URL is missing."
+            exit 1
+          }
+
+          echo "deployment_count=${count}" >> "${GITHUB_OUTPUT}"
+          echo "latest_id=${latest_id}" >> "${GITHUB_OUTPUT}"
+          echo "latest_url=${latest_url}" >> "${GITHUB_OUTPUT}"
+
+      - name: Re-read latest deployment details
+        shell: bash
+        env:
+          LATEST_ID: ${{ steps.access.outputs.latest_id }}
+        run: |
+          set -euo pipefail
+
+          details="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://api.vercel.com/v13/deployments/${LATEST_ID}?withGitRepoInfo=true&teamId=${TEAM_ID}"             --header "Accept: application/json"             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+
+          actual_id="$(jq -r '.id // .uid // ""' <<<"${details}")"
+          actual_name="$(jq -r '.name // ""' <<<"${details}")"
+
+          [ "${actual_id}" = "${LATEST_ID}" ] || {
+            echo "Vercel deployment detail ID mismatch."
+            exit 1
+          }
+          [ "${actual_name}" = "${PROJECT_NAME}" ] || {
+            echo "Vercel deployment detail project-name mismatch."
+            exit 1
+          }
+
+      - name: Emit Vercel API access summary
+        shell: bash
+        env:
+          DEPLOYMENT_COUNT: ${{ steps.access.outputs.deployment_count }}
+          LATEST_ID: ${{ steps.access.outputs.latest_id }}
+          LATEST_URL: ${{ steps.access.outputs.latest_url }}
+        run: |
+          {
+            echo "## Production Vercel API access: PASS"
+            echo
+            echo "- team ID: \`${TEAM_ID}\`"
+            echo "- project ID: \`${PROJECT_ID}\`"
+            echo "- project name: \`${PROJECT_NAME}\`"
+            echo "- visible recent deployments: \`${DEPLOYMENT_COUNT}\`"
+            echo "- latest deployment ID: \`${LATEST_ID}\`"
+            echo "- latest deployment URL: \`${LATEST_URL}\`"
+            echo
+            echo "This workflow is read-only. It performs Vercel GET requests only."
+          } >> "${GITHUB_STEP_SUMMARY}"
