@@ -844,3 +844,27 @@ test('Repository Main Guard Check is read-only and verifies exact required rules
   assert.match(source, /read-only and does not modify repository settings/);
   assert.doesNotMatch(source, /--method POST|--method PATCH|--method PUT|--method DELETE/);
 });
+
+
+test('Repository Branch Inventory is read-only and classifies only ahead=0 branches as safe-delete', () => {
+  const path = '.github/workflows/repository-branch-inventory.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /permissions:\s*\n  contents: read/);
+  assert.match(source, /pull-requests: read/);
+  assert.match(source, /compare\/main/);
+  assert.match(source, /ahead.*-eq 0/);
+  assert.match(source, /classification="safe-delete"/);
+  assert.match(source, /classification="review-required"/);
+  assert.match(source, /open-pr/);
+  assert.match(source, /protected-review/);
+  assert.match(source, /default-branch/);
+  assert.match(source, /repository-branch-inventory/);
+  assert.match(source, /This workflow is read-only\. It never deletes or moves a branch/);
+  assert.doesNotMatch(source, /--method DELETE|git\/refs\/heads.*DELETE/);
+  assert.doesNotMatch(source, /contents: write/);
+});
