@@ -533,3 +533,84 @@ Therefore:
 - no Production backup / migration / deploy has been started
 
 Next safe action: connect or authorize the Neon account/organization that owns `withered-lab-08522436`, then run the read-only Production preflight.
+
+
+## Manual read-only preflight via GitHub Actions
+
+Use this path when the connected Neon OAuth cannot directly inspect the Vercel-managed Production project.
+
+### One-time secret setup
+
+In GitHub:
+
+1. Open `hiroyuki83/OCD_SNS`
+2. Settings
+3. Secrets and variables
+4. Actions
+5. New repository secret
+6. Name: `PRODUCTION_DATABASE_URL`
+7. Value: copy the existing Vercel **Production** `DATABASE_URL` value exactly
+8. Save
+
+Do not paste the connection string into chat, issues, PRs, commits, workflow YAML, or docs.
+
+The workflow hard-codes only these confirmed non-secret identity values:
+
+- host: `ep-billowing-smoke-ah3grpmy-pooler.c-3.us-east-1.aws.neon.tech`
+- database: `neondb`
+
+The secret itself remains only in GitHub Actions.
+
+### Run
+
+In GitHub:
+
+1. Actions
+2. `Production DB Read-only Preflight`
+3. Run workflow
+4. Branch: `main`
+5. Run workflow
+
+The workflow is `workflow_dispatch` only.
+
+It performs:
+
+- no migration
+- no DDL
+- no INSERT / UPDATE / DELETE
+- no Vercel deployment
+- no Production alias change
+
+It runs `npm run production:db:preflight` only.
+
+### Expected report
+
+The log reports:
+
+- Production hostname / database identity
+- local migration count
+- actual applied Production migration count
+- actual pending migration names
+- User row count
+- Post row count
+- Follow row count
+- Reply row count if the table exists
+- quoted Post count if `quotePostId` exists
+- staff TOTP schema signature
+- Sanction / Appeal table presence
+- destructive Reply/Quote removal block status
+
+### Automatic stop conditions
+
+The preflight fails without writing anything if:
+
+- URL host differs from the approved Production host
+- database name differs from `neondb`
+- URL is the known shared Preview host
+- migration history is incomplete / rolled back
+- Production contains migration names absent from main
+- recorded migration history disagrees with schema
+- Reply rows exist
+- non-null quotePostId rows exist
+
+A failed preflight is a safe stop, not a reason to run migration manually.
