@@ -224,3 +224,22 @@ test('Production Stage C is independently dry-run and heavily gated', () => {
   assert.doesNotMatch(apply, /prisma migrate resolve --applied 20260926103000_add_restriction_until/);
   assert.doesNotMatch(apply, /vercel deploy|deploy_to_vercel/i);
 });
+
+
+test('Production final release validation exercises current main after the full staged migration path', () => {
+  const path = '.github/workflows/production-final-validation.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /Reproduce legacy Production state/);
+  assert.match(source, /Apply Stage A migrations only/);
+  assert.match(source, /Verify Stage C preconditions/);
+  assert.match(source, /Apply Stage C migrations/);
+  assert.match(source, /Verify final Production schema/);
+  assert.match(source, /Build current main against migrated Production-shaped database/);
+  assert.match(source, /api\/feed\?limit=1/);
+  assert.doesNotMatch(source, /secrets\.PRODUCTION_DATABASE_URL/);
+  assert.doesNotMatch(source, /vercel deploy|deploy_to_vercel/i);
+});
