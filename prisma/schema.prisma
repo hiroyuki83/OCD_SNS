@@ -69,6 +69,8 @@ model User {
   warningAppealsReviewed    WarningAppeal[] @relation("AppealReviewer")
   sanctionsReceived         Sanction[] @relation("SanctionTarget")
   sanctionsCreated          Sanction[] @relation("SanctionActor")
+  sanctionAppeals           Appeal[] @relation("SanctionAppealUser")
+  sanctionAppealsReviewed   Appeal[] @relation("SanctionAppealReviewer")
   staffRecoveryCodes        StaffRecoveryCode[]
 }
 
