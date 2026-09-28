@@ -174,3 +174,20 @@ test('manual Production preflight workflow exists and uses only the Production D
   assert.match(source, /npm run production:db:preflight/);
   assert.doesNotMatch(source, /prisma migrate deploy/);
 });
+
+
+test('production DB preflight uses an async entrypoint compatible with CommonJS tsx execution', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+
+  const source = readFileSync(
+    resolve(process.cwd(), 'scripts/production-db-preflight.ts'),
+    'utf8',
+  );
+
+  assert.match(source, /async function main\(\)/);
+  assert.match(source, /main\(\)\.catch/);
+
+  const beforeMain = source.split('async function main()')[0] ?? '';
+  assert.doesNotMatch(beforeMain, /^\s*await\s/m);
+});

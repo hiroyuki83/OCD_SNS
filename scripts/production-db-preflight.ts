@@ -20,13 +20,15 @@ if (!safety.ok) {
   process.exit(1);
 }
 
+const approvedSafety = safety;
+
 const migrationDir = resolve(process.cwd(), 'prisma', 'migrations');
 const localMigrations = readdirSync(migrationDir, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort();
 
-const client = new Client({ connectionString: safety.productionDatabaseUrl });
+const client = new Client({ connectionString: approvedSafety.productionDatabaseUrl });
 
 const tableExists = async (table: string) => {
   const result = await client.query(
@@ -55,11 +57,13 @@ const columnExists = async (table: string, column: string) => {
   return Boolean(result.rows[0]?.present);
 };
 
-try {
-  await client.connect();
+// Keep the entrypoint compatible with tsx's CommonJS execution mode.
+async function main() {
+  try {
+    await client.connect();
 
   const database = await client.query('SELECT current_database() AS name');
-  if (database.rows[0]?.name !== safety.databaseName) {
+  if (database.rows[0]?.name !== approvedSafety.databaseName) {
     throw new Error(
       'Connected database name does not match the approved Production database.',
     );
@@ -185,8 +189,8 @@ try {
     (replyRows ?? 0) > 0 || (quotedPosts ?? 0) > 0;
 
   const report = {
-    hostname: safety.hostname,
-    databaseName: safety.databaseName,
+    hostname: approvedSafety.hostname,
+    databaseName: approvedSafety.databaseName,
     localMigrationCount: localMigrations.length,
     appliedMigrationCount: applied.size,
     pendingMigrations: pending,
@@ -216,6 +220,12 @@ try {
       'Production contains Reply or Quote data. Automatic reply/quote removal migration is blocked pending an explicit data-handling decision.',
     );
   }
-} finally {
-  await client.end().catch(() => undefined);
+  } finally {
+    await client.end().catch(() => undefined);
+  }
 }
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
