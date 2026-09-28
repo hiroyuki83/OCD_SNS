@@ -23,7 +23,7 @@
 Preview環境では vercel-build が自動で `prisma migrate deploy` を実行しない。
 schema変更を含むcommitをPreviewへ出す前に、Preview DBへmigrationを明示的に適用する。
 
-今回の未適用migration:
+今回の適用済みmigration（2026-09-28共有Preview受入）:
 
 - `20260928071000_add_sanction_records`
 
@@ -150,3 +150,17 @@ main merge後:
 
 Production releaseはmain mergeとは別工程。
 明示的なrelease判断後にのみ、Production DB backup / migration / deploy / smoke / runtime error scan / rollback確認を行う。
+
+
+## 今回のSanction Preview受入結果
+
+- rollback branch: `backup-before-sanction-migration-2026-09-28`
+- Prisma migration history: 40 applied
+- Sanction schema / indexes / foreign keys: verified
+- Vercel deployment: `dpl_7ksKuNtxd9oaJzj3vmgJKeePpMNZ` READY
+- validated commit: `12ec8cda236efc7d76c593060a036161ee68da65`
+- public HTTP smoke: 5 / 5 PASS
+- runtime error/fatal: 0
+- feature branch auto-deploy: disabled again after acceptance
+- main auto-deploy: disabled
+- Production: untouched
