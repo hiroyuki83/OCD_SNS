@@ -107,7 +107,7 @@ export async function register(
     try {
         await sendEmailVerification(createdUser);
     } catch (error) {
-        console.error('Failed to send registration verification email:', error);
+        logOperationalError('REGISTRATION_VERIFICATION_EMAIL_FAILED', error);
         return {
             message: 'アカウントは作成されましたが、確認メールを送信できませんでした。確認メールの再送をお試しください。',
         };
@@ -367,7 +367,7 @@ export async function createPost(
         if (imageUrl) {
             await deleteManagedBlob(imageUrl);
         }
-        console.error('Failed to create post:', error);
+        logOperationalError('POST_CREATE_FAILED', error);
         return { message: '投稿に失敗しました。' };
     }
 
@@ -920,7 +920,7 @@ export async function updateProfile(
         }
     } catch (error) {
         await deleteManagedBlobs([avatarUrl, headerUrl]);
-        console.error('Failed to update profile:', error);
+        logOperationalError('PROFILE_UPDATE_FAILED', error);
         return { message: 'プロフィールの更新に失敗しました。' };
     }
 
@@ -1145,7 +1145,7 @@ export async function submitYbocs(
             },
         });
     } catch (error) {
-        console.error('Failed to save Y-BOCS result:', error);
+        logOperationalError('YBOCS_RESULT_SAVE_FAILED', error);
         return { message: '結果の保存に失敗しました。' };
     }
 
@@ -1231,7 +1231,7 @@ export async function submitIesr(
             },
         });
     } catch (error) {
-        console.error('Failed to save IES-R result:', error);
+        logOperationalError('IESR_RESULT_SAVE_FAILED', error);
         return { message: '結果の保存に失敗しました。' };
     }
 
@@ -1354,7 +1354,7 @@ export async function submitItq(
             },
         });
     } catch (error) {
-        console.error('Failed to save ITQ result:', error);
+        logOperationalError('ITQ_RESULT_SAVE_FAILED', error);
         return { message: '結果の保存に失敗しました。' };
     }
 
@@ -1472,7 +1472,7 @@ export async function submitLsas(
             },
         });
     } catch (error) {
-        console.error('Failed to save LSAS result:', error);
+        logOperationalError('LSAS_RESULT_SAVE_FAILED', error);
         return { message: '結果の保存に失敗しました。' };
     }
 

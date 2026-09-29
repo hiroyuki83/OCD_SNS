@@ -8,6 +8,7 @@ import { accessiblePostWhere } from '@/lib/postAccess';
 import ProfilePostActionForm from '@/components/profile/ProfilePostActionForm';
 import { DeletePostForm } from '@/components/profile/ProfileDangerActions';
 import ReportPostButton from '@/components/report/ReportPostButton';
+import { logOperationalError } from '@/lib/operationalError';
 
 export default async function PostPage({
     params,
@@ -93,7 +94,7 @@ export default async function PostPage({
             },
         });
     } catch (error) {
-        console.error('Failed to load post detail:', error);
+        logOperationalError('POST_DETAIL_LOAD_FAILED', error);
         loadError = 'failed';
     }
 
