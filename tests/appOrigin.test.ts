@@ -92,3 +92,25 @@ test('development without an origin keeps the localhost fallback', () => {
     'http://localhost:3000',
   );
 });
+
+
+test('Production never trusts the deployment-specific VERCEL_URL as an email-link origin', () => {
+  assert.throws(
+    () =>
+      resolveTrustedAppOrigin({
+        VERCEL_URL: 'coco-git-feature-user-projects.vercel.app',
+        NODE_ENV: 'production',
+      }),
+    /Trusted application origin is not configured/,
+  );
+});
+
+test('non-Production may use VERCEL_URL when no stronger origin is configured', () => {
+  assert.equal(
+    resolveTrustedAppOrigin({
+      VERCEL_URL: 'local-preview.example.vercel.app',
+      NODE_ENV: 'development',
+    }),
+    'https://local-preview.example.vercel.app',
+  );
+});
