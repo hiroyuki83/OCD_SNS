@@ -57,3 +57,12 @@ test('privacy-safe operational logger serializes only approved fields', () => {
   assert.doesNotMatch(source, /error\.message/);
   assert.doesNotMatch(source, /error\.stack/);
 });
+
+
+test('transactional email failures never embed provider response bodies in errors', () => {
+  const source = readFileSync('src/lib/email.ts', 'utf8');
+
+  assert.doesNotMatch(source, /response\.text\s*\(/);
+  assert.doesNotMatch(source, /Failed to send transactional email:.*body/);
+  assert.match(source, /Transactional email provider returned HTTP/);
+});
