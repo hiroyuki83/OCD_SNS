@@ -8,6 +8,7 @@ import { rateLimit } from '@/lib/rateLimit';
 import { isEmailDeliveryConfigured, sendTransactionalEmail } from '@/lib/email';
 import { logOperationalError } from '@/lib/operationalError';
 import { appOrigin } from '@/lib/appOrigin';
+import { allowPublicEmailRequestFromCurrentIp } from '@/lib/publicEmailRateLimit';
 
 const requestSchema = z.object({
   email: z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます。').email('正しいメールアドレスを入力してください。'),
@@ -79,6 +80,9 @@ export async function requestPasswordReset(
   }
 
   const email = parsed.data.email;
+  if (!(await allowPublicEmailRequestFromCurrentIp())) {
+    return { ok: true, message: genericRequestMessage };
+  }
   if (!(await rateLimit(`password-reset:${email}`, 3, 60 * 60 * 1000))) {
     return { ok: true, message: genericRequestMessage };
   }
