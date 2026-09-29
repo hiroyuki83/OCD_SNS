@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { isEmailDeliveryConfigured, sendTransactionalEmail } from '@/lib/email';
+import { logOperationalError } from '@/lib/operationalError';
 
 const requestSchema = z.object({
   email: z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます。').email('正しいメールアドレスを入力してください。'),
@@ -122,7 +123,7 @@ export async function requestPasswordReset(
   try {
     await sendPasswordResetEmail(user.email, resetUrl);
   } catch (error) {
-    console.error(error);
+    logOperationalError('PASSWORD_RESET_EMAIL_FAILED', error);
     await prisma.passwordResetToken.updateMany({
       where: {
         tokenHash: tokenHash(token),
