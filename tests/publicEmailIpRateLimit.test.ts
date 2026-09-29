@@ -8,7 +8,7 @@ const passwordReset = readFileSync('src/app/password-reset/actions.ts', 'utf8');
 const verifyEmail = readFileSync('src/app/verify-email/actions.ts', 'utf8');
 
 test('public email requests share one hashed-IP rate-limit bucket', () => {
-  assert.match(helper, /clientIpFromHeaders\(requestHeaders\)/);
+  assert.match(helper, /currentRequestClientIp\(\)/);
   assert.match(helper, /PUBLIC_EMAIL_IP_LIMIT = 20/);
   assert.match(helper, /PUBLIC_EMAIL_IP_WINDOW_MS = 60 \* 60 \* 1000/);
   assert.match(helper, /public-email-ip:/);

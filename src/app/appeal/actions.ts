@@ -10,6 +10,7 @@ import {
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
+import { currentRequestClientIp } from '@/lib/requestClientIp';
 
 const DUMMY_PASSWORD_HASH =
   '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.';
@@ -86,6 +87,13 @@ export async function submitSanctionAppeal(
   }
 
   const email = parsed.data.email;
+  const clientIp = await currentRequestClientIp();
+  if (
+    clientIp &&
+    !(await rateLimit(`sanction-appeal-ip:${clientIp}`, 50, 15 * 60 * 1000))
+  ) {
+    return { message: '試行回数が多すぎます。時間をおいて再度お試しください。' };
+  }
   if (!(await rateLimit(`sanction-appeal-auth:${email}`, 10, 15 * 60 * 1000))) {
     return { message: '試行回数が多すぎます。時間をおいて再度お試しください。' };
   }
