@@ -50,7 +50,8 @@ export async function sendTransactionalEmail(message: EmailMessage) {
     });
 
     if (!response.ok) {
-        const body = await response.text().catch(() => '');
-        throw new Error(`Failed to send transactional email: ${response.status} ${body}`);
+        throw new Error(
+            `Transactional email provider returned HTTP ${response.status}.`,
+        );
     }
 }
