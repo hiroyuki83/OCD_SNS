@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { logOperationalError } from '@/lib/operationalError';
 
 export default function GlobalError({
   error,
@@ -10,10 +11,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('GlobalAppErrorBoundary', {
-      name: error.name,
-      digest: error.digest ?? null,
-    });
+    logOperationalError('GLOBAL_APP_ERROR_BOUNDARY', error);
   }, [error]);
 
   return (
