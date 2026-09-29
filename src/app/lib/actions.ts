@@ -87,37 +87,46 @@ export async function register(
     if (!isEmailDeliveryConfigured()) {
         return { message: '現在、新規登録用メールを送信できません。管理者にお問い合わせください。' };
     }
+    const genericRegistrationMessage =
+        '登録可能なメールアドレスであれば、確認メールを送信しました。既に登録済みの場合はログインを、メールが届かない場合は確認メールの再送をお試しください。';
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    let createdUser: { id: string; email: string };
+    let verificationTarget: { id: string; email: string } | null = null;
     try {
-        const existingUser = await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
-        if (existingUser) {
-            return { message: 'このメールアドレスは既に使用されています。' };
-        }
-
-        createdUser = await prisma.user.create({
-            data: {
-                name: normalizedName,
-                email: normalizedEmail,
-                password: hashedPassword,
-            },
-            select: { id: true, email: true },
+        const existingUser = await prisma.user.findUnique({
+            where: { email: normalizedEmail },
+            select: { id: true, email: true, emailVerifiedAt: true },
         });
+        if (existingUser) {
+            if (!existingUser.emailVerifiedAt) {
+                verificationTarget = {
+                    id: existingUser.id,
+                    email: existingUser.email,
+                };
+            }
+        } else {
+            verificationTarget = await prisma.user.create({
+                data: {
+                    name: normalizedName,
+                    email: normalizedEmail,
+                    password: hashedPassword,
+                },
+                select: { id: true, email: true },
+            });
+        }
     } catch {
         return { message: '登録に失敗しました。時間をおいて再度お試しください。' };
     }
 
-    try {
-        await sendEmailVerification(createdUser);
-    } catch (error) {
-        logOperationalError('REGISTRATION_VERIFICATION_EMAIL_FAILED', error);
-        return {
-            message: 'アカウントは作成されましたが、確認メールを送信できませんでした。確認メールの再送をお試しください。',
-        };
+    if (verificationTarget) {
+        try {
+            await sendEmailVerification(verificationTarget);
+        } catch (error) {
+            logOperationalError('REGISTRATION_VERIFICATION_EMAIL_FAILED', error);
+        }
     }
 
-    return { ok: true, message: '確認メールを送信しました。メール内のリンクから登録を完了してください。' };
+    return { ok: true, message: genericRegistrationMessage };
 }
 
 const AuthenticateSchema = z
