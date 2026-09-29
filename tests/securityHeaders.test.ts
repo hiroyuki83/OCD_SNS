@@ -21,18 +21,18 @@ test('global security headers remain enabled', () => {
 });
 
 test('referrer policy does not leak sensitive route paths cross-origin', () => {
-  assert.equal(nextConfig.includes('Referrer-Policy\", value: \"no-referrer'), true);
+  assert.equal(nextConfig.includes('Referrer-Policy", value: "no-referrer'), true);
   assert.equal(nextConfig.includes('strict-origin-when-cross-origin'), false);
 });
 
 test('CSP blocks framing, plugins, foreign form targets, and inline script attributes', () => {
   for (const directive of [
-    \"object-src 'none'\",
-    \"frame-src 'none'\",
-    \"frame-ancestors 'none'\",
-    \"form-action 'self'\",
-    \"base-uri 'self'\",
-    \"script-src-attr 'none'\",
+    "object-src 'none'",
+    "frame-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "base-uri 'self'",
+    "script-src-attr 'none'",
   ]) {
     assert.equal(nextConfig.includes(directive), true, directive);
   }
@@ -40,7 +40,7 @@ test('CSP blocks framing, plugins, foreign form targets, and inline script attri
 
 test('cross-origin resource policy stays same-origin', () => {
   assert.equal(
-    nextConfig.includes('Cross-Origin-Resource-Policy\", value: \"same-origin'),
+    nextConfig.includes('Cross-Origin-Resource-Policy", value: "same-origin'),
     true,
   );
 });
