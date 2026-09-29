@@ -24,6 +24,18 @@ test.describe.serial('authentication lifecycle', () => {
     await expect(page.getByText('おすすめ')).toBeVisible();
   });
 
+  test('does not reveal that an email is already registered', async ({ page }) => {
+    await page.goto('/register');
+    await page.getByLabel('名前').fill('既存ユーザー確認');
+    await page.getByLabel('メールアドレス').fill(EMAIL);
+    await page.getByLabel('パスワード').fill('AnotherValidPass123!');
+    await page.getByRole('button', { name: '新規登録' }).click();
+
+    const status = page.getByRole('status');
+    await expect(status).toContainText('登録可能なメールアドレスであれば、確認メールを送信しました');
+    await expect(status).not.toContainText('既に使用されています');
+  });
+
   test('changes password and invalidates the old credential', async ({ page }) => {
     await login(page, EMAIL, INITIAL_PASSWORD);
     await page.goto('/settings');
