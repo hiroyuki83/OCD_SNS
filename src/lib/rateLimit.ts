@@ -2,16 +2,16 @@ import 'server-only';
 import crypto from 'crypto';
 import { prisma } from '@/lib/db';
 import { logOperationalError } from '@/lib/operationalError';
+import {
+    RATE_LIMIT_CLEANUP_SAMPLE_SIZE,
+    shouldCleanupExpiredRateLimitBuckets,
+} from '@/lib/rateLimitCleanupCore';
 
 type RateLimitResult = { count: number };
 
-let checksSinceCleanup = 0;
-const CLEANUP_EVERY_CHECKS = 100;
-
 async function maybeCleanupExpiredBuckets() {
-    checksSinceCleanup += 1;
-    if (checksSinceCleanup < CLEANUP_EVERY_CHECKS) return;
-    checksSinceCleanup = 0;
+    const sample = crypto.randomInt(RATE_LIMIT_CLEANUP_SAMPLE_SIZE);
+    if (!shouldCleanupExpiredRateLimitBuckets(sample)) return;
 
     try {
         await prisma.rateLimitBucket.deleteMany({
