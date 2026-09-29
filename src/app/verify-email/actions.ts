@@ -7,6 +7,7 @@ import { rateLimit } from '@/lib/rateLimit';
 import { isEmailDeliveryConfigured } from '@/lib/email';
 import { hashVerificationToken, sendEmailVerification } from '@/lib/emailVerification';
 import { logOperationalError } from '@/lib/operationalError';
+import { allowPublicEmailRequestFromCurrentIp } from '@/lib/publicEmailRateLimit';
 
 const tokenSchema = z.string().min(32).max(256);
 const emailSchema = z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます。').email('正しいメールアドレスを入力してください。');
@@ -174,6 +175,9 @@ export async function requestEmailVerification(
     }
 
     const genericMessage = '未確認の登録メールアドレスであれば、確認メールを送信しました。';
+    if (!(await allowPublicEmailRequestFromCurrentIp())) {
+        return { ok: true, message: genericMessage };
+    }
     if (!(await rateLimit(`email-verification:${parsed.data}`, 3, 60 * 60 * 1000))) {
         return { ok: true, message: genericMessage };
     }

@@ -27,6 +27,7 @@ import { isE2eBlobMode } from '@/lib/blobDeliveryMode';
 import { normalizeImageAlt } from '@/lib/postImageAlt';
 import { sanitizeImageMetadata } from '@/lib/imageSanitizationCore';
 import { logOperationalError } from '@/lib/operationalError';
+import { allowPublicEmailRequestFromCurrentIp } from '@/lib/publicEmailRateLimit';
 
 const RegisterSchema = z.object({
     name: z.string().trim().min(1, '名前は必須です').max(50, '名前は50文字以内です'),
@@ -77,6 +78,9 @@ export async function register(
         };
     }
     const normalizedEmail = email.toLowerCase();
+    if (!(await allowPublicEmailRequestFromCurrentIp())) {
+        return { message: '登録試行が多すぎます。しばらくしてから再度お試しください。' };
+    }
     if (!(await rateLimit(`register:${normalizedEmail}`, 3, 60 * 60 * 1000))) {
         return { message: '登録試行が多すぎます。しばらくしてから再度お試しください。' };
     }
