@@ -71,12 +71,12 @@ export function resolveTrustedAppOrigin(env: AppOriginEnv): string {
     return normalizeVercelHostname(env.VERCEL_PROJECT_PRODUCTION_URL);
   }
 
-  if (env.VERCEL_URL !== undefined) {
-    return normalizeVercelHostname(env.VERCEL_URL);
-  }
-
   if (env.NODE_ENV === 'production') {
     throw new Error('Trusted application origin is not configured.');
+  }
+
+  if (env.VERCEL_URL !== undefined) {
+    return normalizeVercelHostname(env.VERCEL_URL);
   }
 
   return 'http://localhost:3000';
