@@ -48,7 +48,7 @@ test('cross-origin resource policy stays same-origin', () => {
 
 test('CSP restricts browser network egress to first-party APIs and managed image storage', () => {
   assert.equal(nextConfig.includes("connect-src 'self'"), true);
-  assert.equal(nextConfig.includes("connect-src 'self' https:"), false);
+  assert.doesNotMatch(nextConfig, /"connect-src 'self' https:"/);
 
   assert.equal(
     nextConfig.includes(
@@ -56,8 +56,8 @@ test('CSP restricts browser network egress to first-party APIs and managed image
     ),
     true,
   );
-  assert.equal(nextConfig.includes("img-src 'self' data: blob: https:"), false);
+  assert.doesNotMatch(nextConfig, /"img-src 'self' data: blob: https:"/);
 
   assert.equal(nextConfig.includes("media-src 'self' blob:"), true);
-  assert.equal(nextConfig.includes("media-src 'self' blob: https:"), false);
+  assert.doesNotMatch(nextConfig, /"media-src 'self' blob: https:"/);
 });
