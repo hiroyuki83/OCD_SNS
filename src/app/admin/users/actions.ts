@@ -10,6 +10,7 @@ import { prisma } from '@/lib/db';
 import { requireRole } from '@/lib/rbac';
 import { rateLimit } from '@/lib/rateLimit';
 import { isEmailDeliveryConfigured, sendTransactionalEmail } from '@/lib/email';
+import { logOperationalError } from '@/lib/operationalError';
 
 const CreateUserSchema = z.object({
   name: z.string().trim().max(50, '名前は50文字以内です。').optional(),
@@ -184,7 +185,7 @@ export async function createAdminUser(
       return { message: 'このメールアドレスは既に使用されています。' };
     }
 
-    console.error('Failed to create admin-managed user:', error);
+    logOperationalError('ADMIN_MANAGED_USER_CREATE_FAILED', error);
     return { message: 'ユーザー作成に失敗しました。' };
   }
 
@@ -203,7 +204,7 @@ export async function createAdminUser(
       ].join('\n'),
     });
   } catch (error) {
-    console.error('Failed to send admin-created user invitation:', error);
+    logOperationalError('ADMIN_USER_INVITATION_EMAIL_FAILED', error);
     await prisma.passwordResetToken.updateMany({
       where: {
         tokenHash: tokenHash(inviteToken),
@@ -307,7 +308,7 @@ export async function resetUserPassword(
       ].join('\n'),
     });
   } catch (error) {
-    console.error('Failed to send admin password reset email:', error);
+    logOperationalError('ADMIN_PASSWORD_RESET_EMAIL_FAILED', error);
     await prisma.passwordResetToken.updateMany({
       where: {
         tokenHash: tokenHash(token),
