@@ -20,6 +20,8 @@ export function isEmailDeliveryConfigured() {
     return Boolean(e2eOutboxPath() || (process.env.RESEND_API_KEY && emailFrom()));
 }
 
+const EMAIL_PROVIDER_TIMEOUT_MS = 10_000;
+
 export async function sendTransactionalEmail(message: EmailMessage) {
     const outboxPath = e2eOutboxPath();
     if (outboxPath) {
@@ -47,6 +49,8 @@ export async function sendTransactionalEmail(message: EmailMessage) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({ from, ...message }),
+        redirect: 'error',
+        signal: AbortSignal.timeout(EMAIL_PROVIDER_TIMEOUT_MS),
     });
 
     if (!response.ok) {

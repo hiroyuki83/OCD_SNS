@@ -66,3 +66,12 @@ test('transactional email failures never embed provider response bodies in error
   assert.doesNotMatch(source, /Failed to send transactional email:.*body/);
   assert.match(source, /Transactional email provider returned HTTP/);
 });
+
+
+test('transactional email provider calls have a hard timeout and never follow redirects', () => {
+  const source = readFileSync('src/lib/email.ts', 'utf8');
+
+  assert.match(source, /EMAIL_PROVIDER_TIMEOUT_MS = 10_000/);
+  assert.match(source, /AbortSignal\.timeout\(EMAIL_PROVIDER_TIMEOUT_MS\)/);
+  assert.match(source, /redirect: 'error'/);
+});
