@@ -7,6 +7,7 @@ import { prisma } from '@/lib/db';
 import { rateLimit } from '@/lib/rateLimit';
 import { isEmailDeliveryConfigured, sendTransactionalEmail } from '@/lib/email';
 import { logOperationalError } from '@/lib/operationalError';
+import { appOrigin } from '@/lib/appOrigin';
 
 const requestSchema = z.object({
   email: z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます。').email('正しいメールアドレスを入力してください。'),
@@ -49,15 +50,6 @@ function tokenHash(token: string) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-function appOrigin() {
-  const configuredOrigin = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL;
-  if (configuredOrigin) return configuredOrigin.replace(/\/$/, '');
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  }
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return 'http://localhost:3000';
-}
 
 async function sendPasswordResetEmail(email: string, resetUrl: string) {
   await sendTransactionalEmail({
