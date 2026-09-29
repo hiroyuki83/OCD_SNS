@@ -33,9 +33,14 @@ test('returns null when the forwarded IP header is absent or unusable', () => {
   );
 });
 
-test('rejects control characters in the forwarded IP value', () => {
-  const headers = new Headers();
-  headers.set('x-forwarded-for', '203.0.113.10\u0000suffix');
+test('rejects control characters if a non-standard Headers implementation supplies them', () => {
+  const headers = {
+    get(name: string) {
+      return name.toLowerCase() === 'x-forwarded-for'
+        ? '203.0.113.10\u0000suffix'
+        : null;
+    },
+  } as Headers;
 
   assert.equal(clientIpFromHeaders(headers), null);
 });
