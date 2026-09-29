@@ -11,6 +11,7 @@ import { decryptTotpSecret, verifyTotpCode } from '@/lib/totp';
 import { hashRecoveryCode, normalizeRecoveryCode } from '@/lib/recoveryCodes';
 import { getNormalizedAccountModerationState } from '@/lib/accountModeration';
 import { logOperationalError } from '@/lib/operationalError';
+import { clientIpFromHeaders } from '@/lib/clientIpCore';
 
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const DUMMY_PASSWORD_HASH =
@@ -83,7 +84,7 @@ const nextAuthResult = NextAuth({
     },
     providers: [
         Credentials({
-            async authorize(credentials) {
+            async authorize(credentials, request) {
                 const parsedCredentials = z
                     .object({
                         email: z.string().trim().toLowerCase().max(254).email(),
@@ -97,6 +98,15 @@ const nextAuthResult = NextAuth({
 
                 const { email, password, totpCode, recoveryCode } = parsedCredentials.data;
                 if (totpCode && recoveryCode) return null;
+
+                const clientIp = clientIpFromHeaders(request.headers);
+                if (
+                    clientIp &&
+                    !(await rateLimit(`login-ip:${clientIp}`, 50, 15 * 60 * 1000))
+                ) {
+                    return null;
+                }
+
                 if (!(await rateLimit(`login:${email}`, 10, 15 * 60 * 1000))) {
                     return null;
                 }
