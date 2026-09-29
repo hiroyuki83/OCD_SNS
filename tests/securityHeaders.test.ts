@@ -44,3 +44,20 @@ test('cross-origin resource policy stays same-origin', () => {
     true,
   );
 });
+
+
+test('CSP restricts browser network egress to first-party APIs and managed image storage', () => {
+  assert.equal(nextConfig.includes("connect-src 'self'"), true);
+  assert.equal(nextConfig.includes("connect-src 'self' https:"), false);
+
+  assert.equal(
+    nextConfig.includes(
+      "img-src 'self' data: blob: https://*.public.blob.vercel-storage.com",
+    ),
+    true,
+  );
+  assert.equal(nextConfig.includes("img-src 'self' data: blob: https:"), false);
+
+  assert.equal(nextConfig.includes("media-src 'self' blob:"), true);
+  assert.equal(nextConfig.includes("media-src 'self' blob: https:"), false);
+});
