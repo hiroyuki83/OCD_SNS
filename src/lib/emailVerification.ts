@@ -2,20 +2,12 @@ import 'server-only';
 import crypto from 'crypto';
 import { prisma } from '@/lib/db';
 import { sendTransactionalEmail } from '@/lib/email';
+import { appOrigin } from '@/lib/appOrigin';
 
 export function hashVerificationToken(token: string) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-function appOrigin() {
-  const configuredOrigin = process.env.NEXTAUTH_URL ?? process.env.AUTH_URL;
-  if (configuredOrigin) return configuredOrigin.replace(/\/$/, '');
-  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
-    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
-  }
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return 'http://localhost:3000';
-}
 
 async function createVerificationToken(userId: string, pendingEmail: string | null) {
   const token = crypto.randomBytes(32).toString('base64url');
