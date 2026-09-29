@@ -9,6 +9,7 @@ import { isEmailDeliveryConfigured, sendTransactionalEmail } from '@/lib/email';
 import { logOperationalError } from '@/lib/operationalError';
 import { appOrigin } from '@/lib/appOrigin';
 import { allowPublicEmailRequestFromCurrentIp } from '@/lib/publicEmailRateLimit';
+import { cleanupExpiredAuthTokens } from '@/lib/authTokenCleanup';
 
 const requestSchema = z.object({
   email: z.string().trim().toLowerCase().max(254, 'メールアドレスが長すぎます。').email('正しいメールアドレスを入力してください。'),
@@ -101,10 +102,12 @@ export async function requestPasswordReset(
   const token = crypto.randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
+  const issuedAt = new Date();
+
   await prisma.$transaction([
     prisma.passwordResetToken.updateMany({
       where: { userId: user.id, usedAt: null },
-      data: { usedAt: new Date() },
+      data: { usedAt: issuedAt },
     }),
     prisma.passwordResetToken.create({
       data: {
@@ -114,6 +117,8 @@ export async function requestPasswordReset(
       },
     }),
   ]);
+
+  await cleanupExpiredAuthTokens(issuedAt);
 
   const resetUrl = `${appOrigin()}/reset-password?token=${encodeURIComponent(token)}`;
   try {

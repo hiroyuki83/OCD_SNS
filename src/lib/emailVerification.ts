@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { prisma } from '@/lib/db';
 import { sendTransactionalEmail } from '@/lib/email';
 import { appOrigin } from '@/lib/appOrigin';
+import { cleanupExpiredAuthTokens } from '@/lib/authTokenCleanup';
 
 export function hashVerificationToken(token: string) {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -29,6 +30,8 @@ async function createVerificationToken(userId: string, pendingEmail: string | nu
       },
     }),
   ]);
+
+  await cleanupExpiredAuthTokens(invalidatedAt);
 
   return { token, hashedToken };
 }
