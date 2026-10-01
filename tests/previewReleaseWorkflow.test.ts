@@ -2,23 +2,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-test('Prisma config prioritizes PREVIEW_DATABASE_URL in Vercel Preview', () => {
+test('Prisma config delegates migration URL selection to the guarded selector', () => {
   const source = readFileSync('prisma.config.ts', 'utf8');
-  const previewIndex = source.indexOf('previewMigrateUrl');
-  const fallbackIndex = source.indexOf('process.env.POSTGRES_URL_NON_POOLING?.trim()');
 
-  assert.ok(previewIndex >= 0, 'preview migration URL selector must exist');
   assert.ok(
-    source.includes('process.env.VERCEL_ENV?.trim() === "preview"'),
-    'preview database override must be limited to Vercel Preview',
+    source.includes('selectMigrationDatabaseUrl(process.env)'),
+    'Prisma config must use the shared migration URL selector',
   );
   assert.ok(
-    source.includes('process.env.PREVIEW_DATABASE_URL?.trim()'),
-    'Preview migrations must use PREVIEW_DATABASE_URL',
-  );
-  assert.ok(
-    fallbackIndex > previewIndex,
-    'production-style fallback URLs must come after the Preview override',
+    source.includes('normalizePostgresSslMode(rawMigrateUrl)'),
+    'Prisma config must normalize the selected migration URL',
   );
 });
 
