@@ -119,6 +119,26 @@ test('Production reconciliation precheck exists and is read-only', () => {
 });
 
 
+test('Production Stage A baseline precheck is read-only and binds the accepted legacy state to the release SHA', () => {
+  const path = '.github/workflows/production-stage-a-baseline-precheck.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /release_sha:/);
+  assert.match(source, /pre_execution_self_check_run_id:/);
+  assert.match(source, /production-pre-execution-self-check\.yml/);
+  assert.match(source, /PRODUCTION_DATABASE_URL_UNPOOLED/);
+  assert.match(source, /production:reconciliation:precheck/);
+  assert.match(source, /Production Stage A baseline precheck: PASS/);
+  assert.match(source, /read-only/);
+  assert.doesNotMatch(source, /prisma migrate deploy/);
+  assert.doesNotMatch(source, /production-legacy-moderation-reconcile\.sql/);
+  assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
+});
+
 test('Production Stage A workflows stop before the destructive Reply/Quote boundary', () => {
   const dryRunPath = '.github/workflows/production-stage-a-dry-run.yml';
   const applyPath = '.github/workflows/production-stage-a-apply.yml';
@@ -137,9 +157,11 @@ test('Production Stage A workflows stop before the destructive Reply/Quote bound
   assert.match(dryRun, /production-stage-a-verify\.ts/);
   assert.match(apply, /workflow_dispatch/);
   assert.match(apply, /APPLY_COCO_PRODUCTION_STAGE_A/);
+  assert.match(apply, /baseline_precheck_run_id:/);
   assert.match(apply, /stage_a_dry_run_id:/);
-  assert.match(apply, /production-db-preflight\.yml/);
+  assert.match(apply, /production-stage-a-baseline-precheck\.yml/);
   assert.match(apply, /production-stage-a-dry-run\.yml/);
+  assert.doesNotMatch(apply, /production-db-preflight\.yml/);
   assert.match(apply, /20260927002000_add_follow_approval/);
   assert.doesNotMatch(apply, /BRIDGE_PRODUCTION_VERIFIED/);
 
