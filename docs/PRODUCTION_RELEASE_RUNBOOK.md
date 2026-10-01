@@ -1006,17 +1006,39 @@ Required result:
 
 The successful verification run ID is required by Stage A Apply and Stage C Apply.
 
-### 3. Re-run Production DB preflight
+### 3. Verify the accepted legacy Production baseline
 
 Workflow:
 
-- `.github/workflows/production-db-preflight.yml`
+- `.github/workflows/production-stage-a-baseline-precheck.yml`
 
-Use the same release SHA that will be used for Stage A.
+This read-only check is intentionally used before Stage A because the current
+Production database still contains the known legacy moderation migration/state
+that Stage A is designed to reconcile.
+
+It requires:
+
+- the exact protected main release SHA
+- a successful same-SHA Production Pre-execution Self Check
+- the direct/unpooled Production database secret
+- an exact match to the accepted zero-live-data legacy baseline
+
+The general `Production DB Read-only Preflight` is **not** a valid pre-Stage-A
+attestation: it correctly reports the legacy migration/history collision as a
+blocker until Stage A reconciliation removes that mismatch.
 
 ### 4. Stage A write boundary
 
 Only after all preceding checks pass may `Production Stage A Apply` be considered.
+
+### 5. Post-Stage-A general preflight
+
+Immediately after a successful Stage A Apply, run:
+
+- `Production DB Read-only Preflight`
+
+At this point the legacy migration/history mismatch must be gone and the general
+preflight must PASS before the bridge / Stage C sequence continues.
 
 The presence of workflows is not authorization to run them.
 
@@ -1108,9 +1130,13 @@ Run:
 1. `Production Neon API Access Check`
 2. `Production Vercel API Access Check`
 3. `Production Pre-execution Self Check`
-4. `Production DB Read-only Preflight`
+4. `Production Stage A Baseline Precheck`
 
 All must PASS before any state-changing Production action is considered.
+
+The Stage A baseline precheck verifies the exact accepted legacy Production
+state without mutating it. The general `Production DB Read-only Preflight`
+remains intentionally strict and is run after Stage A reconciliation.
 
 The self-check verifies:
 
@@ -1127,6 +1153,7 @@ The self-check verifies:
 3. `Production Stage A Dry Run`
 4. explicit approval → `Production Stage A Apply`
 5. verify Stage A result
+6. `Production DB Read-only Preflight` → must PASS after reconciliation
 
 Stage A must stop before the destructive Reply / Quote migration.
 

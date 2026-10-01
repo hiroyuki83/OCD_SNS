@@ -1,0 +1,172 @@
+name: Production Stage A Baseline Precheck
+run-name: Production Stage A baseline precheck ${{ inputs.release_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact current protected main commit SHA intended for Production
+        required: true
+        type: string
+      pre_execution_self_check_run_id:
+        description: Successful Production Pre-execution Self Check run ID for this release SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: coco-production-stage-a-baseline-precheck
+  cancel-in-progress: false
+
+jobs:
+  verify-legacy-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+      PRODUCTION_DATABASE_NAME: neondb
+      PRODUCTION_MIGRATION_CONFIRM: CHECK_COCO_PRODUCTION
+      VERCEL_ENV: production
+      VERCEL_GIT_COMMIT_REF: main
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      PRE_EXECUTION_SELF_CHECK_RUN_ID: ${{ inputs.pre_execution_self_check_run_id }}
+
+    steps:
+      - name: Verify exact protected main release commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_SHA: ${{ github.sha }}
+          WORKFLOW_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          [[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "release_sha must be a full 40-character Git SHA."
+            exit 1
+          }
+          [[ "${PRE_EXECUTION_SELF_CHECK_RUN_ID}" =~ ^[0-9]+$ ]] || {
+            echo "A numeric pre-execution self-check run ID is required."
+            exit 1
+          }
+          [ "${WORKFLOW_REF}" = "main" ] || {
+            echo "Stage A baseline precheck must be dispatched from main."
+            exit 1
+          }
+          [ "${RELEASE_SHA}" = "${WORKFLOW_SHA}" ] || {
+            echo "release_sha does not match the workflow commit."
+            exit 1
+          }
+
+          branch_json="$(gh api "repos/${REPOSITORY}/branches/main")"
+          main_sha="$(jq -r '.commit.sha // ""' <<<"${branch_json}")"
+          protected="$(jq -r '.protected // false' <<<"${branch_json}")"
+
+          [ "${RELEASE_SHA}" = "${main_sha}" ] || {
+            echo "release_sha does not match current main."
+            exit 1
+          }
+          [ "${protected}" = "true" ] || {
+            echo "main is not protected."
+            exit 1
+          }
+
+      - name: Verify pre-execution self-check attestation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          j="$(gh api "repos/${REPOSITORY}/actions/runs/${PRE_EXECUTION_SELF_CHECK_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${j}")" = "success" ] || {
+            echo "Pre-execution self-check did not succeed."
+            exit 1
+          }
+          [ "$(jq -r '.head_sha // ""' <<<"${j}")" = "${RELEASE_SHA}" ] || {
+            echo "Pre-execution self-check SHA mismatch."
+            exit 1
+          }
+          [ "$(jq -r '.event // ""' <<<"${j}")" = "workflow_dispatch" ] || {
+            echo "Pre-execution self-check must be manually dispatched."
+            exit 1
+          }
+          [ "$(jq -r '.path // ""' <<<"${j}")" = ".github/workflows/production-pre-execution-self-check.yml" ] || {
+            echo "Referenced run is not Production Pre-execution Self Check."
+            exit 1
+          }
+          [ "$(jq -r '.display_title // ""' <<<"${j}")" = "Production pre-execution self-check ${RELEASE_SHA}" ] || {
+            echo "Pre-execution self-check release SHA binding mismatch."
+            exit 1
+          }
+
+      - name: Verify direct Production DB secret identity
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          [ -n "${PRODUCTION_DATABASE_URL:-}" ] || {
+            echo "PRODUCTION_DATABASE_URL_UNPOOLED is not configured."
+            exit 1
+          }
+
+          host="$(node - <<'NODE'
+          const { URL } = require('node:url');
+          const value = process.env.PRODUCTION_DATABASE_URL;
+          const url = new URL(value);
+          const database = url.pathname.replace(/^\//, '');
+
+          if (!url.hostname.endsWith('.neon.tech')) {
+            console.error('Production direct DB host is not a Neon hostname.');
+            process.exit(1);
+          }
+          if (url.hostname.includes('-pooler.')) {
+            console.error('Stage A baseline precheck requires the direct/unpooled endpoint.');
+            process.exit(1);
+          }
+          if (database !== process.env.PRODUCTION_DATABASE_NAME) {
+            console.error('Production database name mismatch.');
+            process.exit(1);
+          }
+
+          process.stdout.write(url.hostname);
+          NODE
+          )"
+
+          echo "PRODUCTION_DATABASE_HOST=${host}" >> "${GITHUB_ENV}"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.release_sha }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verify accepted legacy Production baseline
+        run: npm run production:reconciliation:precheck
+
+      - name: Emit Stage A baseline summary
+        shell: bash
+        run: |
+          {
+            echo "## Production Stage A baseline precheck: PASS"
+            echo
+            echo "- release SHA: `${RELEASE_SHA}`"
+            echo "- exact legacy moderation baseline: verified"
+            echo "- legacy schema live-data guards: clear"
+            echo "- Reply / Quote destructive-data guards: clear"
+            echo "- direct Production DB endpoint: verified"
+            echo
+            echo "This workflow is read-only. It performs no DDL, no DML, no Prisma migration, no Neon mutation, and no Vercel mutation."
+            echo "The general Production DB preflight is intentionally run after Stage A reconciliation, when the legacy migration-history mismatch has been removed."
+          } >> "${GITHUB_STEP_SUMMARY}"
