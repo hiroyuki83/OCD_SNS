@@ -1,4 +1,5 @@
 export type DatabaseUrlEnv = {
+  [key: string]: string | undefined;
   VERCEL_ENV?: string;
   PREVIEW_DATABASE_URL?: string;
   DATABASE_URL?: string;
