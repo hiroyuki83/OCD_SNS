@@ -33,11 +33,13 @@ Use `npm ci` rather than `npm install` in verification and deployment environmen
 
 Vercel uses `npm run vercel-build`.
 
-Preview builds generate the Prisma client and build Next.js, but do not mutate the database. Production builds validate required security configuration and then run `prisma migrate deploy` before the application build.
+Preview and Production builds generate the Prisma client and build Next.js. Production builds also validate required security configuration. **Vercel builds do not run database migrations.** Production schema changes are executed separately through the guarded release workflow after database identity, rollback, and migration checks pass.
+
+Application runtime prefers pooled database URLs (`DATABASE_URL`, then `POSTGRES_PRISMA_URL`). `POSTGRES_URL_NON_POOLING` is reserved as a fallback for runtime and is preferred by Prisma migration tooling when a direct connection is available.
 
 Required production environment variables:
 
-- `DATABASE_URL`: production PostgreSQL connection string with migration access.
+- `DATABASE_URL`: production PostgreSQL runtime connection string. Use the pooled Neon endpoint for the application.
 - `AUTH_SECRET`: long random Auth.js secret. Legacy `NEXTAUTH_SECRET` is also accepted, but `AUTH_SECRET` is preferred.
 - `STAFF_MFA_ENCRYPTION_KEY`: stable base64-encoded 32-byte key used to encrypt staff TOTP secrets.
 
@@ -51,6 +53,8 @@ A production build intentionally fails if any required variable above is missing
 
 Additional production configuration:
 
+- `POSTGRES_URL_NON_POOLING`: direct/unpooled PostgreSQL connection used by migration tooling when available.
+- `POSTGRES_PRISMA_URL`: pooled PostgreSQL connection accepted as an application-runtime fallback.
 - `BLOB_READ_WRITE_TOKEN`: required for image uploads.
 - `RESEND_API_KEY` and `EMAIL_FROM`: required for registration, verification, invitation, and password-reset email delivery. Registration is paused when email delivery is not configured.
 
@@ -82,4 +86,3 @@ A Preview build then creates or refreshes these verified accounts:
 - `coco.preview.admin@example.com` — admin
 
 Never point Preview at the production database when preview seeding is enabled.
-
