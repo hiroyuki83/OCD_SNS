@@ -23,8 +23,8 @@ on:
         description: Exact direct/unpooled Production Neon hostname
         required: true
         type: string
-      preflight_run_id:
-        description: Successful Production DB Read-only Preflight run ID for this release SHA
+      baseline_precheck_run_id:
+        description: Successful Production Stage A Baseline Precheck run ID for this release SHA
         required: true
         type: string
       stage_a_dry_run_id:
@@ -60,7 +60,7 @@ jobs:
       ROLLBACK_POINT: ${{ inputs.rollback_point }}
       ROLLBACK_VERIFICATION_RUN_ID: ${{ inputs.rollback_verification_run_id }}
       APPLY_CONFIRMATION: ${{ inputs.confirmation }}
-      PREFLIGHT_RUN_ID: ${{ inputs.preflight_run_id }}
+      BASELINE_PRECHECK_RUN_ID: ${{ inputs.baseline_precheck_run_id }}
       STAGE_A_DRY_RUN_ID: ${{ inputs.stage_a_dry_run_id }}
       PRE_EXECUTION_SELF_CHECK_RUN_ID: ${{ inputs.pre_execution_self_check_run_id }}
 
@@ -75,7 +75,7 @@ jobs:
           [ -n "${RELEASE_SHA}" ] || { echo "Exact release SHA is required."; exit 1; }
           [[ "${PRODUCTION_DATABASE_HOST}" != *"-pooler."* ]] || { echo "Direct/unpooled hostname is required."; exit 1; }
           [ -n "${PRODUCTION_DATABASE_URL:-}" ] || { echo "PRODUCTION_DATABASE_URL_UNPOOLED is not configured."; exit 1; }
-          [[ "${PREFLIGHT_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Numeric preflight run ID is required."; exit 1; }
+          [[ "${BASELINE_PRECHECK_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Numeric Stage A baseline precheck run ID is required."; exit 1; }
           [[ "${STAGE_A_DRY_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Numeric Stage A dry-run ID is required."; exit 1; }
           [[ "${PRE_EXECUTION_SELF_CHECK_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Numeric pre-execution self-check run ID is required."; exit 1; }
 
@@ -117,18 +117,19 @@ jobs:
           [ "$(jq -r '.path // ""' <<<"${j}")" = ".github/workflows/production-rollback-point-verify.yml" ] || { echo "Referenced run is not the rollback verification workflow."; exit 1; }
           [ "$(jq -r '.display_title // ""' <<<"${j}")" = "Production rollback verify ${ROLLBACK_POINT}" ] || { echo "Rollback verification branch ID does not match rollback_point."; exit 1; }
 
-      - name: Verify read-only preflight attestation
+      - name: Verify Stage A baseline precheck attestation
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          j="$(gh api "repos/${REPOSITORY}/actions/runs/${PREFLIGHT_RUN_ID}")"
-          [ "$(jq -r '.conclusion // ""' <<<"${j}")" = "success" ] || exit 1
-          [ "$(jq -r '.head_sha // ""' <<<"${j}")" = "${RELEASE_SHA}" ] || exit 1
-          [ "$(jq -r '.head_branch // ""' <<<"${j}")" = "main" ] || exit 1
-          [ "$(jq -r '.path // ""' <<<"${j}")" = ".github/workflows/production-db-preflight.yml" ] || exit 1
+          j="$(gh api "repos/${REPOSITORY}/actions/runs/${BASELINE_PRECHECK_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${j}")" = "success" ] || { echo "Stage A baseline precheck did not succeed."; exit 1; }
+          [ "$(jq -r '.head_sha // ""' <<<"${j}")" = "${RELEASE_SHA}" ] || { echo "Stage A baseline precheck SHA mismatch."; exit 1; }
+          [ "$(jq -r '.event // ""' <<<"${j}")" = "workflow_dispatch" ] || { echo "Stage A baseline precheck must be manually dispatched."; exit 1; }
+          [ "$(jq -r '.path // ""' <<<"${j}")" = ".github/workflows/production-stage-a-baseline-precheck.yml" ] || { echo "Referenced run is not Production Stage A Baseline Precheck."; exit 1; }
+          [ "$(jq -r '.display_title // ""' <<<"${j}")" = "Production Stage A baseline precheck ${RELEASE_SHA}" ] || { echo "Stage A baseline precheck release SHA binding mismatch."; exit 1; }
 
       - name: Verify Stage A dry-run attestation
         shell: bash
