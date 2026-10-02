@@ -27,8 +27,8 @@ on:
         description: Successful Production DB Read-only Preflight run ID after Stage A
         required: true
         type: string
-      stage_a_apply_run_id:
-        description: Successful Production Stage A Apply run ID for this release SHA
+      release_continuity_run_id:
+        description: Successful Production Release Continuity Check run ID for this release SHA
         required: true
         type: string
       stage_c_dry_run_id:
@@ -85,7 +85,7 @@ jobs:
       ROLLBACK_VERIFICATION_RUN_ID: ${{ inputs.rollback_verification_run_id }}
       APPLY_CONFIRMATION: ${{ inputs.confirmation }}
       PREFLIGHT_RUN_ID: ${{ inputs.preflight_run_id }}
-      STAGE_A_APPLY_RUN_ID: ${{ inputs.stage_a_apply_run_id }}
+      RELEASE_CONTINUITY_RUN_ID: ${{ inputs.release_continuity_run_id }}
       STAGE_C_DRY_RUN_ID: ${{ inputs.stage_c_dry_run_id }}
       BRIDGE_VALIDATION_RUN_ID: ${{ inputs.bridge_validation_run_id }}
       BRIDGE_CONFIRMATION: ${{ inputs.bridge_confirmation }}
@@ -110,7 +110,7 @@ jobs:
           [[ "${BRIDGE_SMOKE_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "Numeric bridge smoke run ID is required."; exit 1; }
           [[ "${PRODUCTION_DATABASE_HOST}" != *"-pooler."* ]] || { echo "Direct/unpooled hostname is required."; exit 1; }
           [ -n "${PRODUCTION_DATABASE_URL:-}" ] || { echo "PRODUCTION_DATABASE_URL_UNPOOLED is not configured."; exit 1; }
-          for id in "${PREFLIGHT_RUN_ID}" "${STAGE_A_APPLY_RUN_ID}" "${STAGE_C_DRY_RUN_ID}" "${BRIDGE_VALIDATION_RUN_ID}"; do
+          for id in "${PREFLIGHT_RUN_ID}" "${RELEASE_CONTINUITY_RUN_ID}" "${STAGE_C_DRY_RUN_ID}" "${BRIDGE_VALIDATION_RUN_ID}"; do
             [[ "${id}" =~ ^[0-9]+$ ]] || { echo "All attestation run IDs must be numeric."; exit 1; }
           done
 
@@ -154,7 +154,7 @@ jobs:
             [ "$(jq -r '.path // ""' <<<"${j}")" = "${expected_path}" ] || { echo "Run ${run_id} workflow mismatch."; exit 1; }
           }
           verify_run "${PREFLIGHT_RUN_ID}" ".github/workflows/production-db-preflight.yml"
-          verify_run "${STAGE_A_APPLY_RUN_ID}" ".github/workflows/production-stage-a-apply.yml"
+          verify_run "${RELEASE_CONTINUITY_RUN_ID}" ".github/workflows/production-release-continuity.yml"
           verify_run "${STAGE_C_DRY_RUN_ID}" ".github/workflows/production-stage-c-dry-run.yml"
           verify_run "${BRIDGE_VALIDATION_RUN_ID}" ".github/workflows/production-bridge-validation.yml"
 

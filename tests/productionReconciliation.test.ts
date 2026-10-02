@@ -231,12 +231,12 @@ test('Production Stage C is independently dry-run and heavily gated', () => {
 
   assert.match(apply, /workflow_dispatch/);
   assert.match(apply, /APPLY_COCO_PRODUCTION_STAGE_C/);
-  assert.match(apply, /stage_a_apply_run_id:/);
+  assert.match(apply, /release_continuity_run_id:/);
   assert.match(apply, /stage_c_dry_run_id:/);
   assert.match(apply, /bridge_validation_run_id:/);
   assert.match(apply, /BRIDGE_PRODUCTION_VERIFIED/);
   assert.match(apply, /64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1/);
-  assert.match(apply, /production-stage-a-apply\.yml/);
+  assert.match(apply, /production-release-continuity\.yml/);
   assert.match(apply, /production-stage-c-dry-run\.yml/);
   assert.match(apply, /production-bridge-validation\.yml/);
   assert.match(apply, /production:db:preflight/);
@@ -593,6 +593,27 @@ test('Production bridge rollback smoke verifies alias and runtime without requir
 });
 
 
+test('Production release continuity permits only Production workflow/test changes after an already-applied Stage A', () => {
+  const path = '.github/workflows/production-release-continuity.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+  assert.match(source, /stage_a_release_sha:/);
+  assert.match(source, /stage_a_apply_run_id:/);
+  assert.match(source, /post_stage_a_preflight_run_id:/);
+  assert.match(source, /pre_execution_self_check_run_id:/);
+  assert.match(source, /production-stage-a-apply\.yml/);
+  assert.match(source, /production-db-preflight\.yml/);
+  assert.match(source, /production-pre-execution-self-check\.yml/);
+  assert.match(source, /\.github\/workflows\/production-\*\.yml/);
+  assert.match(source, /tests\/productionReconciliation\.test\.ts/);
+  assert.match(source, /BLOCKED non-tooling change since Stage A/);
+  assert.match(source, /Do not re-run Stage A Apply/);
+  assert.doesNotMatch(source, /prisma migrate deploy/);
+  assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
+});
+
 test('Production bridge staging creates a Production-target artifact without assigning the Production alias', () => {
   const path = '.github/workflows/production-bridge-vercel-stage.yml';
   assert.equal(existsSync(path), true);
@@ -625,17 +646,17 @@ test('Production bridge candidate verification requires the exact staged Product
   assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
 });
 
-test('Production bridge promotion requires Stage A, bridge validation, and exact bridge candidate', () => {
+test('Production bridge promotion requires release continuity, bridge validation, and exact bridge candidate', () => {
   const path = '.github/workflows/production-bridge-vercel-promote.yml';
   assert.equal(existsSync(path), true);
   if (!existsSync(path)) return;
 
   const source = readFileSync(path, 'utf8');
   assert.match(source, /PROMOTE_COCO_BRIDGE_PRODUCTION/);
-  assert.match(source, /stage_a_apply_run_id:/);
+  assert.match(source, /release_continuity_run_id:/);
   assert.match(source, /bridge_validation_run_id:/);
   assert.match(source, /bridge_candidate_run_id:/);
-  assert.match(source, /production-stage-a-apply\.yml/);
+  assert.match(source, /production-release-continuity\.yml/);
   assert.match(source, /production-bridge-validation\.yml/);
   assert.match(source, /production-bridge-vercel-candidate\.yml/);
   assert.match(source, /api\.vercel\.com\/v10\/projects\/\$\{PROJECT_ID\}\/promote\/\$\{DEPLOYMENT_ID\}/);

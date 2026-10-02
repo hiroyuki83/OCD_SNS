@@ -1,0 +1,157 @@
+name: Production Release Continuity Check
+run-name: Production release continuity ${{ inputs.stage_a_release_sha }} -> ${{ inputs.release_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Exact current main SHA
+        required: true
+        type: string
+      stage_a_release_sha:
+        description: Exact main SHA on which Production Stage A Apply succeeded
+        required: true
+        type: string
+      stage_a_apply_run_id:
+        description: Successful Production Stage A Apply run ID for stage_a_release_sha
+        required: true
+        type: string
+      post_stage_a_preflight_run_id:
+        description: Successful Production DB Read-only Preflight run ID on current release_sha
+        required: true
+        type: string
+      pre_execution_self_check_run_id:
+        description: Successful Production Pre-execution Self Check run ID on current release_sha
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: coco-production-release-continuity
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      STAGE_A_RELEASE_SHA: ${{ inputs.stage_a_release_sha }}
+      STAGE_A_APPLY_RUN_ID: ${{ inputs.stage_a_apply_run_id }}
+      POST_STAGE_A_PREFLIGHT_RUN_ID: ${{ inputs.post_stage_a_preflight_run_id }}
+      PRE_EXECUTION_SELF_CHECK_RUN_ID: ${{ inputs.pre_execution_self_check_run_id }}
+
+    steps:
+      - name: Verify current release and prior Stage A attestations
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_SHA: ${{ github.sha }}
+          WORKFLOW_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          [ "${WORKFLOW_REF}" = "main" ] || { echo "Continuity check must run from main."; exit 1; }
+          [[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "release_sha must be a full Git SHA."; exit 1; }
+          [[ "${STAGE_A_RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "stage_a_release_sha must be a full Git SHA."; exit 1; }
+          for id in "${STAGE_A_APPLY_RUN_ID}" "${POST_STAGE_A_PREFLIGHT_RUN_ID}" "${PRE_EXECUTION_SELF_CHECK_RUN_ID}"; do
+            [[ "${id}" =~ ^[0-9]+$ ]] || { echo "All run IDs must be numeric."; exit 1; }
+          done
+
+          main_sha="$(gh api "repos/${REPOSITORY}/branches/main" --jq '.commit.sha')"
+          [ "${RELEASE_SHA}" = "${main_sha}" ] || { echo "release_sha does not match current main."; exit 1; }
+          [ "${RELEASE_SHA}" = "${WORKFLOW_SHA}" ] || { echo "Workflow SHA does not match current release SHA."; exit 1; }
+          [ "${STAGE_A_RELEASE_SHA}" != "${RELEASE_SHA}" ] || { echo "Continuity check is only for an already-applied earlier Stage A SHA."; exit 1; }
+
+          stage_a="$(gh api "repos/${REPOSITORY}/actions/runs/${STAGE_A_APPLY_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${stage_a}")" = "success" ] || { echo "Stage A Apply did not succeed."; exit 1; }
+          [ "$(jq -r '.head_sha // ""' <<<"${stage_a}")" = "${STAGE_A_RELEASE_SHA}" ] || { echo "Stage A Apply SHA mismatch."; exit 1; }
+          [ "$(jq -r '.event // ""' <<<"${stage_a}")" = "workflow_dispatch" ] || { echo "Stage A Apply must be manually dispatched."; exit 1; }
+          [ "$(jq -r '.path // ""' <<<"${stage_a}")" = ".github/workflows/production-stage-a-apply.yml" ] || { echo "Referenced run is not Production Stage A Apply."; exit 1; }
+
+          preflight="$(gh api "repos/${REPOSITORY}/actions/runs/${POST_STAGE_A_PREFLIGHT_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${preflight}")" = "success" ] || { echo "Post-Stage-A preflight did not succeed."; exit 1; }
+          [ "$(jq -r '.head_sha // ""' <<<"${preflight}")" = "${RELEASE_SHA}" ] || { echo "Post-Stage-A preflight must run on current release SHA."; exit 1; }
+          [ "$(jq -r '.event // ""' <<<"${preflight}")" = "workflow_dispatch" ] || { echo "Post-Stage-A preflight must be manually dispatched."; exit 1; }
+          [ "$(jq -r '.path // ""' <<<"${preflight}")" = ".github/workflows/production-db-preflight.yml" ] || { echo "Referenced run is not Production DB Read-only Preflight."; exit 1; }
+
+          self_check="$(gh api "repos/${REPOSITORY}/actions/runs/${PRE_EXECUTION_SELF_CHECK_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${self_check}")" = "success" ] || { echo "Pre-execution self-check did not succeed."; exit 1; }
+          [ "$(jq -r '.head_sha // ""' <<<"${self_check}")" = "${RELEASE_SHA}" ] || { echo "Pre-execution self-check must run on current release SHA."; exit 1; }
+          [ "$(jq -r '.event // ""' <<<"${self_check}")" = "workflow_dispatch" ] || { echo "Pre-execution self-check must be manually dispatched."; exit 1; }
+          [ "$(jq -r '.path // ""' <<<"${self_check}")" = ".github/workflows/production-pre-execution-self-check.yml" ] || { echo "Referenced run is not Production Pre-execution Self Check."; exit 1; }
+          [ "$(jq -r '.display_title // ""' <<<"${self_check}")" = "Production pre-execution self-check ${RELEASE_SHA}" ] || { echo "Pre-execution self-check release SHA binding mismatch."; exit 1; }
+
+      - name: Prove changes since Stage A are release-tooling only
+        id: diff
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          comparison="$(gh api "repos/${REPOSITORY}/compare/${STAGE_A_RELEASE_SHA}...${RELEASE_SHA}")"
+          status="$(jq -r '.status // ""' <<<"${comparison}")"
+          behind="$(jq -r '.behind_by // -1' <<<"${comparison}")"
+          merge_base="$(jq -r '.merge_base_commit.sha // ""' <<<"${comparison}")"
+
+          [ "${status}" = "ahead" ] || { echo "Current release must be ahead of the Stage A release SHA."; exit 1; }
+          [ "${behind}" = "0" ] || { echo "Current release diverged from Stage A release SHA."; exit 1; }
+          [ "${merge_base}" = "${STAGE_A_RELEASE_SHA}" ] || { echo "Stage A release SHA is not the direct ancestry base."; exit 1; }
+
+          files="$(jq -r '.files[]?.filename' <<<"${comparison}")"
+          [ -n "${files}" ] || { echo "No release-tooling changes found."; exit 1; }
+
+          invalid=0
+          while IFS= read -r file; do
+            case "${file}" in
+              .github/workflows/production-*.yml|tests/productionReconciliation.test.ts)
+                echo "allowed: ${file}"
+                ;;
+              *)
+                echo "BLOCKED non-tooling change since Stage A: ${file}"
+                invalid=1
+                ;;
+            esac
+          done <<<"${files}"
+
+          [ "${invalid}" = "0" ] || exit 1
+
+          if grep -Eq '^(src/|prisma/|scripts/|package\.json$|package-lock\.json$|vercel\.json$)' <<<"${files}"; then
+            echo "Runtime, schema, migration, script, dependency, or Vercel project config changed since Stage A."
+            exit 1
+          fi
+
+          {
+            echo "files<<EOF"
+            echo "${files}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Emit continuity summary
+        shell: bash
+        env:
+          CHANGED_FILES: ${{ steps.diff.outputs.files }}
+        run: |
+          {
+            echo "## Production release continuity: PASS"
+            echo
+            echo "- Stage A applied SHA: `${STAGE_A_RELEASE_SHA}`"
+            echo "- current release SHA: `${RELEASE_SHA}`"
+            echo "- Stage A Apply run: `${STAGE_A_APPLY_RUN_ID}`"
+            echo "- current post-Stage-A preflight: `${POST_STAGE_A_PREFLIGHT_RUN_ID}`"
+            echo "- current pre-execution self-check: `${PRE_EXECUTION_SELF_CHECK_RUN_ID}`"
+            echo
+            echo "Only Production workflow/test tooling changed since Stage A. Runtime application code, Prisma schema/migrations, release scripts, dependencies, and vercel.json are unchanged."
+            echo
+            echo "Changed files:"
+            while IFS= read -r file; do
+              echo "- `${file}`"
+            done <<<"${CHANGED_FILES}"
+            echo
+            echo "Do not re-run Stage A Apply. Continue the staged release using this continuity attestation."
+          } >> "${GITHUB_STEP_SUMMARY}"
