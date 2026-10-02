@@ -135,74 +135,88 @@ jobs:
           [ "$(jq -r '.database // ""' <<<"${health}")" = "ok" ] || exit 1
           [ "$(jq -r '.releaseSha // ""' <<<"${health}")" = "${RELEASE_SHA}" ] || exit 1
 
-      - name: Link Vercel CLI to confirmed project
+      - name: Fetch exact deployment runtime logs through Vercel REST API
+        id: runtime_logs
         shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p .vercel
-          jq -n             --arg orgId "${VERCEL_ORG_ID}"             --arg projectId "${VERCEL_PROJECT_ID}"             '{orgId:$orgId, projectId:$projectId}' > .vercel/project.json
-
-      - name: Scan exact deployment for recent 5xx responses
-        id: five_xx
-        shell: bash
-        env:
-          DEPLOYMENT_URL: ${{ steps.deployment.outputs.url }}
         run: |
           set -euo pipefail
 
           log_file="$(mktemp)"
-          npx --yes vercel@59.19.1 logs             --deployment "https://${DEPLOYMENT_URL}"             --status-code 5xx             --since "${OBSERVATION_MINUTES}m"             --json             --token "${VERCEL_TOKEN}"             --scope "${VERCEL_TEAM_SLUG}" >"${log_file}"
+          curl --fail-with-body --silent --show-error \
+            --request GET \
+            --url "https://api.vercel.com/v1/projects/${VERCEL_PROJECT_ID}/deployments/${DEPLOYMENT_ID}/runtime-logs?teamId=${VERCEL_ORG_ID}" \
+            --header "Accept: application/json" \
+            --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+            >"${log_file}"
 
-          count="$(node - "${log_file}" <<'NODE'
+          analysis="$(node - "${log_file}" "${OBSERVATION_MINUTES}" <<'NODE'
           const fs = require('node:fs');
           const path = process.argv[2];
-          const lines = fs.readFileSync(path, 'utf8').split(/\r?\n/).filter((line) => line.trim());
-          for (const line of lines) JSON.parse(line);
-          process.stdout.write(String(lines.length));
+          const minutes = Number(process.argv[3]);
+          const raw = fs.readFileSync(path, 'utf8').trim();
+
+          let rows = [];
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) rows = parsed;
+              else if (Array.isArray(parsed.logs)) rows = parsed.logs;
+              else rows = [parsed];
+            } catch {
+              rows = raw
+                .split(/\r?\n/)
+                .filter((line) => line.trim())
+                .map((line) => JSON.parse(line));
+            }
+          }
+
+          const cutoff = Date.now() - minutes * 60 * 1000;
+          const recent = rows.filter((row) => {
+            const ts = Number(row.timestampInMs ?? row.timestamp ?? row.created ?? 0);
+            return !Number.isFinite(ts) || ts === 0 || ts >= cutoff;
+          });
+
+          const fiveXx = recent.filter((row) => {
+            const status = Number(row.responseStatusCode ?? row.statusCode ?? 0);
+            return status >= 500 && status <= 599;
+          });
+
+          const errors = recent.filter((row) => {
+            const level = String(row.level ?? '').toLowerCase();
+            return level === 'error' || level === 'fatal';
+          });
+
+          process.stdout.write(JSON.stringify({
+            total: recent.length,
+            fiveXx: fiveXx.length,
+            errors: errors.length,
+          }));
           NODE
           )"
 
-          echo "count=${count}" >> "${GITHUB_OUTPUT}"
+          total="$(jq -r '.total' <<<"${analysis}")"
+          five_xx="$(jq -r '.fiveXx' <<<"${analysis}")"
+          errors="$(jq -r '.errors' <<<"${analysis}")"
 
-          if [ "${count}" -gt 0 ]; then
-            echo "Detected ${count} 5xx runtime log entries for the exact deployment."
-            cat "${log_file}"
+          echo "total=${total}" >> "${GITHUB_OUTPUT}"
+          echo "five_xx=${five_xx}" >> "${GITHUB_OUTPUT}"
+          echo "errors=${errors}" >> "${GITHUB_OUTPUT}"
+
+          if [ "${five_xx}" -gt 0 ]; then
+            echo "Detected ${five_xx} 5xx runtime log entries for the exact deployment in the observation window."
             exit 1
           fi
 
-      - name: Scan exact deployment for application error logs
-        id: errors
-        shell: bash
-        env:
-          DEPLOYMENT_URL: ${{ steps.deployment.outputs.url }}
-        run: |
-          set -euo pipefail
-
-          log_file="$(mktemp)"
-          npx --yes vercel@59.19.1 logs             --deployment "https://${DEPLOYMENT_URL}"             --level error             --since "${OBSERVATION_MINUTES}m"             --json             --token "${VERCEL_TOKEN}"             --scope "${VERCEL_TEAM_SLUG}" >"${log_file}"
-
-          count="$(node - "${log_file}" <<'NODE'
-          const fs = require('node:fs');
-          const path = process.argv[2];
-          const lines = fs.readFileSync(path, 'utf8').split(/\r?\n/).filter((line) => line.trim());
-          for (const line of lines) JSON.parse(line);
-          process.stdout.write(String(lines.length));
-          NODE
-          )"
-
-          echo "count=${count}" >> "${GITHUB_OUTPUT}"
-
-          if [ "${count}" -gt 0 ]; then
-            echo "::warning::Detected ${count} application error log entries. 5xx gate remains clear, but review these logs."
-            cat "${log_file}"
+          if [ "${errors}" -gt 0 ]; then
+            echo "::warning::Detected ${errors} application error/fatal log entries. 5xx gate remains clear, but review these logs."
           fi
 
       - name: Emit release acceptance summary
         shell: bash
         env:
           DEPLOYMENT_URL: ${{ steps.deployment.outputs.url }}
-          FIVE_XX_COUNT: ${{ steps.five_xx.outputs.count }}
-          ERROR_COUNT: ${{ steps.errors.outputs.count }}
+          FIVE_XX_COUNT: ${{ steps.runtime_logs.outputs.five_xx }}
+          ERROR_COUNT: ${{ steps.runtime_logs.outputs.errors }}
         run: |
           {
             echo "## Production release acceptance: PASS"
