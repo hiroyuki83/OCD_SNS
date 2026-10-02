@@ -1,4 +1,4 @@
-name: Production Vercel Promote
+name: Production Final Staged Vercel Promote
 run-name: Production promote ${{ inputs.deployment_id }}
 
 on:
@@ -9,19 +9,19 @@ on:
         required: true
         type: string
       release_sha:
-        description: Exact current main commit SHA
+        description: Exact current main application commit SHA
         required: true
         type: string
       deployment_id:
-        description: Verified Vercel Preview deployment ID
+        description: READY staged Production deployment ID
         required: true
         type: string
-      candidate_verification_run_id:
-        description: Successful Production Vercel Candidate Verification run ID
+      production_stage_run_id:
+        description: Successful current-main Production staging run ID
         required: true
         type: string
       deploy_readiness_run_id:
-        description: Successful Production Deploy Readiness run ID
+        description: Successful Production Deploy Readiness run ID for this release SHA
         required: true
         type: string
 
@@ -30,7 +30,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: coco-production-vercel-promote
+  group: coco-production-final-staged-promote
   cancel-in-progress: false
 
 jobs:
@@ -44,15 +44,16 @@ jobs:
       CONFIRMATION: ${{ inputs.confirmation }}
       RELEASE_SHA: ${{ inputs.release_sha }}
       DEPLOYMENT_ID: ${{ inputs.deployment_id }}
-      CANDIDATE_VERIFICATION_RUN_ID: ${{ inputs.candidate_verification_run_id }}
+      PRODUCTION_STAGE_RUN_ID: ${{ inputs.production_stage_run_id }}
       DEPLOY_READINESS_RUN_ID: ${{ inputs.deploy_readiness_run_id }}
+      PRODUCTION_ALIAS: x-clone-olive-chi.vercel.app
+      RELEASE_BRANCH: release/current-main-candidate-20261002
 
     steps:
       - name: Verify explicit Production promotion inputs
         shell: bash
         run: |
           set -euo pipefail
-
           [ "${CONFIRMATION}" = "PROMOTE_COCO_PRODUCTION" ] || {
             echo "Exact Production promotion confirmation is required."
             exit 1
@@ -60,95 +61,116 @@ jobs:
           [ -n "${VERCEL_TOKEN:-}" ] || { echo "VERCEL_TOKEN is not configured."; exit 1; }
           [[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "release_sha must be a full Git SHA."; exit 1; }
           [[ "${DEPLOYMENT_ID}" =~ ^dpl_[A-Za-z0-9]+$ ]] || { echo "deployment_id must be a Vercel deployment ID."; exit 1; }
-          [[ "${CANDIDATE_VERIFICATION_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "candidate verification run ID must be numeric."; exit 1; }
-          [[ "${DEPLOY_READINESS_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "deploy readiness run ID must be numeric."; exit 1; }
+          [[ "${PRODUCTION_STAGE_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "production_stage_run_id must be numeric."; exit 1; }
+          [[ "${DEPLOY_READINESS_RUN_ID}" =~ ^[0-9]+$ ]] || { echo "deploy_readiness_run_id must be numeric."; exit 1; }
 
-      - name: Verify exact current main release SHA
+      - name: Verify exact current main and release attestations
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
+
           main_sha="$(gh api "repos/${REPOSITORY}/branches/main" --jq '.commit.sha')"
           [ "${RELEASE_SHA}" = "${main_sha}" ] || {
             echo "release_sha does not match current main."
+            echo "release_sha=${RELEASE_SHA}"
+            echo "main_sha=${main_sha}"
             exit 1
           }
 
-      - name: Verify GitHub release attestations
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPOSITORY: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-
-          verify_run() {
-            run_id="$1"
-            expected_path="$2"
-            expected_title="$3"
-
-            j="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}")"
-            [ "$(jq -r '.conclusion // ""' <<<"${j}")" = "success" ] || { echo "Run ${run_id} did not succeed."; exit 1; }
-            [ "$(jq -r '.head_sha // ""' <<<"${j}")" = "${RELEASE_SHA}" ] || { echo "Run ${run_id} SHA mismatch."; exit 1; }
-            [ "$(jq -r '.event // ""' <<<"${j}")" = "workflow_dispatch" ] || { echo "Run ${run_id} was not manually dispatched."; exit 1; }
-            [ "$(jq -r '.path // ""' <<<"${j}")" = "${expected_path}" ] || { echo "Run ${run_id} workflow mismatch."; exit 1; }
-
-            if [ -n "${expected_title}" ]; then
-              [ "$(jq -r '.display_title // ""' <<<"${j}")" = "${expected_title}" ] || { echo "Run ${run_id} deployment ID mismatch."; exit 1; }
-            fi
+          readiness="$(gh api "repos/${REPOSITORY}/actions/runs/${DEPLOY_READINESS_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${readiness}")" = "success" ] || { echo "Deploy Readiness did not succeed."; exit 1; }
+          [ "$(jq -r '.head_sha // ""' <<<"${readiness}")" = "${RELEASE_SHA}" ] || { echo "Deploy Readiness SHA mismatch."; exit 1; }
+          [ "$(jq -r '.path // ""' <<<"${readiness}")" = ".github/workflows/production-deploy-readiness.yml" ] || {
+            echo "Referenced run is not Production Deploy Readiness."
+            exit 1
           }
 
-          verify_run "${CANDIDATE_VERIFICATION_RUN_ID}" ".github/workflows/production-vercel-candidate-verify.yml" "Production candidate verify ${DEPLOYMENT_ID}"
-          verify_run "${DEPLOY_READINESS_RUN_ID}" ".github/workflows/production-deploy-readiness.yml" ""
+          stage="$(gh api "repos/${REPOSITORY}/actions/runs/${PRODUCTION_STAGE_RUN_ID}")"
+          [ "$(jq -r '.conclusion // ""' <<<"${stage}")" = "success" ] || { echo "Production staging run did not succeed."; exit 1; }
+          [ "$(jq -r '.head_branch // ""' <<<"${stage}")" = "${RELEASE_BRANCH}" ] || { echo "Production staging branch mismatch."; exit 1; }
+          [ "$(jq -r '.path // ""' <<<"${stage}")" = ".github/workflows/production-bridge-vercel-stage.yml" ] || {
+            echo "Production staging workflow mismatch."
+            exit 1
+          }
+          [ "$(jq -r '.display_title // ""' <<<"${stage}")" = "Production current-main production stage ${RELEASE_SHA}" ] || {
+            echo "Production staging release mismatch."
+            exit 1
+          }
 
-      - name: Re-verify exact READY candidate before promotion
+      - name: Re-verify exact staged Production artifact
         shell: bash
         run: |
           set -euo pipefail
 
-          response="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://api.vercel.com/v7/deployments?projectId=${PROJECT_ID}&teamId=${TEAM_ID}&sha=${RELEASE_SHA}&state=READY&limit=100"             --header "Accept: application/json"             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+          details="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://api.vercel.com/v13/deployments/${DEPLOYMENT_ID}?withGitRepoInfo=true&teamId=${TEAM_ID}"             --header "Accept: application/json"             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
 
-          candidate="$(jq -c --arg id "${DEPLOYMENT_ID}"             '.deployments[] | select((.uid // .id) == $id)' <<<"${response}" | head -n1)"
+          actual_id="$(jq -r '.id // .uid // ""' <<<"${details}")"
+          state="$(jq -r '.readyState // .state // ""' <<<"${details}")"
+          target="$(jq -r '.target // ""' <<<"${details}")"
+          git_sha="$(jq -r '.meta.githubCommitSha // .gitSource.sha // ""' <<<"${details}")"
+          release_meta="$(jq -r '.meta.cocoFinalReleaseSha // ""' <<<"${details}")"
+          build_guard="$(jq -r '.meta.cocoFinalBuildGuard // ""' <<<"${details}")"
+          stage_run_meta="$(jq -r '.meta.cocoFinalStageRunId // ""' <<<"${details}")"
+          alias_bound="$(jq -r --arg alias "${PRODUCTION_ALIAS}" '[(.alias // [])[] | select(. == $alias)] | length' <<<"${details}")"
 
-          [ -n "${candidate}" ] || { echo "Verified candidate no longer exists as READY for this SHA."; exit 1; }
+          [ "${actual_id}" = "${DEPLOYMENT_ID}" ] || { echo "Deployment ID mismatch."; exit 1; }
+          [ "${state}" = "READY" ] || { echo "Staged artifact is not READY."; exit 1; }
+          [ "${target}" = "production" ] || { echo "Staged artifact is not Production-target."; exit 1; }
+          [ "${git_sha}" = "${RELEASE_SHA}" ] || { echo "Deployment Git SHA mismatch."; exit 1; }
+          [ "${release_meta}" = "${RELEASE_SHA}" ] || { echo "Final release metadata mismatch."; exit 1; }
+          [ "${build_guard}" = "no-migrate" ] || { echo "Final build guard attestation is missing."; exit 1; }
+          [ "${stage_run_meta}" = "${PRODUCTION_STAGE_RUN_ID}" ] || { echo "Production stage run metadata mismatch."; exit 1; }
+          [ "${alias_bound}" = "0" ] || { echo "Canonical Production alias is already assigned to this deployment."; exit 1; }
 
-          target="$(jq -r '.target // ""' <<<"${candidate}")"
-          [ "${target}" != "production" ] || { echo "Candidate is already Production target."; exit 1; }
-
-      - name: Promote verified deployment to Production
+      - name: Promote approved staged deployment to Production
         id: promote
         shell: bash
         run: |
           set -euo pipefail
+          body="$(mktemp)"
+          status="$(curl --silent --show-error             --output "${body}"             --write-out '%{http_code}'             --request POST             --url "https://api.vercel.com/v10/projects/${PROJECT_ID}/promote/${DEPLOYMENT_ID}?teamId=${TEAM_ID}"             --header "Accept: application/json"             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
 
-          body_file="$(mktemp)"
-          status="$(curl --silent --show-error             --output "${body_file}"             --write-out '%{http_code}'             --request POST             --url "https://api.vercel.com/v10/projects/${PROJECT_ID}/promote/${DEPLOYMENT_ID}?teamId=${TEAM_ID}"             --header "Accept: application/json"             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
-
-          case "${status}" in
-            201|202) ;;
-            *)
-              echo "Vercel promotion request failed with HTTP ${status}."
-              cat "${body_file}"
-              exit 1
-              ;;
-          esac
+          [[ "${status}" =~ ^2[0-9][0-9]$ ]] || {
+            echo "Vercel promotion failed with HTTP ${status}."
+            cat "${body}"
+            exit 1
+          }
 
           echo "status=${status}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify canonical Production alias moved to deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in {1..30}; do
+            aliases="$(curl --fail-with-body --silent --show-error               --request GET               --url "https://api.vercel.com/v2/deployments/${DEPLOYMENT_ID}/aliases?teamId=${TEAM_ID}"               --header "Accept: application/json"               --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+
+            count="$(jq --arg alias "${PRODUCTION_ALIAS}" '[.aliases[] | select(.alias == $alias)] | length' <<<"${aliases}")"
+            if [ "${count}" -ge 1 ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Canonical Production alias was not assigned within the expected window."
+          exit 1
 
       - name: Emit Production promotion summary
         shell: bash
         env:
-          PROMOTE_STATUS: ${{ steps.promote.outputs.status }}
+          STATUS: ${{ steps.promote.outputs.status }}
         run: |
           {
-            echo "## Production Vercel promotion: REQUEST ACCEPTED"
+            echo "## Production staged promotion: PASS"
             echo
             echo "- release SHA: \`${RELEASE_SHA}\`"
             echo "- deployment ID: \`${DEPLOYMENT_ID}\`"
-            echo "- project ID: \`${PROJECT_ID}\`"
-            echo "- Vercel API status: \`${PROMOTE_STATUS}\`"
+            echo "- Production alias: \`${PRODUCTION_ALIAS}\`"
+            echo "- Vercel API status: \`${STATUS}\`"
             echo
-            echo "Run Production Post-deploy Smoke immediately after Vercel finishes promotion."
+            echo "Run the release-branch Production Post-deploy Smoke immediately."
           } >> "${GITHUB_STEP_SUMMARY}"
