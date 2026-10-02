@@ -1,0 +1,179 @@
+name: Production Bridge Vercel Stage
+run-name: Production bridge stage ${{ inputs.release_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type STAGE_COCO_BRIDGE_PRODUCTION
+        required: true
+        type: string
+      release_sha:
+        description: Exact current main SHA for the staged release
+        required: true
+        type: string
+      stage_a_apply_run_id:
+        description: Successful Production Stage A Apply run ID
+        required: true
+        type: string
+      post_stage_a_preflight_run_id:
+        description: Successful Production DB Read-only Preflight run ID after Stage A
+        required: true
+        type: string
+      bridge_validation_run_id:
+        description: Successful Production Bridge Validation run ID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: coco-production-bridge-vercel-stage
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_P1Z1wvYF1h42LIl0YfgXoOPI
+      VERCEL_PROJECT_ID: prj_AcjmJFO5jcqse6sStknZzZkmfR7h
+      TEAM_ID: team_P1Z1wvYF1h42LIl0YfgXoOPI
+      PROJECT_ID: prj_AcjmJFO5jcqse6sStknZzZkmfR7h
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      STAGE_A_APPLY_RUN_ID: ${{ inputs.stage_a_apply_run_id }}
+      POST_STAGE_A_PREFLIGHT_RUN_ID: ${{ inputs.post_stage_a_preflight_run_id }}
+      BRIDGE_VALIDATION_RUN_ID: ${{ inputs.bridge_validation_run_id }}
+      BRIDGE_SHA: 64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1
+      PRODUCTION_ALIAS: x-clone-olive-chi.vercel.app
+
+    steps:
+      - name: Verify explicit staging inputs and release attestations
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          [ "${CONFIRMATION}" = "STAGE_COCO_BRIDGE_PRODUCTION" ] || { echo "Exact staged-deployment confirmation is required."; exit 1; }
+          [ -n "${VERCEL_TOKEN:-}" ] || { echo "VERCEL_TOKEN is not configured."; exit 1; }
+          [[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "release_sha must be a full Git SHA."; exit 1; }
+          for id in "${STAGE_A_APPLY_RUN_ID}" "${POST_STAGE_A_PREFLIGHT_RUN_ID}" "${BRIDGE_VALIDATION_RUN_ID}"; do
+            [[ "${id}" =~ ^[0-9]+$ ]] || { echo "All run IDs must be numeric."; exit 1; }
+          done
+
+          main_sha="$(gh api "repos/${REPOSITORY}/branches/main" --jq '.commit.sha')"
+          [ "${RELEASE_SHA}" = "${main_sha}" ] || { echo "release_sha does not match current main."; exit 1; }
+
+          verify_run() {
+            run_id="$1"
+            expected_path="$2"
+            j="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}")"
+            [ "$(jq -r '.conclusion // ""' <<<"${j}")" = "success" ] || { echo "Run ${run_id} did not succeed."; exit 1; }
+            [ "$(jq -r '.head_sha // ""' <<<"${j}")" = "${RELEASE_SHA}" ] || { echo "Run ${run_id} SHA mismatch."; exit 1; }
+            [ "$(jq -r '.path // ""' <<<"${j}")" = "${expected_path}" ] || { echo "Run ${run_id} workflow mismatch."; exit 1; }
+          }
+
+          verify_run "${STAGE_A_APPLY_RUN_ID}" ".github/workflows/production-stage-a-apply.yml"
+          verify_run "${POST_STAGE_A_PREFLIGHT_RUN_ID}" ".github/workflows/production-db-preflight.yml"
+          verify_run "${BRIDGE_VALIDATION_RUN_ID}" ".github/workflows/production-bridge-validation.yml"
+
+      - name: Checkout exact approved bridge source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.BRIDGE_SHA }}
+          fetch-depth: 1
+
+      - name: Disable historical Production migration build hook
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "prisma.*migrate.*deploy" scripts/vercel-build.mjs || {
+            echo "Expected historical bridge migration hook was not found; refusing an unreviewed staging path."
+            exit 1
+          }
+
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'vercel.json';
+          const config = JSON.parse(fs.readFileSync(path, 'utf8'));
+          if (config.buildCommand !== 'npm run vercel-build') {
+            throw new Error(`Unexpected historical buildCommand: ${config.buildCommand}`);
+          }
+          config.buildCommand = 'npm run build';
+          fs.writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
+          NODE
+
+          [ "$(jq -r '.buildCommand' vercel.json)" = "npm run build" ] || exit 1
+          echo "Historical prisma migrate deploy hook is bypassed for this staged build only."
+
+      - name: Create staged Production deployment without assigning domains
+        id: deploy
+        shell: bash
+        env:
+          STAGE_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          npx --yes vercel@latest deploy             --prod             --skip-domain             --yes             --token="${VERCEL_TOKEN}"             --meta "cocoBridgeSha=${BRIDGE_SHA}"             --meta "cocoReleaseSha=${RELEASE_SHA}"             --meta "cocoBuildGuard=safe-no-migrate"             --meta "cocoStageRunId=${STAGE_RUN_ID}"             2>&1 | tee /tmp/coco-vercel-stage.log
+
+          for attempt in {1..30}; do
+            response="$(curl --fail-with-body --silent --show-error               --request GET               --url "https://api.vercel.com/v7/deployments?projectId=${PROJECT_ID}&teamId=${TEAM_ID}&target=production&state=READY&limit=100"               --header "Accept: application/json"               --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+
+            candidate="$(jq -c               --arg bridge "${BRIDGE_SHA}"               --arg release "${RELEASE_SHA}"               --arg run "${STAGE_RUN_ID}"               '[.deployments[] | select(
+                (.meta.cocoBridgeSha // "") == $bridge and
+                (.meta.cocoReleaseSha // "") == $release and
+                (.meta.cocoBuildGuard // "") == "safe-no-migrate" and
+                (.meta.cocoStageRunId // "") == $run
+              )] | sort_by(.created // .createdAt // 0) | last // empty' <<<"${response}")"
+
+            if [ -n "${candidate}" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          [ -n "${candidate:-}" ] || { echo "Staged Production deployment could not be resolved after Vercel reported success."; exit 1; }
+
+          deployment_id="$(jq -r '.uid // .id // ""' <<<"${candidate}")"
+          deployment_url="$(jq -r '.url // ""' <<<"${candidate}")"
+          target="$(jq -r '.target // ""' <<<"${candidate}")"
+
+          [[ "${deployment_id}" =~ ^dpl_[A-Za-z0-9]+$ ]] || { echo "Invalid staged deployment ID."; exit 1; }
+          [ -n "${deployment_url}" ] || { echo "Staged deployment URL is missing."; exit 1; }
+          [ "${target}" = "production" ] || { echo "Staged deployment is not Production-target."; exit 1; }
+
+          details="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://api.vercel.com/v13/deployments/${deployment_id}?withGitRepoInfo=true&teamId=${TEAM_ID}"             --header "Accept: application/json"             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+
+          state="$(jq -r '.readyState // .state // ""' <<<"${details}")"
+          alias_bound="$(jq -r --arg alias "${PRODUCTION_ALIAS}" '[(.alias // [])[] | select(. == $alias)] | length' <<<"${details}")"
+
+          [ "${state}" = "READY" ] || { echo "Staged deployment is not READY."; exit 1; }
+          [ "${alias_bound}" = "0" ] || { echo "Production alias was unexpectedly assigned during staging."; exit 1; }
+
+          echo "deployment_id=${deployment_id}" >> "${GITHUB_OUTPUT}"
+          echo "deployment_url=${deployment_url}" >> "${GITHUB_OUTPUT}"
+
+      - name: Emit staged bridge summary
+        shell: bash
+        env:
+          DEPLOYMENT_ID: ${{ steps.deploy.outputs.deployment_id }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+        run: |
+          {
+            echo "## Production bridge staged deployment: READY"
+            echo
+            echo "- release SHA: `${RELEASE_SHA}`"
+            echo "- bridge SHA: `${BRIDGE_SHA}`"
+            echo "- deployment ID: `${DEPLOYMENT_ID}`"
+            echo "- deployment URL: `${DEPLOYMENT_URL}`"
+            echo "- target: `production`"
+            echo "- build guard: `safe-no-migrate`"
+            echo "- Production alias assigned: `no`"
+            echo
+            echo "This created a Production-target staged deployment but did not move Production traffic."
+          } >> "${GITHUB_STEP_SUMMARY}"
