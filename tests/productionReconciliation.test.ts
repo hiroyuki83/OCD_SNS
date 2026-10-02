@@ -458,7 +458,7 @@ test('Production deploy readiness accepts same-SHA manual CI for docs-only main 
 });
 
 
-test('Production Vercel candidate verification binds a READY Preview deployment to the exact main SHA', () => {
+test('Production Vercel candidate verification binds a READY validation-only Preview deployment to the exact main SHA', () => {
   const path = '.github/workflows/production-vercel-candidate-verify.yml';
   assert.equal(existsSync(path), true);
   if (!existsSync(path)) return;
@@ -468,6 +468,7 @@ test('Production Vercel candidate verification binds a READY Preview deployment 
   assert.match(source, /workflow_dispatch/);
   assert.match(source, /release_sha:/);
   assert.match(source, /deployment_id:/);
+  assert.match(source, /validation only/);
   assert.match(source, /secrets\.VERCEL_TOKEN/);
   assert.match(source, /team_P1Z1wvYF1h42LIl0YfgXoOPI/);
   assert.match(source, /prj_AcjmJFO5jcqse6sStknZzZkmfR7h/);
@@ -476,11 +477,36 @@ test('Production Vercel candidate verification binds a READY Preview deployment 
   assert.match(source, /state=READY/);
   assert.match(source, /Candidate is already a Production-target deployment/);
   assert.match(source, /api\.vercel\.com\/v13\/deployments/);
-  assert.match(source, /read-only and does not promote or deploy anything/);
+  assert.match(source, /Preview artifact is validation-only and must not be promoted directly/);
   assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
 });
 
-test('Production Vercel promotion is manual and requires both candidate and deploy readiness attestations', () => {
+test('Production current-main Vercel stage creates a guarded Production-target artifact without moving canonical traffic', () => {
+  const path = '.github/workflows/production-current-main-vercel-stage.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+
+  assert.match(source, /workflow_dispatch/);
+  assert.match(source, /STAGE_COCO_FINAL_PRODUCTION/);
+  assert.match(source, /release_sha:/);
+  assert.match(source, /deploy_readiness_run_id:/);
+  assert.match(source, /production-deploy-readiness\.yml/);
+  assert.match(source, /actions\/checkout@v6/);
+  assert.match(source, /ref: \$\{\{ inputs\.release_sha \}\}/);
+  assert.match(source, /vercel@latest deploy/);
+  assert.match(source, /--prod/);
+  assert.match(source, /--skip-domain/);
+  assert.match(source, /cocoFinalReleaseSha/);
+  assert.match(source, /cocoFinalBuildGuard=no-migrate/);
+  assert.match(source, /cocoFinalStageRunId/);
+  assert.match(source, /target=production/);
+  assert.match(source, /Canonical Production alias was unexpectedly assigned during staging/);
+  assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
+});
+
+test('Production Vercel promotion is manual and requires staged Production plus deploy readiness attestations', () => {
   const path = '.github/workflows/production-vercel-promote.yml';
   assert.equal(existsSync(path), true);
   if (!existsSync(path)) return;
@@ -489,26 +515,33 @@ test('Production Vercel promotion is manual and requires both candidate and depl
 
   assert.match(source, /workflow_dispatch/);
   assert.match(source, /PROMOTE_COCO_PRODUCTION/);
-  assert.match(source, /candidate_verification_run_id:/);
+  assert.match(source, /production_stage_run_id:/);
   assert.match(source, /deploy_readiness_run_id:/);
-  assert.match(source, /production-vercel-candidate-verify\.yml/);
+  assert.match(source, /production-current-main-vercel-stage\.yml/);
   assert.match(source, /production-deploy-readiness\.yml/);
-  assert.match(source, /Production candidate verify \$\{DEPLOYMENT_ID\}/);
+  assert.match(source, /Production stage \$\{RELEASE_SHA\}/);
+  assert.match(source, /Staged artifact is not Production-target/);
+  assert.match(source, /cocoFinalReleaseSha/);
+  assert.match(source, /cocoFinalBuildGuard/);
+  assert.match(source, /cocoFinalStageRunId/);
   assert.match(source, /api\.vercel\.com\/v10\/projects\/\$\{PROJECT_ID\}\/promote\/\$\{DEPLOYMENT_ID\}/);
-  assert.match(source, /201\|202/);
+  assert.match(source, /\^2\[0-9\]\[0-9\]\$/);
+  assert.match(source, /Verify canonical Production alias moved to deployment/);
   assert.match(source, /Run Production Post-deploy Smoke immediately/);
+  assert.doesNotMatch(source, /candidate_verification_run_id:/);
   assert.doesNotMatch(source, /prisma migrate deploy/);
   assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
 });
 
-test('Production deploy readiness also requires a verified Vercel promotion candidate', () => {
+test('Production deploy readiness also requires a verified Preview validation candidate', () => {
   const path = '.github/workflows/production-deploy-readiness.yml';
   const source = readFileSync(path, 'utf8');
 
   assert.match(source, /candidate_verification_run_id:/);
   assert.match(source, /CANDIDATE_VERIFICATION_RUN_ID/);
   assert.match(source, /production-vercel-candidate-verify\.yml/);
-  assert.match(source, /Vercel promotion candidate: verified/);
+  assert.match(source, /Vercel Preview validation candidate: verified/);
+  assert.match(source, /separate explicit Production staging approval/);
 });
 
 test('Production post-deploy smoke is bound to the exact successful promotion run', () => {
@@ -694,7 +727,7 @@ test('Production Stage C requires machine-proven bridge promotion and smoke atte
 });
 
 
-test('Production release acceptance binds smoke, alias, deployment SHA, and 5xx-free runtime logs', () => {
+test('Production release acceptance binds smoke, alias, deployment SHA, health, and 5xx-free runtime logs', () => {
   const path = '.github/workflows/production-release-acceptance.yml';
   assert.equal(existsSync(path), true);
   if (!existsSync(path)) return;
@@ -708,14 +741,19 @@ test('Production release acceptance binds smoke, alias, deployment SHA, and 5xx-
   assert.match(source, /production-vercel-promote\.yml/);
   assert.match(source, /production-post-deploy-smoke\.yml/);
   assert.match(source, /api\.vercel\.com\/v13\/deployments/);
+  assert.match(source, /Deployment is not Production-target/);
+  assert.match(source, /cocoFinalReleaseSha/);
   assert.match(source, /v2\/deployments\/\$\{DEPLOYMENT_ID\}\/aliases/);
   assert.match(source, /x-clone-olive-chi\.vercel\.app/);
-  assert.match(source, /vercel@59\.19\.1 logs/);
-  assert.match(source, /--status-code 5xx/);
-  assert.match(source, /--level error/);
+  assert.match(source, /\/api\/health/);
+  assert.match(source, /api\.vercel\.com\/v1\/projects\/\$\{VERCEL_PROJECT_ID\}\/deployments\/\$\{DEPLOYMENT_ID\}\/runtime-logs/);
+  assert.match(source, /responseStatusCode/);
+  assert.match(source, /fiveXx/);
+  assert.match(source, /level === 'error' \|\| level === 'fatal'/);
   assert.match(source, /Detected .* 5xx runtime log entries/);
   assert.match(source, /Production release acceptance: PASS/);
   assert.match(source, /Application error logs are surfaced as warnings/);
+  assert.doesNotMatch(source, /vercel@59\.19\.1 logs/);
   assert.doesNotMatch(source, /prisma migrate deploy/);
   assert.doesNotMatch(source, /PRODUCTION_DATABASE_URL/);
   assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
