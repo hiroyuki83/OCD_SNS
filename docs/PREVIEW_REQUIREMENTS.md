@@ -1,6 +1,6 @@
 # CoCo Preview 要件定義
 
-最終更新: 2026-09-28
+最終更新: 2026-10-02
 対象基準ブランチ: `main`
 現在の実装ブランチ: `main`
 
@@ -134,10 +134,14 @@ CoCo は、メンタルヘルス領域の当事者コミュニティを想定し
 - 運営警告
 - 異議申立て結果（審査後に警告を再度未読化して通知）
 
+ユーザーが変更できる通知設定:
+- いいね
+- リアクション
+- フォロー
+
 今後検討:
-- 投稿制限解除
-- アカウント停止解除
-- 通知カテゴリごとの ON / OFF
+- 投稿制限解除通知
+- アカウント停止解除通知
 
 返信・メンション由来通知は、返信機能を実装しないため対象外とする。
 
@@ -402,6 +406,38 @@ Production releaseは別工程とし、以下を明示的に実施する。
 7. 問題があればrollback
 
 Production releaseは自動ではなく、明示的なrelease判断の後に実施する。
+
+### 2026-10-02 初回Production release完了
+
+CoCo v1の初回Production releaseは2026-10-02に完了した。
+
+実績:
+
+- released application SHA: `e52d5acea5c96623443d0fe65d2db2acc3ff3764`
+- Vercel Production deployment: `dpl_9cChFzxqudMiyMkBKbNPvA9mM4hR`
+- Production Stage C Apply: SUCCESS
+- Production Vercel Promote: SUCCESS
+- Production Post-deploy Smoke: SUCCESS
+- Production Release Acceptance: SUCCESS
+
+Production migrationとapplication releaseは同じ操作にまとめず、段階的な明示承認を維持する。
+
+今後の標準的なapplication release経路:
+
+1. Preview artifactでvalidationを行う
+2. Production Deploy Readinessを完了する
+3. exact current mainからProduction-target artifactをstagingする
+4. staging時点ではcanonical Production aliasを移動しない
+5. READYとなったexact staged artifactを別承認でPromoteする
+6. Production Post-deploy Smokeを実行する
+7. Production Release Acceptanceを実行する
+8. acceptance完了までrollback pointを保持する
+
+Preview artifactを直接ProductionへPromoteしない。
+Vercel Production build内ではDB migrationを実行しない。
+main mergeだけではProductionへ自動deployしない。
+
+PR #121で上記release pathを恒久化した。PR #121のmain統合はworkflow / test / documentationの更新であり、accepted済みProduction applicationを自動再deployするものではない。
 
 ### integration branchの終了
 
