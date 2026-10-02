@@ -16,8 +16,8 @@ on:
         description: Verified bridge Vercel deployment ID
         required: true
         type: string
-      stage_a_apply_run_id:
-        description: Successful Production Stage A Apply run ID
+      release_continuity_run_id:
+        description: Successful Production Release Continuity Check run ID for this release SHA
         required: true
         type: string
       bridge_validation_run_id:
@@ -48,7 +48,7 @@ jobs:
       CONFIRMATION: ${{ inputs.confirmation }}
       RELEASE_SHA: ${{ inputs.release_sha }}
       DEPLOYMENT_ID: ${{ inputs.deployment_id }}
-      STAGE_A_APPLY_RUN_ID: ${{ inputs.stage_a_apply_run_id }}
+      RELEASE_CONTINUITY_RUN_ID: ${{ inputs.release_continuity_run_id }}
       BRIDGE_VALIDATION_RUN_ID: ${{ inputs.bridge_validation_run_id }}
       BRIDGE_CANDIDATE_RUN_ID: ${{ inputs.bridge_candidate_run_id }}
       BRIDGE_SHA: 64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1
@@ -62,7 +62,7 @@ jobs:
           [ -n "${VERCEL_TOKEN:-}" ] || { echo "VERCEL_TOKEN is not configured."; exit 1; }
           [[ "${RELEASE_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo "release_sha must be a full Git SHA."; exit 1; }
           [[ "${DEPLOYMENT_ID}" =~ ^dpl_[A-Za-z0-9]+$ ]] || { echo "deployment_id must be a Vercel deployment ID."; exit 1; }
-          for id in "${STAGE_A_APPLY_RUN_ID}" "${BRIDGE_VALIDATION_RUN_ID}" "${BRIDGE_CANDIDATE_RUN_ID}"; do
+          for id in "${RELEASE_CONTINUITY_RUN_ID}" "${BRIDGE_VALIDATION_RUN_ID}" "${BRIDGE_CANDIDATE_RUN_ID}"; do
             [[ "${id}" =~ ^[0-9]+$ ]] || { echo "All run IDs must be numeric."; exit 1; }
           done
 
@@ -89,7 +89,7 @@ jobs:
             fi
           }
 
-          verify_run "${STAGE_A_APPLY_RUN_ID}" ".github/workflows/production-stage-a-apply.yml" ""
+          verify_run "${RELEASE_CONTINUITY_RUN_ID}" ".github/workflows/production-release-continuity.yml" ""
           verify_run "${BRIDGE_VALIDATION_RUN_ID}" ".github/workflows/production-bridge-validation.yml" ""
           verify_run "${BRIDGE_CANDIDATE_RUN_ID}" ".github/workflows/production-bridge-vercel-candidate.yml" "Production bridge candidate verify ${DEPLOYMENT_ID}"
 
