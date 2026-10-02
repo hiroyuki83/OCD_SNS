@@ -172,7 +172,7 @@ CoCo v1 の主要機能実装、Production DB migration、Production application
 | NEXT-035 | main統合前ゲート確認（NEXT-006/007/034完了、Production自動deployの有無確認） | P0 | DONE |
 | NEXT-036 | PR #47 を main へmerge | P0 | DONE |
 | NEXT-037 | main merge後のCI / E2E再確認 | P0 | DONE |
-| NEXT-038 | 統合済み / superseded GitHub branch と不要な一時branchの整理 | P1 | IN PROGRESS（Neon整理完了 / guarded GitHub branch cleanup継続） |
+| NEXT-038 | 統合済み / superseded GitHub branch と不要な一時branchの整理 | P1 | DONE |
 | NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | DONE |
 | NEXT-040 | Productionへ明示release・post-deploy smoke / release acceptance | P0 | DONE |
 | NEXT-041 | 投稿制限・停止を第一級 Sanction レコードとして永続化 | P1 | DONE |
@@ -194,7 +194,7 @@ mainへ統合する位置を、以下のゲートで固定する。
 | PHASE-D | Preview最終受入 | 最新commitのVercel Previewでsmoke・主要機能・runtime error確認 | DONE |
 | PHASE-E | main統合ゲート | PHASE-C/D完了、Production自動deployの有無と影響を確認 | DONE |
 | PHASE-F | mainへ統合 | PR #47をmainへmergeし、main上のCI/E2Eを再確認 | DONE |
-| PHASE-G | 統合後整理 | integration branchと不要な一時Neon branchを整理 | IN PROGRESS（Neon完了 / GitHub guarded cleanup継続） |
+| PHASE-G | 統合後整理 | integration branchと不要な一時Neon branchを整理 | DONE |
 | PHASE-H | Production release | 明示承認のうえProduction DB migration→deploy→smoke→acceptance | DONE |
 | PHASE-I | v1運用整理・安定化 | branch cleanup、文書同期、Production UX受入、小規模改善 | IN PROGRESS |
 
@@ -248,7 +248,7 @@ Production releaseは `NEXT-039/040` の別工程とし、明示的に実施す�
 
 現在は **PHASE-I / v1運用整理・安定化**。
 
-Production release 自体は完了している。PHASE-G / NEXT-038 のGitHub branch cleanupは並行して継続する。
+Production releaseとPHASE-G / NEXT-038のbranch cleanupは完了している。現在はProduction UX受入と小規模改善を中心に進める。
 
 完了済み:
 - Preview専用Neon project `coco-preview` / DB `neondb` を特定
@@ -2090,3 +2090,53 @@ Productionを一般ユーザー視点で一巡し、機能不足ではなくUI /
 返信、引用投稿、DM、動画投稿、ライブ配信は引き続きOUT OF SCOPEとする。
 
 今後は「不足している大型機能を埋める」フェーズではなく、v1の運用整理・UX安定化・必要性が明確な小規模改善を行うフェーズとする。
+
+
+## 2026-10-03 GitHub historical branch cleanup 完了
+
+NEXT-038 / PHASE-G のGitHub branch cleanupを完了した。
+
+### 実施結果
+
+cleanup開始時:
+
+- GitHub branch: **132本**
+- open PR: **0**
+
+guarded cleanupを3段階で実施した。
+
+1. `ahead_of_main = 0`、open PR 0、unprotected のbranchを削除
+2. GitHub上でPRがMERGEDと確認できるhead branchを削除
+3. consolidated / supersededであることを確認済みのclosed PR branchと、main側に同等・後継機能が存在する旧作業branchを削除
+
+一時cleanup workflow用branchは各run終了時に自己削除した。
+
+cleanup完了後:
+
+- branch総数: **3本**
+- `main`
+- `release/bridge-candidate-20261002`
+- `release/current-main-candidate-20261002`
+
+### 意図的に保持するrelease branch
+
+`release/bridge-candidate-20261002` と `release/current-main-candidate-20261002` は、2026-10-02 Production releaseのartifact / release監査参照として意図的に保持する。
+
+これらは通常のfeature / fix / docs / integration branch cleanupの対象外とする。
+
+将来削除する場合は、以下を確認する。
+
+- Production release acceptance済みであること
+- Vercel上のrollback / deployment参照がbranch名に依存しないこと
+- release監査上の保持要件がないこと
+
+### NEXT-038 completion
+
+- Neon temporary migration branch cleanup: **DONE**
+- historical PR cleanup: **DONE**
+- historical GitHub branch cleanup: **DONE**
+- retained release references: **2**
+- open PR: **0**
+
+NEXT-038: **DONE**
+PHASE-G: **DONE**
