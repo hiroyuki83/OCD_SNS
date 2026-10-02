@@ -1,8 +1,8 @@
 # CoCo Preview Roadmap / Progress Tracker
 
-最終更新: 2026-09-28
+最終更新: 2026-10-02
 対象基準ブランチ: `main`
-現在の実装ブランチ: `feature/sanction-appeals-20260928`
+現在の実装ブランチ: `main`
 
 この文書を Preview 版の進捗管理表として使用する。
 
@@ -13,6 +13,42 @@
 - TODO: 未着手
 - HOLD: 保留
 - OUT OF SCOPE: 実装しない
+
+
+## 現在の全体状態（2026-10-02）
+
+CoCo v1 の主要機能実装、Production DB migration、Production application release、post-deploy smoke、release acceptance まで完了している。
+
+現在のProduction application:
+
+- released application SHA: `e52d5acea5c96623443d0fe65d2db2acc3ff3764`
+- Vercel Production deployment: `dpl_9cChFzxqudMiyMkBKbNPvA9mM4hR`
+- deployment state: `READY`
+- Production Stage C Apply: `SUCCESS`
+- Production Vercel Promote: `SUCCESS`
+- Production Post-deploy Smoke: `SUCCESS`
+- Production Release Acceptance: `SUCCESS`
+
+現在のGitHub main:
+
+- main SHA at synchronization start: `a875b84e77bc6384d8437ec6a436bf00f6051eed`
+- PR #121 `Release: make Production Vercel flow repeatable`: merged
+- latest main verification: unit / integration **309 / 309 PASS**
+- latest main Playwright E2E: **17 / 17 PASS**
+- main merge と Production deploy は引き続き分離する
+- PR #121 は release workflow / documentation の恒久化であり、Production application を自動再deployしない
+
+現在の主作業は新規大型機能実装ではなく、v1運用整理・保守フェーズである。
+
+優先順:
+
+1. merged / superseded GitHub branch の guarded cleanup
+2. roadmap / requirements と実運用状態の同期
+3. Productionを一般ユーザー視点で一巡するUI / UX受入
+4. 小規模な通知改善
+5. 必要性を確認したうえで次期機能計画へ移る
+
+この文書の後半に残る `HOLD` / `NOT PERFORMED` 等の記述は、各日付時点の履歴スナップショットとして保持する。現在状態の判断では、このセクションと最上部のタスク表を優先する。
 
 ## 仕様上の確定事項
 
@@ -136,11 +172,15 @@
 | NEXT-035 | main統合前ゲート確認（NEXT-006/007/034完了、Production自動deployの有無確認） | P0 | DONE |
 | NEXT-036 | PR #47 を main へmerge | P0 | DONE |
 | NEXT-037 | main merge後のCI / E2E再確認 | P0 | DONE |
-| NEXT-038 | integration branch終了・不要な一時Neon branch整理 | P1 | IN PROGRESS（Neon完了 / GitHub branch手動削除待ち） |
-| NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | IN PROGRESS（read-only identity gate） |
-| NEXT-040 | Productionへ明示release・post-deploy smoke / error scan | P0 | HOLD |
+| NEXT-038 | 統合済み / superseded GitHub branch と不要な一時branchの整理 | P1 | IN PROGRESS（Neon整理完了 / guarded GitHub branch cleanup継続） |
+| NEXT-039 | Production release準備（Production DB backup / migration plan / deploy plan） | P0 | DONE |
+| NEXT-040 | Productionへ明示release・post-deploy smoke / release acceptance | P0 | DONE |
 | NEXT-041 | 投稿制限・停止を第一級 Sanction レコードとして永続化 | P1 | DONE |
 | NEXT-042 | Sanction を対象にした共通 Appeal を実装 | P1 | DONE |
+| NEXT-043 | Roadmap / Requirements を2026-10-02の実状態へ同期 | P0 | DONE |
+| NEXT-044 | Productionを一般ユーザー視点で一巡しUI / UXの粗を記録・修正候補化 | P1 | TODO |
+| NEXT-045 | 投稿制限解除 / アカウント停止解除の通知を追加 | P2 | TODO |
+| NEXT-046 | Preview Neon default branch名を `production` から誤認しにくい名称へ整理 | P3 | HOLD |
 
 ## リリース進行フェーズ
 
@@ -154,8 +194,9 @@ mainへ統合する位置を、以下のゲートで固定する。
 | PHASE-D | Preview最終受入 | 最新commitのVercel Previewでsmoke・主要機能・runtime error確認 | DONE |
 | PHASE-E | main統合ゲート | PHASE-C/D完了、Production自動deployの有無と影響を確認 | DONE |
 | PHASE-F | mainへ統合 | PR #47をmainへmergeし、main上のCI/E2Eを再確認 | DONE |
-| PHASE-G | 統合後整理 | integration branchと不要な一時Neon branchを整理 | IN PROGRESS（Neon完了 / GitHub branch手動削除待ち） |
-| PHASE-H | Production release | 別途明示承認のうえProduction DB migration→deploy→smoke | HOLD |
+| PHASE-G | 統合後整理 | integration branchと不要な一時Neon branchを整理 | IN PROGRESS（Neon完了 / GitHub guarded cleanup継続） |
+| PHASE-H | Production release | 明示承認のうえProduction DB migration→deploy→smoke→acceptance | DONE |
+| PHASE-I | v1運用整理・安定化 | branch cleanup、文書同期、Production UX受入、小規模改善 | IN PROGRESS |
 
 ### mainへ統合するタイミング
 
@@ -205,7 +246,9 @@ Production releaseは `NEXT-039/040` の別工程とし、明示的に実施す�
 
 ### 現在位置
 
-現在は **PHASE-G / NEXT-038**。
+現在は **PHASE-I / v1運用整理・安定化**。
+
+Production release 自体は完了している。PHASE-G / NEXT-038 のGitHub branch cleanupは並行して継続する。
 
 完了済み:
 - Preview専用Neon project `coco-preview` / DB `neondb` を特定
@@ -227,11 +270,11 @@ Production releaseは `NEXT-039/040` の別工程とし、明示的に実施す�
 - main上 CoCo E2E run `36352909491`: SUCCESS / Playwright **15 / 15 PASS**
 - `main` のVercel自動deployは無効のままで、Production deployは発生していない
 
-未完了:
-- integration branch `security-integration-final-20260926` の終了・削除
-- migration検証用の一時Neon branch整理
-- Production release準備（NEXT-039 / HOLD）
-- Production release（NEXT-040 / HOLD）
+未完了 / 継続:
+- historical merged / superseded GitHub branch の guarded cleanup（NEXT-038）
+- Productionの一般ユーザー視点UI / UX受入（NEXT-044）
+- 投稿制限解除 / アカウント停止解除通知（NEXT-045）
+- Preview Neon default branch名の整理は影響確認までHOLD（NEXT-046）
 
 
 ## 実装しない機能
@@ -1922,3 +1965,128 @@ Required next repository action:
 4. only then proceed to Production pre-execution checks
 
 No Production state-changing action has been executed.
+
+
+## 2026-10-02 Production release完了・v1運用整理へ移行
+
+### Production release実績
+
+2026-10-02、段階化したProduction release pathを実運用で完走した。
+
+- Production Stage C Apply run `36982030033`: **SUCCESS**
+- released application SHA: `e52d5acea5c96623443d0fe65d2db2acc3ff3764`
+- Vercel Production deployment: `dpl_9cChFzxqudMiyMkBKbNPvA9mM4hR`
+- Production Vercel Promote run `36998028277`: **SUCCESS**
+- Production Post-deploy Smoke run `36998300419`: **SUCCESS**
+- Production Release Acceptance run `36998886234`: **SUCCESS**
+
+Production DB migration、application traffic切替、smoke、release acceptanceまで完了したため、NEXT-039 / NEXT-040 / PHASE-HをDONEとする。
+
+### Release workflow恒久化
+
+PR #121 `Release: make Production Vercel flow repeatable` をmainへmergeした。
+
+- merge commit: `a875b84e77bc6384d8437ec6a436bf00f6051eed`
+- Preview candidateはvalidation-onlyとして扱う
+- Production traffic切替用にはProduction-target staged artifactを別途作成する
+- staged Production artifactはcanonical aliasを付けずにREADYまで確認する
+- Promoteはそのexact staged artifactのみを対象にする
+- post-deploy smoke後にrelease acceptanceを行う
+- runtime log acceptanceはVercel REST APIを使う
+- Vercel build内でDB migrationは実行しない
+- main mergeとProduction releaseは引き続き別工程
+
+PR #121はrelease workflow / tests / docsの恒久化であり、すでにacceptedとなったProduction application SHAを自動的に再deployするものではない。
+
+### 最新main検証
+
+PR #121 merge後:
+
+- Security integration CI: **309 / 309 PASS**
+- Prisma generate: PASS
+- lint: PASS
+- TypeScript: PASS
+- Next.js production build: PASS
+- CoCo E2E: **17 / 17 PASS**
+
+主要E2Eには以下を含む。
+
+- registration / email verification / login
+- password change / session revoke
+- email change / account deletion
+- account data export
+- private follow approval
+- mute / block
+- post / reaction / bookmark / deletion
+- image alt text
+- report → warning → appeal → overturn
+- Sanction Appeal
+- ADMIN role / account status
+- staff TOTP / recovery code
+- accessibility basics
+
+### 現在の残作業
+
+#### NEXT-038 — GitHub branch cleanup
+
+- open PR: **0**
+- historical merged / superseded branchが多数残存
+- `Repository Branch Inventory` と `Repository Branch Cleanup` を使用する
+- automated deletionは `ahead_of_main = 0` / open PR 0 / unprotected branchのみ
+- 1 runにつき1 branchを削除する
+- `main` は削除しない
+
+2026-10-02のinventoryではGitHub branchは132本存在する。
+cleanupはProduction機能のblockerではないが、v1運用整理として継続する。
+
+#### NEXT-044 — Production UX受入
+
+Productionを一般ユーザー視点で一巡し、機能不足ではなくUI / UX上の粗を抽出する。
+
+対象例:
+
+- registration / login
+- feed / explore
+- post
+- profile
+- follow / private account
+- notifications
+- settings
+- self-check
+- appeal / safety
+
+重大な機能追加へ直結させず、まず観察結果をissue候補として整理する。
+
+#### NEXT-045 — 小規模通知改善
+
+今後の候補:
+
+- 投稿制限解除通知
+- アカウント停止解除通知
+
+既存のソーシャル通知設定（いいね / リアクション / フォロー）は実装済み。
+
+#### NEXT-046 — Preview branch名称整理
+
+共有Preview Neon project内のdefault branch名 `production` はProduction DBと紛らわしい。
+必要性とNeon側の影響を確認したうえで、誤認しにくい名称への変更を検討する。
+
+### v1の位置づけ
+
+以下はCoCo v1で実装済みとして扱う。
+
+- core SNS
+- authentication / account lifecycle
+- privacy boundaries
+- moderation
+- Sanction / Appeal
+- ADMIN / MODERATOR operations
+- staff MFA
+- psychological self-checks
+- Preview safety
+- Production migration / release / rollback safety
+- CI / unit / E2E
+
+返信、引用投稿、DM、動画投稿、ライブ配信は引き続きOUT OF SCOPEとする。
+
+今後は「不足している大型機能を埋める」フェーズではなく、v1の運用整理・UX安定化・必要性が明確な小規模改善を行うフェーズとする。
