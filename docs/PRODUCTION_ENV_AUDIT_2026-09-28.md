@@ -1,6 +1,6 @@
 # CoCo Production Environment Audit
 
-最終更新: 2026-09-28
+最終更新: 2026-10-02
 
 比較対象:
 
@@ -118,12 +118,39 @@ Mainの `normalizePostgresSslMode` は:
 
 したがってmain release後は現在のSSL warningが解消することをpost-deploy runtime scanで確認する。
 
+## Permanent Vercel release path
+
+2026-10-02のProduction releaseで、Preview deploymentをVercel Promote APIへ直接渡す経路はHTTP 422となった。
+そのため今後はPreview artifactを検証専用とし、Production traffic切替には別途Production-target artifactを作成する。
+
+正式なapplication deployment順序:
+
+1. Preview deploymentを作成し、Production Vercel Candidate Verificationでread-only検証
+2. Production Deploy Readinessを完了
+3. Production Current Main Vercel Stageを明示承認で実行
+   - exact current mainをcheckout
+   - `scripts/vercel-build.mjs` に `prisma migrate deploy` がないことを確認
+   - `vercel deploy --prod --skip-domain` でProduction-target artifactを作成
+   - canonical Production aliasが未割当であることを確認
+   - Production environment variables不足時はbuild段階で停止する
+4. Production Vercel Promoteを別承認で実行
+5. Production Post-deploy Smokeを実行
+6. Production Release Acceptanceを実行
+   - runtime logはVercel CLIではなくREST runtime-logs APIから取得
+   - exact deploymentの5xxが0件であることをgateにする
+
+Preview artifactは直接Promoteしない。
+
 ## Current status
 
-- Production env values: not exposed by connected tooling
-- exact Production DB URL: unresolved
+- Production release completed: 2026-10-02
+- canonical Production URL: `https://x-clone-olive-chi.vercel.app`
+- released application SHA: `e52d5acea5c96623443d0fe65d2db2acc3ff3764`
+- released deployment: `dpl_9cChFzxqudMiyMkBKbNPvA9mM4hR`
+- Production health: ok
+- Production database health: ok
+- acceptance 5xx gate: 0
 - build-required variable names: audited
-- newly required Production env: `STAFF_MFA_ENCRYPTION_KEY`
+- `STAFF_MFA_ENCRYPTION_KEY`: configured in Vercel Production; secret value is not documented
 - email/blob operational dependencies: audited
 - Production build DB mutation: disabled
-- Production deployment: NOT STARTED

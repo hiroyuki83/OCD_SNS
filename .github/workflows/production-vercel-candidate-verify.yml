@@ -9,7 +9,7 @@ on:
         required: true
         type: string
       deployment_id:
-        description: Vercel Preview deployment ID (dpl_...)
+        description: Vercel Preview deployment ID used for validation only (dpl_...)
         required: true
         type: string
 
@@ -125,5 +125,5 @@ jobs:
             echo "- project ID: \`${PROJECT_ID}\`"
             echo "- team ID: \`${TEAM_ID}\`"
             echo
-            echo "This workflow is read-only and does not promote or deploy anything."
+            echo "This workflow is read-only. The Preview artifact is validation-only and must not be promoted directly; Production uses a separate staged Production-target artifact."
           } >> "${GITHUB_STEP_SUMMARY}"

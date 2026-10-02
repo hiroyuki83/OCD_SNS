@@ -28,7 +28,7 @@ on:
         required: true
         type: string
       candidate_verification_run_id:
-        description: Successful Production Vercel Candidate Verification run ID
+        description: Successful validation-only Production Vercel Candidate Verification run ID
         required: true
         type: string
 
@@ -122,8 +122,8 @@ jobs:
             echo "- final release validation: verified"
             echo "- Security integration CI: verified"
             echo "- CoCo E2E: verified"
-            echo "- Vercel promotion candidate: verified"
+            echo "- Vercel Preview validation candidate: verified"
             echo
             echo "This workflow does not deploy Production."
-            echo "A separate explicit Production deployment approval is still required."
+            echo "A separate explicit Production staging approval is still required, followed by a separate promotion approval."
           } >> "${GITHUB_STEP_SUMMARY}"
