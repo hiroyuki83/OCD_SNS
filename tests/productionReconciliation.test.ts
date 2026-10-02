@@ -330,7 +330,7 @@ test('Production Stage A and Stage C apply require rollback verification attesta
 });
 
 
-test('Production rollback point creation is manual, protected, and compute-free', () => {
+test('Production rollback point creation is manual, Free-plan compatible, and compute-free', () => {
   const path = '.github/workflows/production-rollback-point-create.yml';
   assert.equal(existsSync(path), true);
   if (!existsSync(path)) return;
@@ -345,12 +345,14 @@ test('Production rollback point creation is manual, protected, and compute-free'
   assert.match(source, /withered-lab-08522436/);
   assert.match(source, /Authorization: Bearer/);
   assert.match(source, /--request POST/);
-  assert.match(source, /protected: true/);
   assert.match(source, /parent_id/);
   assert.match(source, /annotation_value/);
   assert.match(source, /release_sha/);
-  assert.match(source, /compute endpoint created:.*no/);
+  assert.match(source, /ROLLBACK_PROTECTED/);
+  assert.match(source, /unprotected/);
+  assert.match(source, /compute endpoint requested:.*no/);
   assert.match(source, /Production Rollback Point Verification next/);
+  assert.doesNotMatch(source, /protected: true/);
   assert.doesNotMatch(source, /endpoints:/);
   assert.doesNotMatch(source, /--request DELETE|--request PUT|--request PATCH/);
   assert.doesNotMatch(source, /prisma migrate deploy/);
