@@ -593,14 +593,33 @@ test('Production bridge rollback smoke verifies alias and runtime without requir
 });
 
 
-test('Production bridge candidate verification is pinned to the approved historical bridge commit', () => {
+test('Production bridge staging creates a Production-target artifact without assigning the Production alias', () => {
+  const path = '.github/workflows/production-bridge-vercel-stage.yml';
+  assert.equal(existsSync(path), true);
+  if (!existsSync(path)) return;
+
+  const source = readFileSync(path, 'utf8');
+  assert.match(source, /STAGE_COCO_BRIDGE_PRODUCTION/);
+  assert.match(source, /64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1/);
+  assert.match(source, /--prod/);
+  assert.match(source, /--skip-domain/);
+  assert.match(source, /cocoBuildGuard=safe-no-migrate/);
+  assert.match(source, /config\.buildCommand = 'npm run build'/);
+  assert.match(source, /Production alias assigned:.*no/);
+  assert.match(source, /did not move Production traffic/);
+});
+
+test('Production bridge candidate verification requires the exact staged Production bridge artifact', () => {
   const path = '.github/workflows/production-bridge-vercel-candidate.yml';
   assert.equal(existsSync(path), true);
   if (!existsSync(path)) return;
 
   const source = readFileSync(path, 'utf8');
   assert.match(source, /64d5ad3fbc4e09f87ba8a09fdd75a9f823bccda1/);
-  assert.match(source, /state=READY/);
+  assert.match(source, /target.*production/);
+  assert.match(source, /cocoBridgeSha/);
+  assert.match(source, /cocoReleaseSha/);
+  assert.match(source, /safe-no-migrate/);
   assert.match(source, /Production bridge Vercel candidate: PASS/);
   assert.match(source, /read-only and does not change Production traffic/);
   assert.doesNotMatch(source, /--request POST|--request PATCH|--request DELETE|--request PUT/);
