@@ -270,11 +270,11 @@ Production release 自体は完了している。PHASE-G / NEXT-038 のGitHub br
 - main上 CoCo E2E run `36352909491`: SUCCESS / Playwright **15 / 15 PASS**
 - `main` のVercel自動deployは無効のままで、Production deployは発生していない
 
-未完了:
-- integration branch `security-integration-final-20260926` の終了・削除
-- migration検証用の一時Neon branch整理
-- Production release準備（NEXT-039 / HOLD）
-- Production release（NEXT-040 / HOLD）
+未完了 / 継続:
+- historical merged / superseded GitHub branch の guarded cleanup（NEXT-038）
+- Productionの一般ユーザー視点UI / UX受入（NEXT-044）
+- 投稿制限解除 / アカウント停止解除通知（NEXT-045）
+- Preview Neon default branch名の整理は影響確認までHOLD（NEXT-046）
 
 
 ## 実装しない機能
