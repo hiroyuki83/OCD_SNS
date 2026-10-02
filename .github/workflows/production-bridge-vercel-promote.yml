@@ -93,13 +93,34 @@ jobs:
           verify_run "${BRIDGE_VALIDATION_RUN_ID}" ".github/workflows/production-bridge-validation.yml" ""
           verify_run "${BRIDGE_CANDIDATE_RUN_ID}" ".github/workflows/production-bridge-vercel-candidate.yml" "Production bridge candidate verify ${DEPLOYMENT_ID}"
 
-      - name: Re-verify bridge artifact immediately before promotion
+      - name: Re-verify staged Production bridge artifact immediately before promotion
         shell: bash
+        env:
+          PRODUCTION_ALIAS: x-clone-olive-chi.vercel.app
         run: |
           set -euo pipefail
-          response="$(curl --fail-with-body --silent --show-error             --request GET             --url "https://api.vercel.com/v7/deployments?projectId=${PROJECT_ID}&teamId=${TEAM_ID}&sha=${BRIDGE_SHA}&state=READY&limit=100"             --header "Accept: application/json"             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
-          candidate="$(jq -c --arg id "${DEPLOYMENT_ID}" '.deployments[] | select((.uid // .id) == $id)' <<<"${response}" | head -n1)"
-          [ -n "${candidate}" ] || { echo "Bridge artifact is no longer READY."; exit 1; }
+
+          details="$(curl --fail-with-body --silent --show-error \
+            --request GET \
+            --url "https://api.vercel.com/v13/deployments/${DEPLOYMENT_ID}?withGitRepoInfo=true&teamId=${TEAM_ID}" \
+            --header "Accept: application/json" \
+            --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+
+          actual_id="$(jq -r '.id // .uid // ""' <<<"${details}")"
+          state="$(jq -r '.readyState // .state // ""' <<<"${details}")"
+          target="$(jq -r '.target // ""' <<<"${details}")"
+          bridge_meta="$(jq -r '.meta.cocoBridgeSha // ""' <<<"${details}")"
+          release_meta="$(jq -r '.meta.cocoReleaseSha // ""' <<<"${details}")"
+          build_guard="$(jq -r '.meta.cocoBuildGuard // ""' <<<"${details}")"
+          alias_bound="$(jq -r --arg alias "${PRODUCTION_ALIAS}" '[(.alias // [])[] | select(. == $alias)] | length' <<<"${details}")"
+
+          [ "${actual_id}" = "${DEPLOYMENT_ID}" ] || { echo "Bridge deployment ID mismatch."; exit 1; }
+          [ "${state}" = "READY" ] || { echo "Bridge artifact is no longer READY."; exit 1; }
+          [ "${target}" = "production" ] || { echo "Bridge artifact is not a staged Production-target deployment."; exit 1; }
+          [ "${bridge_meta}" = "${BRIDGE_SHA}" ] || { echo "Bridge SHA attestation mismatch."; exit 1; }
+          [ "${release_meta}" = "${RELEASE_SHA}" ] || { echo "Release SHA attestation mismatch."; exit 1; }
+          [ "${build_guard}" = "safe-no-migrate" ] || { echo "Safe bridge build guard attestation is missing."; exit 1; }
+          [ "${alias_bound}" = "0" ] || { echo "Production alias is already assigned to this bridge deployment."; exit 1; }
 
       - name: Promote approved bridge deployment to Production
         id: promote
