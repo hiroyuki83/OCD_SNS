@@ -115,7 +115,7 @@ jobs:
 
           echo "default_id=${default_id}" >> "${GITHUB_OUTPUT}"
 
-      - name: Create protected rollback branch without compute
+      - name: Create rollback branch without compute
         id: create_branch
         shell: bash
         env:
@@ -127,7 +127,6 @@ jobs:
               branch: {
                 name: $name,
                 parent_id: $parent_id,
-                protected: true,
                 annotation_value: {
                   purpose: "production-rollback",
                   release_sha: $release_sha
@@ -155,8 +154,8 @@ jobs:
             echo "Created rollback branch parent mismatch."
             exit 1
           }
-          [ "${protected}" = "true" ] || {
-            echo "Created rollback branch is not protected."
+          [[ "${protected}" = "true" || "${protected}" = "false" ]] || {
+            echo "Created rollback branch protection state is invalid."
             exit 1
           }
           [ -n "${created_at}" ] || {
@@ -166,6 +165,7 @@ jobs:
 
           echo "branch_id=${branch_id}" >> "${GITHUB_OUTPUT}"
           echo "created_at=${created_at}" >> "${GITHUB_OUTPUT}"
+          echo "protected=${protected}" >> "${GITHUB_OUTPUT}"
 
       - name: Verify created rollback branch with GET
         shell: bash
@@ -185,13 +185,14 @@ jobs:
           [ "${actual_id}" = "${ROLLBACK_BRANCH_ID}" ] || { echo "Rollback branch GET verification ID mismatch."; exit 1; }
           [ "${actual_name}" = "${BRANCH_NAME}" ] || { echo "Rollback branch GET verification name mismatch."; exit 1; }
           [ "${parent_id}" = "${DEFAULT_BRANCH_ID}" ] || { echo "Rollback branch GET verification parent mismatch."; exit 1; }
-          [ "${protected}" = "true" ] || { echo "Rollback branch GET verification protection mismatch."; exit 1; }
+          [[ "${protected}" = "true" || "${protected}" = "false" ]] || { echo "Rollback branch GET verification protection state is invalid."; exit 1; }
 
       - name: Emit rollback creation summary
         shell: bash
         env:
           ROLLBACK_BRANCH_ID: ${{ steps.create_branch.outputs.branch_id }}
           CREATED_AT: ${{ steps.create_branch.outputs.created_at }}
+          ROLLBACK_PROTECTED: ${{ steps.create_branch.outputs.protected }}
         run: |
           {
             echo "## Production rollback point creation: PASS"
@@ -201,8 +202,12 @@ jobs:
             echo "- branch name: \`${BRANCH_NAME}\`"
             echo "- created at: \`${CREATED_AT}\`"
             echo "- release SHA: \`${RELEASE_SHA}\`"
-            echo "- protected: \`true\`"
-            echo "- compute endpoint created: \`no\`"
+            echo "- protected: \`${ROLLBACK_PROTECTED}\`"
+            echo "- compute endpoint requested: \`no\`"
             echo
+            if [ "${ROLLBACK_PROTECTED}" != "true" ]; then
+              echo "> Note: this rollback branch is unprotected. Neon Free plans do not support protected branches, so deletion protection must be handled operationally."
+              echo
+            fi
             echo "Run Production Rollback Point Verification next and use its successful run ID for Stage A or Stage C."
           } >> "${GITHUB_STEP_SUMMARY}"
