@@ -38,24 +38,19 @@ CoCo は、メンタルヘルス領域の当事者コミュニティを想定し
 - 動画投稿
 - ライブ配信
 
-### 返信・引用についての既存コード
+### 返信・引用について
 
-過去の実装由来で Prisma schema 等に以下が残っている。
+過去実装由来の Reply / Quote 関連コードは削除済みであり、現在の正式schemaには含めない。
 
-- `Reply` model
-- `Post.quotePostId`
-- `Post.quotePost`
-- `Post.quotedBy`
+完了済み:
 
-これらは正式仕様ではないため、後続タスクで削除する。
+- `Reply` model 削除
+- `Post.quotePostId` / Quote relation 削除
+- 関連UI / API / helper参照の削除
+- 削除migrationの作成・Preview / Production適用
+- 再混入防止テスト
 
-削除時は以下を確認する。
-
-- Prisma schema から関連 model / relation / field を削除
-- 関連 migration を新規作成
-- 古い UI / API / helper の参照があれば削除
-- build / lint / typecheck / test を通す
-- Preview DB で migration を確認する
+今後も返信・引用投稿を再導入しない限り、Reply / Quote relationをschemaへ追加しない。
 
 ## 3. アカウント・認証
 
@@ -228,7 +223,7 @@ SanctionStatus:
 - EXPIRED
 - REVOKED
 
-現段階では POST_RESTRICTION / SUSPENSION を `Sanction` に保存する。警告は既存の `ModerationWarning` を正本として維持し、共通Appeal導入時に段階移行する。
+POST_RESTRICTION / SUSPENSION は `Sanction` を正本として保存し、`Appeal` による共通異議申立てを実装済みとする。警告は既存の `ModerationWarning` / `WarningAppeal` を正本として維持する。
 
 投稿制限:
 
@@ -254,7 +249,7 @@ SanctionStatus:
 - 自分が出した警告の異議申立てを自分で審査しない
 - 必要な操作は Audit Log に記録
 
-警告以外の処分への拡張方針は `APPEAL_MODEL_DESIGN.md` を正本とする。投稿制限・停止は `Sanction` を正本とし、`Appeal.sanctionId` で申立て対象を一意に参照する。
+警告以外の処分への異議申立ては実装済みであり、設計詳細は `APPEAL_MODEL_DESIGN.md` を正本とする。投稿制限・停止は `Sanction` を正本とし、`Appeal.sanctionId` で申立て対象を一意に参照する。
 
 投稿制限・停止Appealの要件:
 
