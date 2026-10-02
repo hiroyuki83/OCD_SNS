@@ -1,11 +1,11 @@
-name: Production Release Acceptance
+name: Production Final Release Acceptance
 run-name: Production acceptance ${{ inputs.deployment_id }}
 
 on:
   workflow_dispatch:
     inputs:
       release_sha:
-        description: Exact release SHA serving Production
+        description: Exact current main application commit SHA serving Production
         required: true
         type: string
       deployment_id:
@@ -13,11 +13,11 @@ on:
         required: true
         type: string
       promotion_run_id:
-        description: Successful Production Vercel Promote run ID
+        description: Successful release-branch Production Promote run ID
         required: true
         type: string
       post_deploy_smoke_run_id:
-        description: Successful Production Post-deploy Smoke run ID
+        description: Successful release-branch Production Post-deploy Smoke run ID
         required: true
         type: string
       observation_minutes:
@@ -31,7 +31,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: coco-production-release-acceptance
+  group: coco-production-final-release-acceptance
   cancel-in-progress: true
 
 jobs:
@@ -49,6 +49,7 @@ jobs:
       POST_DEPLOY_SMOKE_RUN_ID: ${{ inputs.post_deploy_smoke_run_id }}
       OBSERVATION_MINUTES: ${{ inputs.observation_minutes }}
       PRODUCTION_ALIAS: x-clone-olive-chi.vercel.app
+      RELEASE_BRANCH: release/current-main-candidate-20261002
 
     steps:
       - name: Verify acceptance inputs
@@ -65,7 +66,7 @@ jobs:
           [ "${OBSERVATION_MINUTES}" -ge 5 ] || { echo "observation_minutes must be at least 5."; exit 1; }
           [ "${OBSERVATION_MINUTES}" -le 60 ] || { echo "observation_minutes cannot exceed 60."; exit 1; }
 
-      - name: Verify promotion and smoke attestations
+      - name: Verify current main and release attestations
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -73,18 +74,22 @@ jobs:
         run: |
           set -euo pipefail
 
+          main_sha="$(gh api "repos/${REPOSITORY}/branches/main" --jq '.commit.sha')"
+          [ "${RELEASE_SHA}" = "${main_sha}" ] || { echo "release_sha does not match current main."; exit 1; }
+
           promotion="$(gh api "repos/${REPOSITORY}/actions/runs/${PROMOTION_RUN_ID}")"
           [ "$(jq -r '.conclusion // ""' <<<"${promotion}")" = "success" ] || { echo "Promotion run did not succeed."; exit 1; }
-          [ "$(jq -r '.head_sha // ""' <<<"${promotion}")" = "${RELEASE_SHA}" ] || { echo "Promotion run SHA mismatch."; exit 1; }
+          [ "$(jq -r '.head_branch // ""' <<<"${promotion}")" = "${RELEASE_BRANCH}" ] || { echo "Promotion branch mismatch."; exit 1; }
           [ "$(jq -r '.path // ""' <<<"${promotion}")" = ".github/workflows/production-vercel-promote.yml" ] || { echo "Promotion workflow mismatch."; exit 1; }
           [ "$(jq -r '.display_title // ""' <<<"${promotion}")" = "Production promote ${DEPLOYMENT_ID}" ] || { echo "Promotion deployment ID mismatch."; exit 1; }
 
           smoke="$(gh api "repos/${REPOSITORY}/actions/runs/${POST_DEPLOY_SMOKE_RUN_ID}")"
           [ "$(jq -r '.conclusion // ""' <<<"${smoke}")" = "success" ] || { echo "Post-deploy smoke did not succeed."; exit 1; }
-          [ "$(jq -r '.head_sha // ""' <<<"${smoke}")" = "${RELEASE_SHA}" ] || { echo "Post-deploy smoke SHA mismatch."; exit 1; }
+          [ "$(jq -r '.head_branch // ""' <<<"${smoke}")" = "${RELEASE_BRANCH}" ] || { echo "Post-deploy smoke branch mismatch."; exit 1; }
           [ "$(jq -r '.path // ""' <<<"${smoke}")" = ".github/workflows/production-post-deploy-smoke.yml" ] || { echo "Post-deploy smoke workflow mismatch."; exit 1; }
+          [ "$(jq -r '.display_title // ""' <<<"${smoke}")" = "Production smoke ${DEPLOYMENT_ID}" ] || { echo "Post-deploy smoke deployment ID mismatch."; exit 1; }
 
-      - name: Verify exact deployment remains READY
+      - name: Verify exact deployment remains READY and serves release SHA
         id: deployment
         shell: bash
         run: |
@@ -95,14 +100,16 @@ jobs:
           actual_id="$(jq -r '.id // .uid // ""' <<<"${details}")"
           actual_url="$(jq -r '.url // ""' <<<"${details}")"
           actual_state="$(jq -r '.readyState // .state // ""' <<<"${details}")"
+          actual_target="$(jq -r '.target // ""' <<<"${details}")"
           actual_sha="$(jq -r '.meta.githubCommitSha // .gitSource.sha // ""' <<<"${details}")"
+          release_meta="$(jq -r '.meta.cocoFinalReleaseSha // ""' <<<"${details}")"
 
           [ "${actual_id}" = "${DEPLOYMENT_ID}" ] || { echo "Deployment ID mismatch."; exit 1; }
           [ "${actual_state}" = "READY" ] || { echo "Deployment is not READY."; exit 1; }
+          [ "${actual_target}" = "production" ] || { echo "Deployment is not Production-target."; exit 1; }
           [ -n "${actual_url}" ] || { echo "Deployment URL is missing."; exit 1; }
-          if [ -n "${actual_sha}" ]; then
-            [ "${actual_sha}" = "${RELEASE_SHA}" ] || { echo "Deployment release SHA mismatch."; exit 1; }
-          fi
+          [ "${actual_sha}" = "${RELEASE_SHA}" ] || { echo "Deployment release SHA mismatch."; exit 1; }
+          [ "${release_meta}" = "${RELEASE_SHA}" ] || { echo "Final release metadata mismatch."; exit 1; }
 
           echo "url=${actual_url}" >> "${GITHUB_OUTPUT}"
 
@@ -119,7 +126,16 @@ jobs:
             exit 1
           }
 
-      - name: Link Vercel CLI to the confirmed project
+      - name: Verify Production health one more time
+        shell: bash
+        run: |
+          set -euo pipefail
+          health="$(curl --fail --silent --show-error "https://${PRODUCTION_ALIAS}/api/health")"
+          [ "$(jq -r '.status // ""' <<<"${health}")" = "ok" ] || exit 1
+          [ "$(jq -r '.database // ""' <<<"${health}")" = "ok" ] || exit 1
+          [ "$(jq -r '.releaseSha // ""' <<<"${health}")" = "${RELEASE_SHA}" ] || exit 1
+
+      - name: Link Vercel CLI to confirmed project
         shell: bash
         run: |
           set -euo pipefail
@@ -199,7 +215,4 @@ jobs:
             echo "- observation window: \`${OBSERVATION_MINUTES} minutes\`"
             echo "- 5xx runtime log entries: \`${FIVE_XX_COUNT}\`"
             echo "- application error log entries: \`${ERROR_COUNT}\`"
-            echo
-            echo "Release acceptance requires zero 5xx entries for the exact deployment."
-            echo "Application error logs are surfaced as warnings for review."
           } >> "${GITHUB_STEP_SUMMARY}"
