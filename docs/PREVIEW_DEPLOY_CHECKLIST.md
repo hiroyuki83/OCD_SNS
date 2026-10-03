@@ -1,7 +1,58 @@
 # CoCo Preview デプロイ・チェックリスト
 
-最終更新: 2026-09-28
-対象基準ブランチ: main（Sanction / Appeal release系列は統合済み）
+最終更新: 2026-10-03
+対象基準ブランチ: `preview`（Production前の固定受入branch）
+
+## 2026-10-03 固定Preview運用チェック
+
+正式な受入URL:
+
+`https://coco-git-preview-hiroyuki-desperado-yahoocojps-projects.vercel.app`
+
+標準フロー:
+
+1. feature / fix branchで実装
+2. `preview` へ統合
+3. 固定Preview URLが最新 `preview` commitへ更新されたことを確認
+4. CI / E2E / Preview DB / runtime errorを確認
+5. USER / ADMIN / MODERATORとして実操作
+6. 問題があればpreview側で修正
+7. 受入完了後に `preview -> main` をmerge
+8. Production releaseは別工程で明示判断
+
+固定Preview環境の前提:
+
+- `vercel.json`: `main=false`, `preview=true`
+- Vercel Previewに `PREVIEW_DATABASE_URL` が存在する
+- `preview` branch-scoped `STAFF_MFA_ENCRYPTION_KEY` が存在する
+- MFAキーはデプロイごとに再生成しない
+- Preview DB migration / seed safety guardはGit ref `preview` だけを許可する
+- main mergeだけではProductionへdeployしない
+
+Preview DB release:
+
+- `.github/workflows/preview-db-release.yml` を手動実行する
+- confirmationは `MIGRATE_COCO_PREVIEW`
+- DB Secretは `vercel env run -e preview --git-branch preview` でVercelから直接注入する
+- 通常migrationでは `seed_users=false`
+- test usersを再初期化する場合だけ `seed_users=true`
+- seedを使う場合はGitHub `preview` environmentの `PREVIEW_TEST_PASSWORD` が必要
+- seed prerequisiteが不足している場合はDB write前に停止する
+
+受入時に見るもの:
+
+- 一般USERのログイン・投稿・フォロー・通知・設定
+- private account
+- block / mute
+- self-test
+- ADMIN / MODERATORのMFA登録・再ログイン
+- admin / moderation
+- モバイル表示
+- UIの文字・ボタンの可読性
+- runtime error / 5xx
+
+---
+
 
 ## デプロイ前
 
@@ -13,7 +64,7 @@
 - DATABASE_URL と PREVIEW_DATABASE_URL が完全一致
 - PREVIEW_DATABASE_URL が Production DB ではない
 - VERCEL_ENV=preview
-- VERCEL_GIT_COMMIT_REF=feature/sanction-appeals-20260928
+- VERCEL_GIT_COMMIT_REF=preview
 - seedする場合だけ PREVIEW_SEED_USERS=1
 - PREVIEW_TEST_PASSWORD は10〜128文字
 - `_prisma_migrations` に41 migration（Sanction + Appealまで）が記録済みであることを確認する
@@ -43,7 +94,7 @@ Preview DB migration は自動実行しない。GitHub Actions の
 
 安全条件:
 
-- branch が `feature/sanction-appeals-20260928`
+- branch が `preview`
 - `VERCEL_ENV=preview`
 - `DATABASE_URL === PREVIEW_DATABASE_URL`
 - 接続hostが承認済み `coco-preview` Neon endpoint
