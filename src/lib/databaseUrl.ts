@@ -16,13 +16,11 @@ function firstNonEmpty(...values: Array<string | undefined | null>) {
 }
 
 export function selectRuntimeDatabaseUrl(env: DatabaseUrlEnv) {
-  const previewUrl =
-    env.VERCEL_ENV?.trim() === 'preview'
-      ? env.PREVIEW_DATABASE_URL
-      : undefined;
+  if (env.VERCEL_ENV?.trim() === 'preview') {
+    return firstNonEmpty(env.PREVIEW_DATABASE_URL);
+  }
 
   return firstNonEmpty(
-    previewUrl,
     env.DATABASE_URL,
     env.POSTGRES_PRISMA_URL,
     env.POSTGRES_URL_NON_POOLING,
@@ -30,13 +28,11 @@ export function selectRuntimeDatabaseUrl(env: DatabaseUrlEnv) {
 }
 
 export function selectMigrationDatabaseUrl(env: DatabaseUrlEnv) {
-  const previewUrl =
-    env.VERCEL_ENV?.trim() === 'preview'
-      ? env.PREVIEW_DATABASE_URL
-      : undefined;
+  if (env.VERCEL_ENV?.trim() === 'preview') {
+    return firstNonEmpty(env.PREVIEW_DATABASE_URL);
+  }
 
   return firstNonEmpty(
-    previewUrl,
     env.POSTGRES_URL_NON_POOLING,
     env.DATABASE_URL,
     env.POSTGRES_PRISMA_URL,
