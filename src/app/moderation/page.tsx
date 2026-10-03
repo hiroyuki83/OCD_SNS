@@ -248,7 +248,6 @@ export default async function ModerationPage({
         select: {
           id: true,
           content: true,
-          imageUrl: true,
           isHidden: true,
           hiddenReason: true,
           deletedAt: true,
@@ -431,9 +430,7 @@ export default async function ModerationPage({
               : '未担当';
             const excerpt = report.post?.content?.trim()
               ? report.post.content.trim().slice(0, 160)
-              : report.post?.imageUrl
-                ? '画像投稿'
-                : '投稿本文なし';
+              : '投稿本文なし';
 
             return (
               <div
