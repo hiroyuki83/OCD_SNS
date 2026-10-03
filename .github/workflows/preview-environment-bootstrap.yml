@@ -56,25 +56,6 @@ jobs:
 
           echo "PREVIEW_DATABASE_URL is present for Vercel Preview; value is not exposed."
 
-          decrypted="$(curl --fail-with-body --silent --show-error \
-            --request GET \
-            --url "https://api.vercel.com/v9/projects/${PROJECT_ID}/env?teamId=${TEAM_ID}&decrypt=true" \
-            --header "Authorization: Bearer ${VERCEL_TOKEN}")"
-
-          preview_db_value="$(jq -r \
-            '[.envs[]? | select(
-              .key == "PREVIEW_DATABASE_URL" and
-              ((.target // []) | index("preview"))
-            )][0].value // ""' <<<"${decrypted}")"
-
-          if [[ "${preview_db_value}" == postgres://* || "${preview_db_value}" == postgresql://* ]]; then
-            echo "::add-mask::${preview_db_value}"
-            echo "decryptable=true" >> "${GITHUB_OUTPUT}"
-            echo "Preview database URL can be retrieved through authorized Vercel API for guarded release workflows."
-          else
-            echo "decryptable=false" >> "${GITHUB_OUTPUT}"
-            echo "Preview database URL is present but not readable through the Vercel API."
-          fi
 
       - name: Ensure stable Preview staff MFA encryption key
         shell: bash
@@ -130,8 +111,8 @@ jobs:
           {
             echo "## CoCo fixed Preview environment"
             echo
-            echo "- Git branch: `preview`"
-            echo "- Vercel target: `preview`"
+            echo "- Git branch: preview"
+            echo "- Vercel target: preview"
             echo "- Preview DB: existing Vercel Preview variable verified"
             echo "- staff MFA encryption key: branch-scoped, stable, and preserved across runs"
             echo "- secret values: not printed"
