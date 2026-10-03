@@ -21,9 +21,10 @@ jobs:
     environment: preview
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      PREVIEW_TEST_PASSWORD: ${{ secrets.PREVIEW_TEST_PASSWORD }}
       TEAM_ID: team_P1Z1wvYF1h42LIl0YfgXoOPI
       PROJECT_ID: prj_AcjmJFO5jcqse6sStknZzZkmfR7h
+      VERCEL_ORG_ID: team_P1Z1wvYF1h42LIl0YfgXoOPI
+      VERCEL_PROJECT_ID: prj_AcjmJFO5jcqse6sStknZzZkmfR7h
       PREVIEW_BRANCH: preview
 
     steps:
@@ -32,7 +33,6 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "${VERCEL_TOKEN:-}" ] || { echo "VERCEL_TOKEN is not configured."; exit 1; }
-          [ -n "${PREVIEW_TEST_PASSWORD:-}" ] || { echo "PREVIEW_TEST_PASSWORD is not configured."; exit 1; }
 
       - name: Verify Preview database environment variable exists
         id: env_check
@@ -58,6 +58,23 @@ jobs:
 
           echo "PREVIEW_DATABASE_URL is present for Vercel Preview; value is not exposed."
 
+
+      - name: Verify Vercel can inject the fixed Preview database secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes vercel@latest env run -e preview --git-branch "${PREVIEW_BRANCH}" --token="${VERCEL_TOKEN}" -- node -e '
+            const raw = process.env.PREVIEW_DATABASE_URL || "";
+            if (!raw) throw new Error("PREVIEW_DATABASE_URL was not injected.");
+            const url = new URL(raw);
+            const allowed = new Set([
+              "ep-aged-darkness-b3se3dw1.c-4.ap-southeast-1.aws.neon.tech",
+              "ep-aged-darkness-b3se3dw1-pooler.c-4.ap-southeast-1.aws.neon.tech"
+            ]);
+            if (!allowed.has(url.hostname)) throw new Error("Injected Preview database host is not approved.");
+            if (url.pathname.replace(/^\\//, "") !== "neondb") throw new Error("Injected Preview database name is not neondb.");
+            console.log("Preview database secret injection verified without exposing the value.");
+          '
 
       - name: Ensure stable Preview staff MFA encryption key
         shell: bash
