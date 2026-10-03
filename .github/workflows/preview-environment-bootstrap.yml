@@ -45,18 +45,35 @@ jobs:
             --url "https://api.vercel.com/v9/projects/${PROJECT_ID}/env?teamId=${TEAM_ID}" \
             --header "Authorization: Bearer ${VERCEL_TOKEN}")"
 
+          echo "PREVIEW_DATABASE_URL metadata (values are never printed):"
+          jq -r '
+            .envs[]?
+            | select(.key == "PREVIEW_DATABASE_URL")
+            | {
+                id,
+                key,
+                type,
+                target,
+                gitBranch: (.gitBranch // null),
+                createdAt,
+                updatedAt
+              }
+          ' <<<"${current}"
+
           preview_db_id="$(jq -r \
+            --arg branch "${PREVIEW_BRANCH}" \
             '[.envs[]? | select(
               .key == "PREVIEW_DATABASE_URL" and
-              ((.target // []) | index("preview"))
+              ((.target // []) | index("preview")) and
+              ((.gitBranch // "") == "" or .gitBranch == $branch)
             )][0].id // ""' <<<"${current}")"
 
           [ -n "${preview_db_id}" ] || {
-            echo "PREVIEW_DATABASE_URL is not configured for Vercel Preview."
+            echo "No PREVIEW_DATABASE_URL applies to the fixed preview branch."
             exit 1
           }
 
-          echo "PREVIEW_DATABASE_URL is present for Vercel Preview; value is not exposed."
+          echo "PREVIEW_DATABASE_URL applies to the fixed preview branch; value is not exposed."
 
 
       - name: Ensure stable Preview staff MFA encryption key
