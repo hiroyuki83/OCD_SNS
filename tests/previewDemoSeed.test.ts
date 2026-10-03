@@ -30,3 +30,15 @@ test('Preview demo visual assets are committed locally', () => {
     assert.equal(existsSync(path), true, `missing Preview demo asset: ${path}`);
   }
 });
+
+
+test('isolated E2E seed keeps the legacy fixture identity and skips demo relationships', () => {
+  const source = readFileSync('prisma/seed-preview.ts', 'utf8');
+
+  assert.ok(source.includes("const isIsolatedE2E = process.env.E2E_BLOB_MODE?.trim() === '1';"));
+  assert.ok(source.includes("name: 'Preview 公開ユーザー1'"));
+  assert.ok(source.includes("name: 'Preview 公開ユーザー2'"));
+  assert.ok(source.includes("name: 'Preview Appeal User'"));
+  assert.ok(source.includes("autoHashtag: isIsolatedE2E ? null : seed.autoHashtag"));
+  assert.ok(source.includes("Seeded isolated E2E users without Preview demo community data."));
+});
