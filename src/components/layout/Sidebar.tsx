@@ -132,7 +132,7 @@ export default async function Sidebar() {
                   <NotificationsLink
                     key={item.label}
                     href={item.href}
-                    className="group flex items-center gap-4 p-3 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
+                    className="group flex items-center gap-4 p-3 xl:pr-4 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
                     label={item.label}
                     unread={unreadNotifications}
                     labelClassName="text-xl font-normal hidden xl:block"
@@ -142,7 +142,7 @@ export default async function Sidebar() {
                   <Link
                     key={item.label}
                     href={item.href}
-                    className="group flex items-center gap-4 p-3 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
+                    className="group flex items-center gap-4 p-3 xl:pr-4 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
                   >
                     <span className="relative">
                       <Icon className="app-nav-icon text-zinc-900" />
@@ -167,7 +167,7 @@ export default async function Sidebar() {
           <div className="px-2 mb-2">
             <Link
               href="/settings"
-              className="group flex items-center gap-4 p-3 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
+              className="group flex items-center gap-4 p-3 xl:pr-4 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
             >
               <Settings className="app-nav-icon text-zinc-900" />
               <span className="text-xl font-normal hidden xl:block">{LABEL_SETTINGS}</span>
