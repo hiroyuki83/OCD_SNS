@@ -1,11 +1,10 @@
-﻿'use client';
+'use client';
 
-import { useActionState, useRef, useEffect, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import Link from 'next/link';
 import { createPost, type CreatePostState } from '@/app/lib/actions';
 import { getPostSafetyNotice } from '@/lib/contentSafety';
-import { validateClientImageFile } from '@/lib/clientImageValidation';
 
 function SubmitButton({ disabled }: { disabled?: boolean }) {
     const { pending } = useFormStatus();
@@ -32,21 +31,16 @@ export default function CreatePostForm({
     const [state, formAction] = useActionState<CreatePostState, FormData>(createPost, undefined);
     const formRef = useRef<HTMLFormElement | null>(null);
     const inputRef = useRef<HTMLTextAreaElement | null>(null);
-    const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [content, setContent] = useState('');
     const [safetyAcknowledged, setSafetyAcknowledged] = useState(false);
     const overLimit = content.length > 1000;
     const safetyNotice = getPostSafetyNotice(content);
-    const [clipboardMessage, setClipboardMessage] = useState<string | null>(null);
-    const [imageName, setImageName] = useState('');
 
     useEffect(() => {
         if (state?.message === '投稿しました。') {
             formRef.current?.reset();
             const frame = window.requestAnimationFrame(() => {
                 setContent('');
-                setClipboardMessage(null);
-                setImageName('');
                 setSafetyAcknowledged(false);
             });
             return () => window.cancelAnimationFrame(frame);
@@ -60,44 +54,10 @@ export default function CreatePostForm({
         }
     }, [autoFocus]);
 
-    const handleClipboardImage = async (event?: React.ClipboardEvent<HTMLTextAreaElement>) => {
-        setClipboardMessage(null);
-        try {
-            const items = event?.clipboardData?.items
-                ? Array.from(event.clipboardData.items)
-                : [];
-            for (const item of items) {
-                if (!item.type.startsWith('image/')) continue;
-                const blob = item.getAsFile();
-                if (!blob) continue;
-                const file = new File([blob], `clipboard.${item.type.split('/')[1] ?? 'png'}`, {
-                    type: item.type,
-                });
-                const validationError = await validateClientImageFile(file);
-                if (validationError) {
-                    setClipboardMessage(validationError);
-                    return;
-                }
-                const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
-                if (fileInputRef.current) {
-                    fileInputRef.current.files = dataTransfer.files;
-                    setImageName(file.name);
-                    setClipboardMessage('クリップボードの画像を追加しました');
-                    return;
-                }
-            }
-            setClipboardMessage('クリップボードに画像がありません');
-        } catch {
-            setClipboardMessage('クリップボードの画像を取得できませんでした');
-        }
-    };
-
     return (
         <form
             ref={formRef}
             action={formAction}
-            encType="multipart/form-data"
             className="p-4 border-b border-border flex gap-4"
         >
             {avatarUrl ? (
@@ -119,79 +79,21 @@ export default function CreatePostForm({
                     onKeyDown={(event) => {
                         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
                             event.preventDefault();
-                            if (!overLimit) {
+                            if (!overLimit && content.trim()) {
                                 formRef.current?.requestSubmit();
                             }
                         }
-                    }}
-                    onPaste={(event) => {
-                        const hasImage = Array.from(event.clipboardData?.items ?? []).some((item) =>
-                            item.type.startsWith('image/'),
-                        );
-                        if (!hasImage) return;
-                        event.preventDefault();
-                        handleClipboardImage(event);
                     }}
                     placeholder="いまどうしてる？"
                     rows={3}
                     className="bg-transparent text-lg outline-none placeholder:text-zinc-500 resize-none"
                 />
-                <div className="flex items-center justify-between gap-3 mt-2 flex-wrap">
-                    <label className="text-sm text-[#1d9bf0] cursor-pointer">
-                        画像を追加
-                        <input
-                            type="file"
-                            name="image"
-                            accept="image/jpeg,image/png,image/webp,image/gif"
-                            className="hidden"
-                            ref={fileInputRef}
-                            onChange={async (event) => {
-                                const input = event.currentTarget;
-                                const file = input.files?.[0];
-                                setClipboardMessage(null);
-                                if (!file) {
-                                    setImageName('');
-                                    return;
-                                }
-                                const validationError = await validateClientImageFile(file);
-                                if (validationError) {
-                                    input.value = '';
-                                    setImageName('');
-                                    setClipboardMessage(validationError);
-                                    return;
-                                }
-                                setImageName(file.name);
-                            }}
-                        />
-                    </label>
-                    <SubmitButton disabled={overLimit} />
+                <div className="flex items-center justify-between gap-3 mt-2">
+                    <span className="text-xs text-zinc-400" aria-live="polite">
+                        {content.length}/1000
+                    </span>
+                    <SubmitButton disabled={overLimit || !content.trim()} />
                 </div>
-                <div className="flex items-center justify-between gap-3 text-xs text-zinc-400">
-                    <span>{imageName ? `画像: ${imageName}` : '画像なし'}</span>
-                    <span aria-live="polite">{content.length}/1000</span>
-                </div>
-                {imageName && (
-                    <div>
-                        <label htmlFor="post-image-alt" className="mb-1 block text-xs font-medium text-zinc-600">
-                            画像の説明（任意）
-                        </label>
-                        <input
-                            id="post-image-alt"
-                            name="imageAlt"
-                            type="text"
-                            maxLength={300}
-                            placeholder="例: 青空の下で咲いている白い花"
-                            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#1d9bf0]"
-                            aria-describedby="post-image-alt-help"
-                        />
-                        <p id="post-image-alt-help" className="mt-1 text-xs text-zinc-400">
-                            画像を見にくい人にも内容が伝わるよう、必要に応じて説明を入力できます。
-                        </p>
-                    </div>
-                )}
-                {clipboardMessage && (
-                    <p className="text-sm text-zinc-400" aria-live="polite">{clipboardMessage}</p>
-                )}
                 {overLimit && (
                     <p className="text-sm text-red-500">1000文字を超えています</p>
                 )}
