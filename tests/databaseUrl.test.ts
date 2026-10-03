@@ -47,6 +47,19 @@ test('Preview database URL overrides runtime and migration URLs', () => {
   assert.equal(selectMigrationDatabaseUrl(env), 'postgresql://preview');
 });
 
+
+test('Preview database selection fails closed instead of falling back to Production URLs', () => {
+  const env = {
+    VERCEL_ENV: 'preview',
+    DATABASE_URL: 'postgresql://production-runtime',
+    POSTGRES_PRISMA_URL: 'postgresql://production-pooler',
+    POSTGRES_URL_NON_POOLING: 'postgresql://production-direct',
+  };
+
+  assert.equal(selectRuntimeDatabaseUrl(env), '');
+  assert.equal(selectMigrationDatabaseUrl(env), '');
+});
+
 test('database URL selectors ignore blank values', () => {
   assert.equal(
     selectRuntimeDatabaseUrl({
