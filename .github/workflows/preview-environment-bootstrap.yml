@@ -59,6 +59,16 @@ jobs:
           echo "PREVIEW_DATABASE_URL is present for Vercel Preview; value is not exposed."
 
 
+      - name: Link Vercel project for CLI secret injection
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .vercel
+          jq -n \
+            --arg orgId "${VERCEL_ORG_ID}" \
+            --arg projectId "${VERCEL_PROJECT_ID}" \
+            '{orgId: $orgId, projectId: $projectId}' > .vercel/project.json
+
       - name: Verify Vercel can inject the fixed Preview database secret
         shell: bash
         run: |
