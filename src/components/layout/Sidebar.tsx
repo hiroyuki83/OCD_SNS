@@ -109,8 +109,8 @@ export default async function Sidebar() {
         unreadNotifications={unreadNotifications}
       />
 
-      <div className="hidden lg:flex flex-col justify-between h-screen w-[275px] px-2 sticky top-0 border-r border-border max-xl:w-20">
-        <div className="flex flex-col gap-2 mt-1">
+      <div className="hidden lg:flex flex-col justify-between h-dvh max-h-dvh overflow-y-auto overscroll-contain w-[275px] px-2 sticky top-0 border-r border-border max-xl:w-20">
+        <div className="flex flex-col gap-2 mt-1 shrink-0">
           <Link
             href="/"
             className="w-14 h-14 flex items-center justify-center rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
@@ -163,7 +163,7 @@ export default async function Sidebar() {
           </Link>
         </div>
 
-        <div className="mb-4">
+        <div className="mb-4 shrink-0">
           <div className="px-2 mb-2">
             <Link
               href="/settings"
