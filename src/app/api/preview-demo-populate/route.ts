@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { NotificationType, ReactionType } from '@prisma/client';
+import { AccountStatus, NotificationType, ReactionType, Role } from '@prisma/client';
 
 import { prisma } from '@/lib/db';
 
@@ -27,23 +27,52 @@ export async function GET() {
     return new NextResponse('Not found', { status: 404 });
   }
 
+  const anchor = await prisma.user.findUnique({
+    where: { email: 'coco.preview.public1@example.com' },
+    select: { password: true, emailVerifiedAt: true },
+  });
+  if (!anchor?.password) {
+    throw new Error('Preview public1 anchor user is missing.');
+  }
+
+  const testUserDefinitions = [
+    { email: 'coco.preview.public1@example.com', handle: 'preview-public-1', role: Role.USER, isPrivate: false },
+    { email: 'coco.preview.public2@example.com', handle: 'preview-public-2', role: Role.USER, isPrivate: false },
+    { email: 'coco.preview.private@example.com', handle: 'preview-private', role: Role.USER, isPrivate: true },
+    { email: 'coco.preview.appeal@example.com', handle: 'preview-appeal-user', role: Role.USER, isPrivate: false },
+    { email: 'coco.preview.moderator@example.com', handle: 'preview-moderator', role: Role.MODERATOR, isPrivate: false },
+    { email: 'coco.preview.moderator2@example.com', handle: 'preview-moderator-2', role: Role.MODERATOR, isPrivate: false },
+    { email: 'coco.preview.admin@example.com', handle: 'preview-admin', role: Role.ADMIN, isPrivate: false },
+    { email: 'coco.preview.admin2@example.com', handle: 'preview-admin-2', role: Role.ADMIN, isPrivate: false },
+    { email: 'coco.preview.admin3@example.com', handle: 'preview-admin-3', role: Role.ADMIN, isPrivate: false },
+    { email: 'coco.preview.admin4@example.com', handle: 'preview-admin-4', role: Role.ADMIN, isPrivate: false },
+    { email: 'coco.preview.admin5@example.com', handle: 'preview-admin-5', role: Role.ADMIN, isPrivate: false },
+  ] as const;
+
+  for (const seed of testUserDefinitions) {
+    await prisma.user.upsert({
+      where: { email: seed.email },
+      update: {
+        handle: seed.handle,
+        role: seed.role,
+        isPrivate: seed.isPrivate,
+        status: AccountStatus.ACTIVE,
+      },
+      create: {
+        email: seed.email,
+        handle: seed.handle,
+        password: anchor.password,
+        emailVerifiedAt: anchor.emailVerifiedAt ?? new Date(),
+        role: seed.role,
+        status: AccountStatus.ACTIVE,
+        isPrivate: seed.isPrivate,
+      },
+    });
+  }
+
   const users = await prisma.user.findMany({
     where: {
-      email: {
-        in: [
-          'coco.preview.public1@example.com',
-          'coco.preview.public2@example.com',
-          'coco.preview.private@example.com',
-          'coco.preview.appeal@example.com',
-          'coco.preview.admin@example.com',
-          'coco.preview.moderator@example.com',
-          'coco.preview.moderator2@example.com',
-          'coco.preview.admin2@example.com',
-          'coco.preview.admin3@example.com',
-          'coco.preview.admin4@example.com',
-          'coco.preview.admin5@example.com',
-        ],
-      },
+      email: { in: testUserDefinitions.map((seed) => seed.email) },
     },
     select: { id: true, email: true },
   });
@@ -51,7 +80,7 @@ export async function GET() {
   const byEmail = new Map(users.map((user) => [user.email, user.id]));
   const id = (email: string) => {
     const value = byEmail.get(email);
-    if (!value) throw new Error(`Missing Preview test user: ${email}`);
+    if (!value) throw new Error(`Missing Preview test user after upsert: ${email}`);
     return value;
   };
 
