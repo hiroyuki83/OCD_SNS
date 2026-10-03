@@ -487,5 +487,7 @@ ADMIN / MODERATORのTOTP MFAはPreviewでも有効にする。
 
 feature / fix branchの一時Vercel Previewは実装途中の確認には使用してよいが、main統合前の正式な受入は必ず固定Preview URLで行う。
 
+`preview` branchはrepository branch cleanupの削除対象外とし、長期運用の受入branchとして保持する。
+
 `preview` へ短時間に複数の直接pushを重ねると、Vercel deploymentの完了順によって固定aliasが一時的に古いcommitへ向く可能性がある。
 通常の変更はfeature / fix branchでまとめてから `preview` へ統合し、`CoCo Preview Acceptance Ready` が固定aliasと `preview` HEAD SHAの一致を確認してから実操作受入を開始する。

@@ -30,6 +30,7 @@
 - main mergeだけではProductionへdeployしない
 - `CoCo Preview Acceptance Ready` が固定aliasと `preview` HEAD SHAの一致を確認する
 - 短時間の連続pushは避け、feature / fix branchで変更をまとめてからpreviewへ統合する
+- `preview` branchはrepository cleanupから削除禁止とし、inventoryでは `retained-preview` として扱う
 
 Preview DB release:
 

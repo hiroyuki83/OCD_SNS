@@ -188,6 +188,7 @@ CoCo v1 の主要機能実装、Production DB migration、Production application
 | NEXT-051 | 固定Previewで一般ユーザー / ADMIN / MODERATORの実操作UX受入を完了する | P0 | IN PROGRESS |
 | NEXT-052 | GitHub `preview` environmentにPreview DB release用 `PREVIEW_DATABASE_URL` を登録し、再seed時のみ `PREVIEW_TEST_PASSWORD` を登録する | P0 | TODO |
 | NEXT-053 | 固定Preview aliasが最新 `preview` HEAD SHAを配信していることを自動検証する | P0 | DONE |
+| NEXT-054 | 長期 `preview` branchをrepository cleanupの削除対象外として保護する | P0 | DONE |
 
 ## リリース進行フェーズ
 
@@ -2173,6 +2174,7 @@ PHASE-G: **DONE**
 - 再seedが必要な場合のみ `seed_users=true` を使う。
 - 再seed時のみGitHub `preview` environmentの `PREVIEW_TEST_PASSWORD` を必要とする。
 - `CoCo Preview Acceptance Ready` が固定Preview aliasと最新 `preview` HEAD SHAの一致、および `/login` smokeを確認する。
+- `preview` branchはbranch cleanupで `retained-preview` と分類し、自動削除・手動cleanup workflowの削除対象から除外する。
 
 ### 現在の受入作業
 
