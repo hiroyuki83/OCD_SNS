@@ -213,7 +213,7 @@ export default function MobileMenu({
                                     <Link
                                         href="/register"
                                         onClick={close}
-                                        className="inline-flex h-9 w-full items-center justify-center rounded-full bg-black px-4 text-sm font-bold text-white hover:bg-zinc-800"
+                                        className="inline-flex h-9 w-full items-center justify-center rounded-full bg-black px-4 text-sm font-bold badge-text-white hover:bg-zinc-800"
                                     >
                                         {labels.register}
                                     </Link>
