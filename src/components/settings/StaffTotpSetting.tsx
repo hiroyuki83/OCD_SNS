@@ -184,7 +184,7 @@ export default function StaffTotpSetting({
             </label>
             <button
               disabled={setupPending}
-              className="mt-3 rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              className="mt-3 rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {setupPending ? '処理中…' : '2段階認証の登録を開始'}
             </button>
@@ -243,7 +243,7 @@ export default function StaffTotpSetting({
                 <div className="sm:col-span-2">
                   <button
                     disabled={enablePending}
-                    className="rounded-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    className="rounded-full border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {enablePending ? '確認中…' : 'コードを確認して有効化'}
                   </button>
