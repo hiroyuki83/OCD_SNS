@@ -183,9 +183,11 @@ CoCo v1 の主要機能実装、Production DB migration、Production application
 | NEXT-046 | Preview Neon default branch名を `production` から誤認しにくい名称へ整理 | P3 | HOLD |
 | NEXT-047 | 固定 `preview` branch と固定Vercel Preview URLを常設する | P0 | DONE |
 | NEXT-048 | Preview用 `STAFF_MFA_ENCRYPTION_KEY` をbranch-scoped Secretとして固定・維持する | P0 | DONE |
-| NEXT-049 | Preview DB releaseをVercel Preview Secret注入方式へ整理し、migrationとseedを分離する | P0 | DONE |
+| NEXT-049 | Preview DB releaseを固定 `preview` branch向けに整理し、migrationとseedを分離する | P0 | IN PROGRESS |
 | NEXT-050 | 標準昇格経路を `feature/fix -> preview -> main -> explicit Production release` として要件・チェックリストへ同期する | P0 | DONE |
 | NEXT-051 | 固定Previewで一般ユーザー / ADMIN / MODERATORの実操作UX受入を完了する | P0 | IN PROGRESS |
+| NEXT-052 | GitHub `preview` environmentにPreview DB release用 `PREVIEW_DATABASE_URL` を登録し、再seed時のみ `PREVIEW_TEST_PASSWORD` を登録する | P0 | TODO |
+| NEXT-053 | 固定Preview aliasが最新 `preview` HEAD SHAを配信していることを自動検証する | P0 | DONE |
 
 ## リリース進行フェーズ
 
@@ -2165,10 +2167,12 @@ PHASE-G: **DONE**
 - 固定 `preview` branch用の `STAFF_MFA_ENCRYPTION_KEY` をVercel branch-scoped Secretとして作成済み。
 - MFA暗号化キーはデプロイ間で保持し、既存TOTPを壊さない。
 - Preview DB migrationは `preview` branchだけ許可する。
-- Preview DB releaseはVercel Secretを `vercel env run` で直接注入する設計へ変更した。
+- Preview DB release workflowはGitHub `preview` environmentの `PREVIEW_DATABASE_URL` をfail-closedで使用する。workflow実装は完了しているが、GitHub側Secret登録が未完了のためNEXT-049はIN PROGRESSとする。
 - test-user seedはmigrationと分離し、通常は実行しない。
 - 既存Preview test usersは保持する。
 - 再seedが必要な場合のみ `seed_users=true` を使う。
+- 再seed時のみGitHub `preview` environmentの `PREVIEW_TEST_PASSWORD` を必要とする。
+- `CoCo Preview Acceptance Ready` が固定Preview aliasと最新 `preview` HEAD SHAの一致、および `/login` smokeを確認する。
 
 ### 現在の受入作業
 

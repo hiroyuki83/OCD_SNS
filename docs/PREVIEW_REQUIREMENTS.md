@@ -2,7 +2,7 @@
 
 最終更新: 2026-10-03
 対象基準ブランチ: `main`
-現在の実装ブランチ: `main`
+現在の受入ブランチ: `preview`
 
 この文書を CoCo Preview 版の仕様上の正本（source of truth）とする。
 仕様変更があった場合は、この文書と `PREVIEW_ROADMAP.md` を更新する。
@@ -375,11 +375,11 @@ feature / integration branch上で実装・CI・E2E・Preview検証を完了し�
 以下をすべて満たした場合のみmainへmergeする。
 
 1. GitHub CI / E2Eが成功
-2. 最新commitがVercel Previewへ同期済み
-3. Preview DB migrationが成功
-4. Preview seedが成功
-5. Preview smoke testが成功
-6. 主要機能のPreview受入確認が成功
+2. 最新commitが固定 `preview` branchへ統合済み
+3. 固定Preview aliasがその `preview` HEAD SHAを配信していることを確認済み
+4. schema変更がある場合のみPreview DB migrationが成功
+5. test-user再seedが必要な場合のみseedが成功
+6. Preview smoke testと主要機能の実操作受入確認が成功
 7. Preview runtime errorに重大な未解決エラーがない
 8. main mergeによるProduction自動deployの有無を確認済み
 9. 自動Production deployが有効な場合、意図しない本番反映を防止する措置を完了済み
@@ -474,7 +474,9 @@ CI / E2Eが成功していても、UI / UX、認証、モデレーション、DB
 固定PreviewのREADY deploymentは上記branch aliasへ自動的に切り替わるため、個別deploymentのランダムURLを正式な受入URLとして記録しない。
 
 Preview runtime DB接続の正本はVercel Previewの `PREVIEW_DATABASE_URL` とする。
-Preview DB release workflowはVercel CLIの `vercel env run -e preview --git-branch preview` を用いてSecretをコマンドへ直接注入し、DB URLをログやGitHub文書へ出力しない。
+VercelのSensitive SecretはCIから値を読み戻せないため、Preview DB migration用にはGitHub `preview` environmentにも同じ `PREVIEW_DATABASE_URL` をSecretとして登録する。
+両者の値は同じ共有Preview DBを指すよう手動で同期し、値そのものをログ・文書・リポジトリへ出力しない。
+GitHub側Secretが未設定の場合、Preview DB release workflowはDB write前に停止する。
 
 Preview DB migrationとtest-user seedは分離する。
 通常のmigrationでは既存test usersを保持し、再seedが必要な場合だけ `seed_users=true` を明示する。
@@ -484,3 +486,6 @@ ADMIN / MODERATORのTOTP MFAはPreviewでも有効にする。
 `preview` branchにはVercel branch-scoped `STAFF_MFA_ENCRYPTION_KEY` を1つ作成し、デプロイ間で同じ値を維持する。デプロイごとに再生成してはならない。
 
 feature / fix branchの一時Vercel Previewは実装途中の確認には使用してよいが、main統合前の正式な受入は必ず固定Preview URLで行う。
+
+`preview` へ短時間に複数の直接pushを重ねると、Vercel deploymentの完了順によって固定aliasが一時的に古いcommitへ向く可能性がある。
+通常の変更はfeature / fix branchでまとめてから `preview` へ統合し、`CoCo Preview Acceptance Ready` が固定aliasと `preview` HEAD SHAの一致を確認してから実操作受入を開始する。
