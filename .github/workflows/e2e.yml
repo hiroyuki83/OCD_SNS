@@ -5,6 +5,7 @@ on:
   pull_request:
     branches:
       - main
+      - preview
   push:
     branches:
       - main
@@ -87,7 +88,7 @@ jobs:
       PREVIEW_TEST_PASSWORD: PreviewPass123!
       PREVIEW_SEED_USERS: '1'
       VERCEL_ENV: preview
-      VERCEL_GIT_COMMIT_REF: security-integration-final-20260926
+      VERCEL_GIT_COMMIT_REF: preview
       AUTH_SECRET: e2e-only-auth-secret-not-used-outside-ci
       NEXTAUTH_SECRET: e2e-only-auth-secret-not-used-outside-ci
       STAFF_MFA_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=

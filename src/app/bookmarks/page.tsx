@@ -100,8 +100,6 @@ export default async function BookmarksPage({
                 select: {
                     id: true,
                     content: true,
-                    imageUrl: true,
-                    imageAlt: true,
                     createdAt: true,
                     authorId: true,
                     author: {
@@ -159,13 +157,6 @@ export default async function BookmarksPage({
                                     <span className="text-zinc-500">{createdAt}</span>
                                 </div>
                                 {post.content && <HashtagText text={post.content} className="text-sm" />}
-                                {post.imageUrl && (
-                                    <img
-                                        src={post.imageUrl}
-                                        alt={post.imageAlt ?? ''}
-                                        className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
-                                    />
-                                )}
                                 <div className="flex items-center gap-3 text-zinc-500">
                                     <div className="text-xs">いいね {post._count.likes}</div>
                                     <Link

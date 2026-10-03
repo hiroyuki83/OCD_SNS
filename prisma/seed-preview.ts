@@ -26,6 +26,54 @@ if (!safety.ok) {
 
 const previewDatabaseUrl = safety.previewDatabaseUrl;
 const password = safety.testPassword;
+const isIsolatedE2E = process.env.E2E_BLOB_MODE?.trim() === '1';
+
+const E2E_PROFILE_OVERRIDES: Record<string, { name: string; bio: string }> = {
+  'coco.preview.public1@example.com': {
+    name: 'Preview 公開ユーザー1',
+    bio: 'Preview環境の公開テストユーザーです。',
+  },
+  'coco.preview.public2@example.com': {
+    name: 'Preview 公開ユーザー2',
+    bio: 'フォロー・通知・ブロック確認用の公開テストユーザーです。',
+  },
+  'coco.preview.appeal@example.com': {
+    name: 'Preview Appeal User',
+    bio: 'E2E処分異議申立て専用ユーザーです。',
+  },
+  'coco.preview.private@example.com': {
+    name: 'Preview 非公開ユーザー',
+    bio: '非公開アカウントとフォロー申請の確認用です。',
+  },
+  'coco.preview.moderator@example.com': {
+    name: 'Preview Moderator',
+    bio: 'Preview環境のモデレーター確認用です。',
+  },
+  'coco.preview.admin@example.com': {
+    name: 'Preview Admin',
+    bio: 'Preview環境の管理者確認用です。',
+  },
+  'coco.preview.moderator2@example.com': {
+    name: 'Preview Moderator 2',
+    bio: 'E2E分離用のモデレーターです。',
+  },
+  'coco.preview.admin2@example.com': {
+    name: 'Preview Admin 2',
+    bio: 'E2E分離用の管理者です。',
+  },
+  'coco.preview.admin3@example.com': {
+    name: 'Preview Admin 3',
+    bio: 'E2E管理操作分離用の管理者です。',
+  },
+  'coco.preview.admin4@example.com': {
+    name: 'Preview Admin 4',
+    bio: 'E2E処分発行用の管理者です。',
+  },
+  'coco.preview.admin5@example.com': {
+    name: 'Preview Admin 5',
+    bio: 'E2E処分異議申立て審査用の管理者です。',
+  },
+};
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: previewDatabaseUrl }),
@@ -180,14 +228,15 @@ async function run() {
       select: { id: true },
     });
 
+    const e2eProfile = E2E_PROFILE_OVERRIDES[seed.email];
     const data = {
       email: seed.email,
       handle: seed.handle,
-      name: seed.name,
-      bio: seed.bio,
-      avatarUrl: seed.avatarUrl,
-      headerUrl: seed.headerUrl,
-      autoHashtag: seed.autoHashtag,
+      name: isIsolatedE2E ? (e2eProfile?.name ?? seed.name) : seed.name,
+      bio: isIsolatedE2E ? (e2eProfile?.bio ?? seed.bio) : seed.bio,
+      avatarUrl: isIsolatedE2E ? null : seed.avatarUrl,
+      headerUrl: isIsolatedE2E ? null : seed.headerUrl,
+      autoHashtag: isIsolatedE2E ? null : seed.autoHashtag,
       password: passwordHash,
       emailVerifiedAt: verifiedAt,
       role: seed.role,
@@ -231,6 +280,11 @@ async function run() {
       role: user.role,
       isPrivate: user.isPrivate,
     });
+  }
+
+  if (isIsolatedE2E) {
+    console.log('Seeded isolated E2E users without Preview demo community data.');
+    return;
   }
 
   const userId = (email: string) => {
