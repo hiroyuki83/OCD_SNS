@@ -61,6 +61,16 @@ jobs:
             exit 1
           fi
 
+      - name: Link Vercel project for Preview secret injection
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .vercel
+          jq -n \
+            --arg orgId "${VERCEL_ORG_ID}" \
+            --arg projectId "${VERCEL_PROJECT_ID}" \
+            '{orgId: $orgId, projectId: $projectId}' > .vercel/project.json
+
       - name: Apply guarded Preview DB release using Vercel Preview secrets
         shell: bash
         run: |
