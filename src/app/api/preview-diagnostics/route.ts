@@ -5,6 +5,8 @@ import { selectRuntimeDatabaseUrl } from '@/lib/databaseUrl';
 
 export const dynamic = 'force-dynamic';
 
+// Temporary diagnostic endpoint; remove after Preview DB binding is verified.
+
 export async function GET() {
   if (
     process.env.VERCEL_ENV !== 'preview' ||
