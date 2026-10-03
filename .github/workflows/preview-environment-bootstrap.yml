@@ -68,10 +68,36 @@ jobs:
               ((.gitBranch // "") == "" or .gitBranch == $branch)
             )][0].id // ""' <<<"${current}")"
 
-          [ -n "${preview_db_id}" ] || {
-            echo "No PREVIEW_DATABASE_URL applies to the fixed preview branch."
-            exit 1
-          }
+          if [ -z "${preview_db_id}" ]; then
+            legacy_id="$(jq -r '
+              [.envs[]? | select(
+                .key == "PREVIEW_DATABASE_URL" and
+                .gitBranch == "security-integration-final-20260926" and
+                ((.target // []) | index("preview"))
+              )][0].id // ""
+            ' <<<"${current}")"
+
+            [ -n "${legacy_id}" ] || {
+              echo "No PREVIEW_DATABASE_URL applies to the fixed preview branch, and no approved legacy Preview binding was found."
+              exit 1
+            }
+
+            echo "Moving the approved legacy PREVIEW_DATABASE_URL binding to the fixed preview branch."
+            curl --fail-with-body --silent --show-error \
+              --request PATCH \
+              --url "https://api.vercel.com/v9/projects/${PROJECT_ID}/env/${legacy_id}?teamId=${TEAM_ID}" \
+              --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+              --header "Content-Type: application/json" \
+              --data '{"gitBranch":"preview"}' >/tmp/preview-db-branch-rebind.json
+
+            rebound_branch="$(jq -r '.gitBranch // ""' /tmp/preview-db-branch-rebind.json)"
+            [ "${rebound_branch}" = "preview" ] || {
+              echo "PREVIEW_DATABASE_URL branch rebinding did not return preview."
+              exit 1
+            }
+
+            preview_db_id="${legacy_id}"
+          fi
 
           echo "PREVIEW_DATABASE_URL applies to the fixed preview branch; value is not exposed."
 
