@@ -1,0 +1,121 @@
+name: CoCo Preview Environment Bootstrap
+
+on:
+  push:
+    branches:
+      - preview
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-preview-environment-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  configure-preview:
+    if: ${{ github.ref_name == 'preview' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: preview
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      TEAM_ID: team_P1Z1wvYF1h42LIl0YfgXoOPI
+      PROJECT_ID: prj_AcjmJFO5jcqse6sStknZzZkmfR7h
+      PREVIEW_BRANCH: preview
+
+    steps:
+      - name: Verify required secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${VERCEL_TOKEN:-}" ] || { echo "VERCEL_TOKEN is not configured."; exit 1; }
+          [ -n "${PREVIEW_DATABASE_URL:-}" ] || { echo "PREVIEW_DATABASE_URL is not configured."; exit 1; }
+
+      - name: Ensure branch-scoped Preview database URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload="$(jq -n \
+            --arg value "${PREVIEW_DATABASE_URL}" \
+            --arg branch "${PREVIEW_BRANCH}" \
+            '[{
+              key: "PREVIEW_DATABASE_URL",
+              value: $value,
+              type: "sensitive",
+              target: ["preview"],
+              gitBranch: $branch,
+              comment: "CoCo fixed Preview branch database"
+            }]')"
+
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "https://api.vercel.com/v10/projects/${PROJECT_ID}/env?upsert=true&teamId=${TEAM_ID}" \
+            --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "${payload}" >/tmp/preview-db-env-response.json
+
+          jq -e '(.failed // []) | length == 0' /tmp/preview-db-env-response.json >/dev/null
+          echo "Branch-scoped PREVIEW_DATABASE_URL is configured."
+
+      - name: Ensure stable Preview staff MFA encryption key
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          current="$(curl --fail-with-body --silent --show-error \
+            --request GET \
+            --url "https://api.vercel.com/v9/projects/${PROJECT_ID}/env?teamId=${TEAM_ID}" \
+            --header "Authorization: Bearer ${VERCEL_TOKEN}")"
+
+          existing_id="$(jq -r \
+            --arg branch "${PREVIEW_BRANCH}" \
+            '[.envs[]? | select(
+              .key == "STAFF_MFA_ENCRYPTION_KEY" and
+              .gitBranch == $branch and
+              ((.target // []) | index("preview"))
+            )][0].id // ""' <<<"${current}")"
+
+          if [ -n "${existing_id}" ]; then
+            echo "Branch-scoped STAFF_MFA_ENCRYPTION_KEY already exists; preserving it."
+            exit 0
+          fi
+
+          mfa_key="$(openssl rand -base64 32 | tr -d '\n')"
+          payload="$(jq -n \
+            --arg value "${mfa_key}" \
+            --arg branch "${PREVIEW_BRANCH}" \
+            '[{
+              key: "STAFF_MFA_ENCRYPTION_KEY",
+              value: $value,
+              type: "sensitive",
+              target: ["preview"],
+              gitBranch: $branch,
+              comment: "Stable CoCo Preview staff TOTP encryption key"
+            }]')"
+
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "https://api.vercel.com/v10/projects/${PROJECT_ID}/env?upsert=true&teamId=${TEAM_ID}" \
+            --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "${payload}" >/tmp/preview-mfa-env-response.json
+
+          jq -e '(.failed // []) | length == 0' /tmp/preview-mfa-env-response.json >/dev/null
+          unset mfa_key
+          echo "Branch-scoped STAFF_MFA_ENCRYPTION_KEY created without exposing its value."
+
+      - name: Emit Preview environment summary
+        shell: bash
+        run: |
+          {
+            echo "## CoCo fixed Preview environment"
+            echo
+            echo "- branch: `preview`"
+            echo "- Vercel target: `preview`"
+            echo "- Preview DB: branch-scoped environment variable configured"
+            echo "- staff MFA encryption key: present and preserved across runs"
+            echo "- secret values: not printed"
+          } >> "${GITHUB_STEP_SUMMARY}"
