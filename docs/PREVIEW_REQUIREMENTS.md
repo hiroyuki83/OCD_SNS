@@ -491,3 +491,16 @@ feature / fix branchの一時Vercel Previewは実装途中の確認には使用�
 
 `preview` へ短時間に複数の直接pushを重ねると、Vercel deploymentの完了順によって固定aliasが一時的に古いcommitへ向く可能性がある。
 通常の変更はfeature / fix branchでまとめてから `preview` へ統合し、`CoCo Preview Acceptance Ready` が固定aliasと `preview` HEAD SHAの一致を確認してから実操作受入を開始する。
+
+
+### 2026-10-03 Preview DB fail-closed要件
+
+Preview runtimeは `PREVIEW_DATABASE_URL` が未設定の場合にfail closedとする。
+`VERCEL_ENV=preview` のとき、`DATABASE_URL` / `POSTGRES_PRISMA_URL` / `POSTGRES_URL_NON_POOLING` へフォールバックしてはならない。
+
+理由:
+- Vercel projectにはProduction用 `DATABASE_URL` が存在するため、Previewで `PREVIEW_DATABASE_URL` が欠落するとProduction DBへ誤接続する危険がある。
+- 固定Preview branch導入時に実際にこの誤接続が発生し、Preview test usersが見えずログイン不能になった。
+- 2026-10-03にruntime / migration selectorをfail-closedへ変更し、Vercel上の既存Preview DB Secretを `preview` branchへ再紐付けした。
+
+固定Preview deploymentでは、`PREVIEW_DATABASE_URL` が `preview` branchへ適用されていることをEnvironment Bootstrapで検証する。

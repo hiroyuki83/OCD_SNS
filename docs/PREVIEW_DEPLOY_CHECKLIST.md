@@ -24,6 +24,7 @@
 
 - `vercel.json`: `main=false`, `preview=true`
 - Vercel Previewに `PREVIEW_DATABASE_URL` が存在する
+- `VERCEL_ENV=preview` のruntimeは `PREVIEW_DATABASE_URL` 以外へフォールバックしない
 - `preview` branch-scoped `STAFF_MFA_ENCRYPTION_KEY` が存在する
 - MFAキーはデプロイごとに再生成しない
 - Preview DB migration / seed safety guardはGit ref `preview` だけを許可する
