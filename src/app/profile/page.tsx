@@ -70,8 +70,6 @@ export default async function ProfilePage({
             select: {
                 id: true,
                 content: true,
-                imageUrl: true,
-                imageAlt: true,
                 createdAt: true,
                 wakaruCount: true,
                 ganbattaCount: true,
@@ -206,13 +204,6 @@ export default async function ProfilePage({
                                 <span className="text-zinc-500">{formatPostTime(post.createdAt)}</span>
                             </div>
                             {post.content && <HashtagText text={post.content} className="text-sm" />}
-                            {post.imageUrl && (
-                                <img
-                                    src={post.imageUrl}
-                                    alt={post.imageAlt ?? ''}
-                                    className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
-                                />
-                            )}
                             <div className="flex items-center gap-3 text-zinc-500 flex-wrap relative z-30 feed-action-area">
                                 <ProfilePostActionForm
                                     postId={post.id}
