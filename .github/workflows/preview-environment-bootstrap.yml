@@ -63,11 +63,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p .vercel
-          jq -n \
-            --arg orgId "${VERCEL_ORG_ID}" \
-            --arg projectId "${VERCEL_PROJECT_ID}" \
-            '{orgId: $orgId, projectId: $projectId}' > .vercel/project.json
+          rm -rf .vercel
+          npx --yes vercel@latest link \
+            --yes \
+            --project=coco \
+            --scope=hiroyuki-desperado-yahoocojps-projects \
+            --token="${VERCEL_TOKEN}"
 
       - name: Verify Vercel can inject the fixed Preview database secret
         shell: bash
