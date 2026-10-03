@@ -155,7 +155,7 @@ export default async function Sidebar() {
           </nav>
           <Link
             href="/?compose=1"
-            className="group flex items-center gap-4 p-3 w-fit rounded-full bg-[#1d9bf0] hover:bg-[#1a8cd8] transition-colors mt-4 mx-auto xl:mx-0"
+            className="group flex items-center gap-4 p-3 xl:pr-4 w-fit rounded-full bg-[#1d9bf0] hover:bg-[#1a8cd8] transition-colors mt-4 mx-auto xl:mx-0"
             aria-label={LABEL_POST}
           >
             <Pencil className="app-compose-icon text-white" />
