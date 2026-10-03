@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/db';
+import { selectRuntimeDatabaseUrl } from '@/lib/databaseUrl';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,26 @@ export async function GET() {
     process.env.VERCEL_GIT_COMMIT_REF !== 'preview'
   ) {
     return new NextResponse('Not found', { status: 404 });
+  }
+
+  const selectedDatabaseUrl = selectRuntimeDatabaseUrl(process.env);
+  let databaseHost = '';
+  let databaseName = '';
+  let databaseSource = 'none';
+
+  if (selectedDatabaseUrl) {
+    const parsed = new URL(selectedDatabaseUrl);
+    databaseHost = parsed.hostname;
+    databaseName = decodeURIComponent(parsed.pathname.replace(/^\//, ''));
+    if (process.env.PREVIEW_DATABASE_URL?.trim() === selectedDatabaseUrl) {
+      databaseSource = 'PREVIEW_DATABASE_URL';
+    } else if (process.env.DATABASE_URL?.trim() === selectedDatabaseUrl) {
+      databaseSource = 'DATABASE_URL';
+    } else if (process.env.POSTGRES_PRISMA_URL?.trim() === selectedDatabaseUrl) {
+      databaseSource = 'POSTGRES_PRISMA_URL';
+    } else if (process.env.POSTGRES_URL_NON_POOLING?.trim() === selectedDatabaseUrl) {
+      databaseSource = 'POSTGRES_URL_NON_POOLING';
+    }
   }
 
   const [public1, admin] = await Promise.all([
@@ -39,6 +60,9 @@ export async function GET() {
     {
       branch: process.env.VERCEL_GIT_COMMIT_REF,
       previewDatabaseConfigured: Boolean(process.env.PREVIEW_DATABASE_URL),
+      databaseSource,
+      databaseHost,
+      databaseName,
       public1: public1
         ? {
             exists: true,
