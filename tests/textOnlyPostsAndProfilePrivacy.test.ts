@@ -25,6 +25,8 @@ test('post images are not exposed in feed, search, profile, or post detail surfa
     'src/components/profile/UserHandleClient.tsx',
     'src/app/post/[id]/page.tsx',
     'src/app/profile/page.tsx',
+    'src/app/bookmarks/page.tsx',
+    'src/app/moderation/page.tsx',
   ]) {
     const source = readFileSync(path, 'utf8');
     assert.equal(source.includes('post.imageUrl'), false, path);
