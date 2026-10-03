@@ -62,6 +62,10 @@ function isStaff(role: Role) {
 
 class TotpStateChangedError extends Error {}
 
+function isMissingStaffMfaEncryptionKey(error: unknown) {
+  return error instanceof Error && error.message.includes('STAFF_MFA_ENCRYPTION_KEY');
+}
+
 export async function startStaffTotpSetup(
   _prevState: TotpSetupState,
   formData: FormData,
@@ -82,7 +86,15 @@ export async function startStaffTotpSetup(
   }
 
   const secret = generateTotpSecret();
-  const encrypted = encryptTotpSecret(secret);
+  let encrypted: string;
+  try {
+    encrypted = encryptTotpSecret(secret);
+  } catch (error) {
+    if (isMissingStaffMfaEncryptionKey(error)) {
+      return { message: 'スタッフ2段階認証の暗号化キーが設定されていません。Preview環境の設定を確認してください。' };
+    }
+    throw error;
+  }
   const uri = buildTotpUri({ secret, accountName: user.email });
 
   try {
@@ -338,7 +350,15 @@ export async function recoverStaffTotpWithRecoveryCode(
   }
 
   const secret = generateTotpSecret();
-  const encrypted = encryptTotpSecret(secret);
+  let encrypted: string;
+  try {
+    encrypted = encryptTotpSecret(secret);
+  } catch (error) {
+    if (isMissingStaffMfaEncryptionKey(error)) {
+      return { message: 'スタッフ2段階認証の暗号化キーが設定されていません。Preview環境の設定を確認してください。' };
+    }
+    throw error;
+  }
   const uri = buildTotpUri({ secret, accountName: user.email });
   const resetAt = new Date();
 
