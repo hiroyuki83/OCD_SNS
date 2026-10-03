@@ -12,8 +12,6 @@ import PaginationLinks from '@/components/shared/PaginationLinks';
 type ProfilePost = {
     id: string;
     content: string;
-    imageUrl: string | null;
-    imageAlt: string | null;
     createdAt: string;
     likeCount: number;
     bookmarkCount: number;
@@ -49,8 +47,8 @@ type ProfileResponse = {
         avatarUrl: string | null;
         headerUrl: string | null;
         isPrivate?: boolean;
-        followerCount: number;
-        followingCount: number;
+        followerCount?: number;
+        followingCount?: number;
     };
     posts: ProfilePost[];
     isFollowing: boolean;
@@ -392,10 +390,14 @@ export default function UserHandleClient() {
                             <span className="text-lg font-bold">{user.name ?? 'ユーザー'}</span>
                             <span className="text-sm text-zinc-500">@{user.handle}</span>
                             {user.bio && <p className="text-sm text-zinc-500">{user.bio}</p>}
-                            <div className="mt-1 flex gap-4 text-xs text-zinc-500">
-                                <span>フォロー {user.followingCount}</span>
-                                <span>フォロワー {user.followerCount}</span>
-                            </div>
+                            {viewerId === user.id &&
+                                typeof user.followingCount === 'number' &&
+                                typeof user.followerCount === 'number' && (
+                                    <div className="mt-1 flex gap-4 text-xs text-zinc-500">
+                                        <span>フォロー {user.followingCount}</span>
+                                        <span>フォロワー {user.followerCount}</span>
+                                    </div>
+                                )}
                         </div>
                     </div>
                     {isPrivate && (
@@ -503,13 +505,6 @@ export default function UserHandleClient() {
                                 <span className="text-zinc-500">{formatPostTime(post.createdAt)}</span>
                             </div>
                             {post.content && <HashtagText text={post.content} className="text-sm" />}
-                            {post.imageUrl && (
-                                <img
-                                    src={post.imageUrl}
-                                    alt={post.imageAlt ?? ''}
-                                    className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
-                                />
-                            )}
                             <div className="flex items-center gap-3 text-zinc-500 flex-wrap relative z-30 feed-action-area">
                                 {viewerId ? (
                                     <button

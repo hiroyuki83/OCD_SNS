@@ -14,8 +14,6 @@ import PaginationLinks from '@/components/shared/PaginationLinks';
 type FeedPost = {
     id: string;
     content: string;
-    imageUrl: string | null;
-    imageAlt: string | null;
     createdAt: string;
     wakaruCount: number;
     ganbattaCount: number;
@@ -422,13 +420,6 @@ export default function Feed({
                                     {null}
                                 </div>
                                 {post.content && <HashtagText text={post.content} className="text-sm" />}
-                                {post.imageUrl && (
-                                    <img
-                                        src={post.imageUrl}
-                                        alt={post.imageAlt ?? ''}
-                                        className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
-                                    />
-                                )}
                                 <div className="flex items-center gap-3 text-zinc-500 flex-wrap relative z-30 feed-action-area" data-action-area>
                                     {data.viewerId ? (
                                         <button

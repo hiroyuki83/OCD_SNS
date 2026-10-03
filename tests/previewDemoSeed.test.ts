@@ -26,9 +26,6 @@ test('Preview demo visual assets are committed locally', () => {
     'public/preview-demo/avatars/moderator.svg',
     'public/preview-demo/headers/morning.svg',
     'public/preview-demo/headers/calm.svg',
-    'public/preview-demo/posts/walk.svg',
-    'public/preview-demo/posts/sky.svg',
-    'public/preview-demo/posts/desk.svg',
   ]) {
     assert.equal(existsSync(path), true, `missing Preview demo asset: ${path}`);
   }
