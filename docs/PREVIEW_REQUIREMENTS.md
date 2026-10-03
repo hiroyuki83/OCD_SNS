@@ -1,6 +1,6 @@
 # CoCo Preview 要件定義
 
-最終更新: 2026-10-02
+最終更新: 2026-10-03
 対象基準ブランチ: `main`
 現在の実装ブランチ: `main`
 
@@ -455,3 +455,32 @@ main merge後に以下を行う。
 5. Preview 確認
 
 チャットで仕様が確定した場合も、GitHub 上の文書を更新して記録する。
+
+
+## 20. 2026-10-03 固定Preview運用
+
+2026-10-03以降、Production前の正式な受入環境は長期運用の `preview` branchに固定する。
+
+- GitHub branch: `preview`
+- Vercel固定Preview URL: `https://coco-git-preview-hiroyuki-desperado-yahoocojps-projects.vercel.app`
+- Vercel target: Preview
+- 共有Preview DB: Neon project `coco-preview`
+- `main` のGit pushによるProduction自動deployは無効のまま維持する
+- `preview` のGit pushはVercel Previewへ自動deployする
+
+標準の昇格経路は、`feature / fix -> preview -> main -> explicit Production release` とする。
+CI / E2Eが成功していても、UI / UX、認証、モデレーション、DB境界、環境変数に関わる変更を固定Previewで実操作確認せずmainへ直接mergeしない。
+
+固定PreviewのREADY deploymentは上記branch aliasへ自動的に切り替わるため、個別deploymentのランダムURLを正式な受入URLとして記録しない。
+
+Preview runtime DB接続の正本はVercel Previewの `PREVIEW_DATABASE_URL` とする。
+Preview DB release workflowはVercel CLIの `vercel env run -e preview --git-branch preview` を用いてSecretをコマンドへ直接注入し、DB URLをログやGitHub文書へ出力しない。
+
+Preview DB migrationとtest-user seedは分離する。
+通常のmigrationでは既存test usersを保持し、再seedが必要な場合だけ `seed_users=true` を明示する。
+再seedにはGitHub `preview` environmentの `PREVIEW_TEST_PASSWORD` が必要で、未設定ならDB write前に停止する。
+
+ADMIN / MODERATORのTOTP MFAはPreviewでも有効にする。
+`preview` branchにはVercel branch-scoped `STAFF_MFA_ENCRYPTION_KEY` を1つ作成し、デプロイ間で同じ値を維持する。デプロイごとに再生成してはならない。
+
+feature / fix branchの一時Vercel Previewは実装途中の確認には使用してよいが、main統合前の正式な受入は必ず固定Preview URLで行う。
