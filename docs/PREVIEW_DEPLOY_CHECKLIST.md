@@ -1,7 +1,62 @@
 # CoCo Preview デプロイ・チェックリスト
 
-最終更新: 2026-09-28
-対象基準ブランチ: main（Sanction / Appeal release系列は統合済み）
+最終更新: 2026-10-03
+対象基準ブランチ: `preview`（Production前の固定受入branch）
+
+## 2026-10-03 固定Preview運用チェック
+
+正式な受入URL:
+
+`https://coco-git-preview-hiroyuki-desperado-yahoocojps-projects.vercel.app`
+
+標準フロー:
+
+1. feature / fix branchで実装
+2. `preview` へ統合
+3. 固定Preview URLが最新 `preview` commitへ更新されたことを確認
+4. CI / E2E / Preview DB / runtime errorを確認
+5. USER / ADMIN / MODERATORとして実操作
+6. 問題があればpreview側で修正
+7. 受入完了後に `preview -> main` をmerge
+8. Production releaseは別工程で明示判断
+
+固定Preview環境の前提:
+
+- `vercel.json`: `main=false`, `preview=true`
+- Vercel Previewに `PREVIEW_DATABASE_URL` が存在する
+- `VERCEL_ENV=preview` のruntimeは `PREVIEW_DATABASE_URL` 以外へフォールバックしない
+- `preview` branch-scoped `STAFF_MFA_ENCRYPTION_KEY` が存在する
+- MFAキーはデプロイごとに再生成しない
+- Preview DB migration / seed safety guardはGit ref `preview` だけを許可する
+- main mergeだけではProductionへdeployしない
+- `CoCo Preview Acceptance Ready` が固定aliasと `preview` HEAD SHAの一致を確認する
+- 短時間の連続pushは避け、feature / fix branchで変更をまとめてからpreviewへ統合する
+- `preview` branchはrepository cleanupから削除禁止とし、inventoryでは `retained-preview` として扱う
+
+Preview DB release:
+
+- `.github/workflows/preview-db-release.yml` を手動実行する
+- confirmationは `MIGRATE_COCO_PREVIEW`
+- DB migration用 `PREVIEW_DATABASE_URL` はGitHub `preview` environment Secretから注入する。Vercel Preview runtime側の同名Secretと同じ共有Preview DBを指すよう手動同期する
+- 通常migrationでは `seed_users=false`
+- test usersを再初期化する場合だけ `seed_users=true`
+- seedを使う場合だけGitHub `preview` environmentの `PREVIEW_TEST_PASSWORD` が必要
+- seed prerequisiteが不足している場合はDB write前に停止する
+
+受入時に見るもの:
+
+- 一般USERのログイン・投稿・フォロー・通知・設定
+- private account
+- block / mute
+- self-test
+- ADMIN / MODERATORのMFA登録・再ログイン
+- admin / moderation
+- モバイル表示
+- UIの文字・ボタンの可読性
+- runtime error / 5xx
+
+---
+
 
 ## デプロイ前
 
@@ -13,7 +68,7 @@
 - DATABASE_URL と PREVIEW_DATABASE_URL が完全一致
 - PREVIEW_DATABASE_URL が Production DB ではない
 - VERCEL_ENV=preview
-- VERCEL_GIT_COMMIT_REF=feature/sanction-appeals-20260928
+- VERCEL_GIT_COMMIT_REF=preview
 - seedする場合だけ PREVIEW_SEED_USERS=1
 - PREVIEW_TEST_PASSWORD は10〜128文字
 - `_prisma_migrations` に41 migration（Sanction + Appealまで）が記録済みであることを確認する
@@ -43,7 +98,7 @@ Preview DB migration は自動実行しない。GitHub Actions の
 
 安全条件:
 
-- branch が `feature/sanction-appeals-20260928`
+- branch が `preview`
 - `VERCEL_ENV=preview`
 - `DATABASE_URL === PREVIEW_DATABASE_URL`
 - 接続hostが承認済み `coco-preview` Neon endpoint
@@ -56,11 +111,11 @@ Preview DB migration は自動実行しない。GitHub Actions の
 1. `npm run preview:db:preflight`
 2. `npm run preview:db:migrate`
 3. `npm run preview:db:verify`
-4. `npm run seed:preview`
+4. `seed_users=true` の場合のみ `npm run seed:preview`
 5. `npx prisma migrate status`
 
-preflightでは前回受入済みschemaを確認し、`Sanction` tableが存在し、`Appeal` tableがまだ存在しないことを確認する。
-verifyでは`Sanction`を維持したまま`Appeal` tableと主要column、および新migrationの適用履歴を確認する。
+preflightはread-onlyで、承認済みhistorical migrationがすべて適用済みであること、repositoryに存在しない未知のapplied migrationがないこと、現在の受入済みbaseline schema（Sanction / Appealを含む）が保たれていることを確認する。
+verifyはmigration後にrepositoryで期待する全migrationが適用済みであることと、主要schema signatureを確認する。
 
 ### Prisma接続先の安全策
 
@@ -72,27 +127,20 @@ migration runnerは以下を全てPreview URLへ強制する。
 - `POSTGRES_URL_NON_POOLING`
 - `POSTGRES_PRISMA_URL`
 
-## Vercel deploymentEnabled 切替手順
-
-DB migration前はschema不一致のPreviewを公開しない。
+## Vercel Preview branch運用
 
 通常状態:
 
-- `security-integration-final-20260926: false`
-- `feature/sanction-records-20260928: false`
-- `feature/sanction-appeals-20260928: false`
-- `main: false`
+- `main: false` — Git pushによるProduction自動deployは禁止
+- `preview: true` — 固定Preview branchのpushはVercel Previewへdeploy
 
-Preview DB migration / seed / schema verifyが成功した後にのみ、
-`feature/sanction-appeals-20260928` を一時的に `true` にして最新Preview deploymentを作る。
+正式な受入URL:
 
-Preview acceptance完了後:
+`https://coco-git-preview-hiroyuki-desperado-yahoocojps-projects.vercel.app`
 
-- feature branchをmainへmergeする
-- feature branchの自動deployを再び `false` にする
-- `main` の自動deployは `false` のまま維持する
-- Production releaseは別工程で明示的に行う
-
+feature / fix branchで変更をまとめてから `preview` へ統合する。
+固定aliasが最新 `preview` HEADを配信していることを `CoCo Preview Acceptance Ready` で確認してから受入を開始する。
+受入完了後にのみ `preview -> main` をmergeする。
 mainへmergeしただけでProduction deployが開始される設定へ戻してはならない。
 
 ## デプロイ後
@@ -134,8 +182,8 @@ mainへmergeしただけでProduction deployが開始される設定へ戻して
 
 mainへmergeする前に以下を確認する。
 
-- 最新commitのVercel Preview deploymentがREADY
-- Preview DB migration / seedが成功
+- 固定Preview aliasが最新 `preview` HEAD SHAを配信し、`CoCo Preview Acceptance Ready` がPASS
+- schema変更がある場合はPreview DB migrationが成功し、再seedが必要な場合のみseedが成功
 - HTTP smoke testが成功
 - Preview test usersによる主要機能確認が成功、または同等のisolated authenticated E2E + shared Preview schema/runtime受入で代替根拠が記録済み
 - runtime logに重大な未解決エラーがない

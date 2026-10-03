@@ -109,8 +109,8 @@ export default async function Sidebar() {
         unreadNotifications={unreadNotifications}
       />
 
-      <div className="hidden lg:flex flex-col justify-between h-screen w-[275px] px-2 sticky top-0 border-r border-border max-xl:w-20">
-        <div className="flex flex-col gap-2 mt-1">
+      <div className="hidden lg:flex flex-col justify-between h-dvh max-h-dvh overflow-y-auto overscroll-contain w-[275px] px-2 sticky top-0 border-r border-border max-xl:w-20">
+        <div className="flex flex-col gap-2 mt-1 shrink-0">
           <Link
             href="/"
             className="w-14 h-14 flex items-center justify-center rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
@@ -132,7 +132,7 @@ export default async function Sidebar() {
                   <NotificationsLink
                     key={item.label}
                     href={item.href}
-                    className="group flex items-center gap-4 p-3 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
+                    className="group flex items-center gap-4 p-3 xl:pr-4 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
                     label={item.label}
                     unread={unreadNotifications}
                     labelClassName="text-xl font-normal hidden xl:block"
@@ -142,7 +142,7 @@ export default async function Sidebar() {
                   <Link
                     key={item.label}
                     href={item.href}
-                    className="group flex items-center gap-4 p-3 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
+                    className="group flex items-center gap-4 p-3 xl:pr-4 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
                   >
                     <span className="relative">
                       <Icon className="app-nav-icon text-zinc-900" />
@@ -155,7 +155,7 @@ export default async function Sidebar() {
           </nav>
           <Link
             href="/?compose=1"
-            className="group flex items-center gap-4 p-3 w-fit rounded-full bg-[#1d9bf0] hover:bg-[#1a8cd8] transition-colors mt-4 mx-auto xl:mx-0"
+            className="group flex items-center gap-4 p-3 xl:pr-4 w-fit rounded-full bg-[#1d9bf0] hover:bg-[#1a8cd8] transition-colors mt-4 mx-auto xl:mx-0"
             aria-label={LABEL_POST}
           >
             <Pencil className="app-compose-icon text-white" />
@@ -163,11 +163,11 @@ export default async function Sidebar() {
           </Link>
         </div>
 
-        <div className="mb-4">
+        <div className="mb-4 shrink-0">
           <div className="px-2 mb-2">
             <Link
               href="/settings"
-              className="group flex items-center gap-4 p-3 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
+              className="group flex items-center gap-4 p-3 xl:pr-4 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
             >
               <Settings className="app-nav-icon text-zinc-900" />
               <span className="text-xl font-normal hidden xl:block">{LABEL_SETTINGS}</span>
@@ -216,7 +216,7 @@ export default async function Sidebar() {
               </Link>
               <Link
                 href="/register"
-                className="inline-flex h-9 w-full items-center justify-center rounded-full bg-black px-4 text-sm font-bold text-white hover:bg-zinc-800"
+                className="inline-flex h-9 w-full items-center justify-center rounded-full bg-black px-4 text-sm font-bold badge-text-white hover:bg-zinc-800"
               >
                 {LABEL_REGISTER}
               </Link>

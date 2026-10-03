@@ -2,8 +2,9 @@ import { Client } from 'pg';
 import {
   validatePreviewMigrationSafety,
 } from '../src/lib/previewMigrationSafety';
-
-import { PREVIEW_PENDING_MIGRATIONS } from '../src/lib/previewMigrationPlan';
+import {
+  PREVIEW_EXPECTED_MIGRATIONS,
+} from '../src/lib/previewMigrationPlan';
 
 const safety = validatePreviewMigrationSafety({
   vercelEnv: process.env.VERCEL_ENV,
@@ -51,27 +52,32 @@ try {
   await client.connect();
 
   const checks = [
+    ['User table present', await tableExists('User')],
+    ['Post table present', await tableExists('Post')],
     ['Reply table removed', !(await tableExists('Reply'))],
     ['Post.quotePostId removed', !(await columnExists('Post', 'quotePostId'))],
     ['Post.imageAlt present', await columnExists('Post', 'imageAlt')],
     ['User.notifyLikes present', await columnExists('User', 'notifyLikes')],
     ['User.notifyReactions present', await columnExists('User', 'notifyReactions')],
     ['User.notifyFollows present', await columnExists('User', 'notifyFollows')],
-    ['EmailVerificationToken.pendingEmail present', await columnExists('EmailVerificationToken', 'pendingEmail')],
+    [
+      'EmailVerificationToken.pendingEmail present',
+      await columnExists('EmailVerificationToken', 'pendingEmail'),
+    ],
     ['Sanction table present', await tableExists('Sanction')],
     ['Sanction.type present', await columnExists('Sanction', 'type')],
     ['Sanction.status present', await columnExists('Sanction', 'status')],
     ['Sanction.reason present', await columnExists('Sanction', 'reason')],
     ['Sanction.targetUserId present', await columnExists('Sanction', 'targetUserId')],
     ['Sanction.actorUserId present', await columnExists('Sanction', 'actorUserId')],
-    ['Appeal table added', await tableExists('Appeal')],
-    ['Appeal.message added', await columnExists('Appeal', 'message')],
-    ['Appeal.status added', await columnExists('Appeal', 'status')],
-    ['Appeal.resolutionNote added', await columnExists('Appeal', 'resolutionNote')],
-    ['Appeal.reviewedAt added', await columnExists('Appeal', 'reviewedAt')],
-    ['Appeal.reviewerId added', await columnExists('Appeal', 'reviewerId')],
-    ['Appeal.sanctionId added', await columnExists('Appeal', 'sanctionId')],
-    ['Appeal.userId added', await columnExists('Appeal', 'userId')],
+    ['Appeal table present', await tableExists('Appeal')],
+    ['Appeal.message present', await columnExists('Appeal', 'message')],
+    ['Appeal.status present', await columnExists('Appeal', 'status')],
+    ['Appeal.resolutionNote present', await columnExists('Appeal', 'resolutionNote')],
+    ['Appeal.reviewedAt present', await columnExists('Appeal', 'reviewedAt')],
+    ['Appeal.reviewerId present', await columnExists('Appeal', 'reviewerId')],
+    ['Appeal.sanctionId present', await columnExists('Appeal', 'sanctionId')],
+    ['Appeal.userId present', await columnExists('Appeal', 'userId')],
   ] as const;
 
   const failures = checks.filter(([, ok]) => !ok).map(([name]) => name);
@@ -88,22 +94,36 @@ try {
 
   const migrationRows = await client.query(
     `SELECT migration_name, finished_at, rolled_back_at
-     FROM "_prisma_migrations"
-     WHERE migration_name = ANY($1::text[])`,
-    [PREVIEW_PENDING_MIGRATIONS],
+     FROM "_prisma_migrations"`,
   );
-
   const applied = new Set(
     migrationRows.rows
       .filter((row) => row.finished_at && !row.rolled_back_at)
-      .map((row) => row.migration_name),
+      .map((row) => String(row.migration_name)),
   );
-  const missingMigrations = PREVIEW_PENDING_MIGRATIONS.filter((name) => !applied.has(name));
+
+  const missingMigrations = PREVIEW_EXPECTED_MIGRATIONS.filter(
+    (name) => !applied.has(name),
+  );
   if (missingMigrations.length) {
-    throw new Error(`Expected Preview migrations are not recorded as applied: ${missingMigrations.join(', ')}`);
+    throw new Error(
+      `Repository Preview migrations are not recorded as applied: ${missingMigrations.join(', ')}`,
+    );
+  }
+
+  const expected = new Set<string>(PREVIEW_EXPECTED_MIGRATIONS);
+  const unknownApplied = [...applied].filter((name) => !expected.has(name)).sort();
+  if (unknownApplied.length) {
+    throw new Error(
+      `Preview DB contains applied migrations not present in the repository migration plan: ${unknownApplied.join(', ')}`,
+    );
   }
 
   console.log('Preview schema verification passed.');
+  console.log({
+    appliedMigrations: applied.size,
+    expectedMigrations: PREVIEW_EXPECTED_MIGRATIONS.length,
+  });
   for (const [name] of checks) console.log(`OK ${name}`);
 } finally {
   await client.end().catch(() => undefined);

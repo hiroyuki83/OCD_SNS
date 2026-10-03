@@ -47,6 +47,8 @@ jobs:
 
             if [ "${branch_name}" = "main" ]; then
               classification="default-branch"
+            elif [ "${branch_name}" = "preview" ]; then
+              classification="retained-preview"
             elif [ "${protected}" = "true" ]; then
               classification="protected-review"
             elif [ "${open_prs}" -gt 0 ]; then
@@ -86,12 +88,14 @@ jobs:
           review="$(jq '[.[] | select(.classification == "review-required")] | length' "${inventory_file}")"
           open_pr="$(jq '[.[] | select(.classification == "open-pr")] | length' "${inventory_file}")"
           protected_count="$(jq '[.[] | select(.classification == "protected-review")] | length' "${inventory_file}")"
+          retained_preview="$(jq '[.[] | select(.classification == "retained-preview")] | length' "${inventory_file}")"
 
           echo "total=${total}" >> "${GITHUB_OUTPUT}"
           echo "safe=${safe}" >> "${GITHUB_OUTPUT}"
           echo "review=${review}" >> "${GITHUB_OUTPUT}"
           echo "open_pr=${open_pr}" >> "${GITHUB_OUTPUT}"
           echo "protected=${protected_count}" >> "${GITHUB_OUTPUT}"
+          echo "retained_preview=${retained_preview}" >> "${GITHUB_OUTPUT}"
 
           cp "${inventory_file}" branch-inventory.json
 
@@ -111,6 +115,7 @@ jobs:
           REVIEW: ${{ steps.inventory.outputs.review }}
           OPEN_PR: ${{ steps.inventory.outputs.open_pr }}
           PROTECTED: ${{ steps.inventory.outputs.protected }}
+          RETAINED_PREVIEW: ${{ steps.inventory.outputs.retained_preview }}
         run: |
           {
             echo "## Repository branch inventory"
@@ -120,9 +125,11 @@ jobs:
             echo "- review-required branches: \`${REVIEW}\`"
             echo "- branches with open PRs: \`${OPEN_PR}\`"
             echo "- protected non-main branches: \`${PROTECTED}\`"
+            echo "- retained Preview branches: \`${RETAINED_PREVIEW}\`"
             echo
             echo "Classification rule:"
-            echo "- safe-delete = non-main, unprotected, no open PR, ahead_of_main = 0"
+            echo "- retained-preview = long-lived Preview acceptance branch; never a cleanup candidate"
+            echo "- safe-delete = non-main/non-preview, unprotected, no open PR, ahead_of_main = 0"
             echo "- review-required = branch has commits not contained in main"
             echo
             echo "This workflow is read-only. It never deletes or moves a branch."

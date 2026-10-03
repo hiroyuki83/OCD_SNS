@@ -36,6 +36,7 @@ export async function GET(request: Request) {
 
     const now = new Date();
 
+    const isSelf = viewerId === user.id;
     const [
         followerCount,
         followingCount,
@@ -44,20 +45,24 @@ export async function GET(request: Request) {
         mutedRow,
         blockedByRow,
     ] = await Promise.all([
-        prisma.follow.count({
-            where: {
-                followingId: user.id,
-                acceptedAt: { not: null },
-                follower: visibleAccountFilter(now),
-            },
-        }),
-        prisma.follow.count({
-            where: {
-                followerId: user.id,
-                acceptedAt: { not: null },
-                following: visibleAccountFilter(now),
-            },
-        }),
+        isSelf
+            ? prisma.follow.count({
+                  where: {
+                      followingId: user.id,
+                      acceptedAt: { not: null },
+                      follower: visibleAccountFilter(now),
+                  },
+              })
+            : Promise.resolve(null),
+        isSelf
+            ? prisma.follow.count({
+                  where: {
+                      followerId: user.id,
+                      acceptedAt: { not: null },
+                      following: visibleAccountFilter(now),
+                  },
+              })
+            : Promise.resolve(null),
         viewerId
             ? prisma.follow.findUnique({
                   where: {
@@ -177,8 +182,6 @@ export async function GET(request: Request) {
               select: {
                   id: true,
                   content: true,
-                  imageUrl: true,
-                  imageAlt: true,
                   createdAt: true,
                   wakaruCount: true,
                   ganbattaCount: true,
@@ -205,8 +208,12 @@ export async function GET(request: Request) {
             avatarUrl: user.avatarUrl,
             headerUrl: isBlockRestricted ? null : user.headerUrl,
             isPrivate: user.isPrivate,
-            followerCount: isBlockRestricted ? 0 : followerCount,
-            followingCount: isBlockRestricted ? 0 : followingCount,
+            ...(isSelf && !isBlockRestricted
+                ? {
+                      followerCount: followerCount ?? 0,
+                      followingCount: followingCount ?? 0,
+                  }
+                : {}),
         },
         viewerId,
         isFollowing,
@@ -225,8 +232,6 @@ export async function GET(request: Request) {
                 return {
                     id: post.id,
                     content: post.content,
-                    imageUrl: post.imageUrl,
-                    imageAlt: post.imageAlt,
                     createdAt: post.createdAt,
                     wakaruCount: post.wakaruCount,
                     ganbattaCount: post.ganbattaCount,

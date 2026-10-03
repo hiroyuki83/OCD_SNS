@@ -49,6 +49,7 @@ jobs:
 
           [ -n "${BRANCH_NAME}" ] || { echo "branch_name is required."; exit 1; }
           [ "${BRANCH_NAME}" != "main" ] || { echo "main can never be deleted by this workflow."; exit 1; }
+          [ "${BRANCH_NAME}" != "preview" ] || { echo "preview is the long-lived acceptance branch and can never be deleted by this workflow."; exit 1; }
 
           default_branch="$(gh api "repos/${REPOSITORY}" --jq '.default_branch')"
           [ "${BRANCH_NAME}" != "${default_branch}" ] || {

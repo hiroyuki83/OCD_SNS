@@ -12,8 +12,6 @@ import PaginationLinks from '@/components/shared/PaginationLinks';
 type SearchPost = {
     id: string;
     content: string;
-    imageUrl: string | null;
-    imageAlt: string | null;
     createdAt: string;
     author: {
         name: string | null;
@@ -344,13 +342,6 @@ export default function ExploreClient() {
                                                 text={post.content}
                                                 className="text-sm leading-relaxed"
                                             />
-                                            {post.imageUrl && (
-                                                <img
-                                                    src={post.imageUrl}
-                                                    alt={post.imageAlt ?? ''}
-                                                    className="rounded-xl border border-border max-h-[320px] object-cover"
-                                                />
-                                            )}
                                             <Link
                                                 href={`/post/${encodeURIComponent(post.id)}`}
                                                 className="text-xs font-semibold text-[#1d9bf0] hover:underline"

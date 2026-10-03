@@ -1,8 +1,8 @@
 # CoCo Preview Roadmap / Progress Tracker
 
-最終更新: 2026-10-02
+最終更新: 2026-10-03
 対象基準ブランチ: `main`
-現在の実装ブランチ: `main`
+現在の受入ブランチ: `preview`
 
 この文書を Preview 版の進捗管理表として使用する。
 
@@ -181,6 +181,16 @@ CoCo v1 の主要機能実装、Production DB migration、Production application
 | NEXT-044 | Productionを一般ユーザー視点で一巡しUI / UXの粗を記録・修正候補化 | P1 | TODO |
 | NEXT-045 | 投稿制限解除 / アカウント停止解除の通知を追加 | P2 | TODO |
 | NEXT-046 | Preview Neon default branch名を `production` から誤認しにくい名称へ整理 | P3 | HOLD |
+| NEXT-047 | 固定 `preview` branch と固定Vercel Preview URLを常設する | P0 | DONE |
+| NEXT-048 | Preview用 `STAFF_MFA_ENCRYPTION_KEY` をbranch-scoped Secretとして固定・維持する | P0 | DONE |
+| NEXT-049 | Preview DB releaseを固定 `preview` branch向けに整理し、migrationとseedを分離する | P0 | IN PROGRESS |
+| NEXT-050 | 標準昇格経路を `feature/fix -> preview -> main -> explicit Production release` として要件・チェックリストへ同期する | P0 | DONE |
+| NEXT-051 | 固定Previewで一般ユーザー / ADMIN / MODERATORの実操作UX受入を完了する | P0 | IN PROGRESS |
+| NEXT-052 | GitHub `preview` environmentにPreview DB release用 `PREVIEW_DATABASE_URL` を登録し、再seed時のみ `PREVIEW_TEST_PASSWORD` を登録する | P0 | TODO |
+| NEXT-053 | 固定Preview aliasが最新 `preview` HEAD SHAを配信していることを自動検証する | P0 | DONE |
+| NEXT-054 | 長期 `preview` branchをrepository cleanupの削除対象外として保護する | P0 | DONE |
+| NEXT-055 | Preview runtimeを `PREVIEW_DATABASE_URL` 必須のfail-closedへ変更しProduction DB fallbackを禁止する | P0 | DONE |
+| NEXT-056 | 旧Preview branch専用だったVercel `PREVIEW_DATABASE_URL` を固定 `preview` branchへ再紐付けする | P0 | DONE |
 
 ## リリース進行フェーズ
 
@@ -2140,3 +2150,60 @@ cleanup完了後:
 
 NEXT-038: **DONE**
 PHASE-G: **DONE**
+
+
+## 2026-10-03 固定Preview環境・昇格フロー
+
+### 決定事項
+
+- 正式な受入branchを `preview` とする。
+- 固定Vercel Preview URLは `https://coco-git-preview-hiroyuki-desperado-yahoocojps-projects.vercel.app`。
+- feature / fix branchのランダムPreview URLは実装途中の確認用であり、正式受入には使用しない。
+- `main` へ入れる前に固定Previewで実操作確認する。
+- 標準昇格順は `feature / fix -> preview -> main -> explicit Production release`。
+- main mergeとProduction releaseは引き続き分離する。
+- `vercel.json` は `main=false`, `preview=true` を明示する。
+
+### Preview環境
+
+- Vercel Previewの `PREVIEW_DATABASE_URL` をruntime DB接続の正本とする。
+- 固定 `preview` branch用の `STAFF_MFA_ENCRYPTION_KEY` をVercel branch-scoped Secretとして作成済み。
+- MFA暗号化キーはデプロイ間で保持し、既存TOTPを壊さない。
+- Preview DB migrationは `preview` branchだけ許可する。
+- Preview DB release workflowはGitHub `preview` environmentの `PREVIEW_DATABASE_URL` をfail-closedで使用する。workflow実装は完了しているが、GitHub側Secret登録が未完了のためNEXT-049はIN PROGRESSとする。
+- test-user seedはmigrationと分離し、通常は実行しない。
+- 既存Preview test usersは保持する。
+- 再seedが必要な場合のみ `seed_users=true` を使う。
+- 再seed時のみGitHub `preview` environmentの `PREVIEW_TEST_PASSWORD` を必要とする。
+- `CoCo Preview Acceptance Ready` が固定Preview aliasと最新 `preview` HEAD SHAの一致、および `/login` smokeを確認する。
+- `preview` branchはbranch cleanupで `retained-preview` と分類し、自動削除・手動cleanup workflowの削除対象から除外する。
+
+### 現在の受入作業
+
+NEXT-051として、固定Preview URLで以下を実際に操作する。
+
+- USER: login / feed / post / profile / follow / private / notifications / settings / self-test
+- ADMIN / MODERATOR: MFA setup / login / admin / moderation
+- mobile layout
+- runtime error
+- UIの可読性・操作性
+
+不具合を見つけた場合はmainへ直接修正を入れず、まずpreview側で修正・再確認する。
+受入完了後にpreviewからmainへmergeする。
+Productionはその後の別release判断まで変更しない。
+
+
+### 2026-10-03 固定Preview DB誤接続インシデント
+
+固定 `preview` branch導入直後、Vercel上の `PREVIEW_DATABASE_URL` が旧 `security-integration-final-20260926` branchにのみ紐付いていたため、固定Preview runtimeがProduction用 `DATABASE_URL` へフォールバックした。
+
+影響:
+- Production DBへの書き込みは行っていない。
+- 固定PreviewからPreview test usersが見えず、ログインは `CredentialsSignin` となった。
+
+対応:
+- Preview runtime / migration DB selectorをfail-closedへ変更。
+- Previewで `PREVIEW_DATABASE_URL` 未設定時はProduction系URLへフォールバックしない。
+- 既存Vercel `PREVIEW_DATABASE_URL` の値は変更せず、branch bindingのみ `preview` へ移行。
+- 固定PreviewからPreview専用Neon endpoint、public1 / admin存在、ACTIVE、email verified、staff MFA未設定を確認。
+- 一時診断endpointは確認後に削除。

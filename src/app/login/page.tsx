@@ -4,6 +4,7 @@ import { Suspense, useActionState } from 'react';
 import { authenticate } from '@/app/lib/actions';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useFormStatus } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 
@@ -25,11 +26,14 @@ function LoginContent() {
     return (
         <div className="flex min-h-screen justify-center items-center bg-white text-black">
             <div className="w-full max-w-sm p-8 space-y-6">
-                <svg viewBox="0 0 24 24" aria-hidden="true" className="h-10 w-10 fill-black mx-auto">
-                    <g>
-                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path>
-                    </g>
-                </svg>
+                <Image
+                    src="/icon/logo.png"
+                    alt="CoCo"
+                    width={64}
+                    height={64}
+                    className="mx-auto h-16 w-16 rounded-full object-cover"
+                    priority
+                />
                 <h1 className="text-3xl font-bold text-center">CoCoにログイン</h1>
                 {accountDeleted && (
                     <p role="status" className="rounded-md bg-green-50 px-3 py-2 text-center text-sm text-green-700">

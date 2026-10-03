@@ -168,8 +168,6 @@ export async function GET(request: Request) {
             return {
                 id: post.id,
                 content: post.content,
-                imageUrl: post.imageUrl,
-                imageAlt: post.imageAlt,
                 createdAt: post.createdAt,
                 wakaruCount: post.wakaruCount,
                 ganbattaCount: post.ganbattaCount,
