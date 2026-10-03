@@ -27,11 +27,16 @@ jobs:
     timeout-minutes: 25
     environment: preview
     env:
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: team_P1Z1wvYF1h42LIl0YfgXoOPI
-      VERCEL_PROJECT_ID: prj_AcjmJFO5jcqse6sStknZzZkmfR7h
+      VERCEL_ENV: preview
+      VERCEL_GIT_COMMIT_REF: preview
+      PREVIEW_MIGRATION_CONFIRM: ${{ inputs.confirmation }}
+      PREVIEW_ALLOW_BASELINE: '0'
+      PREVIEW_SEED_USERS: ${{ inputs.seed_users && '1' || '0' }}
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      POSTGRES_URL_NON_POOLING: ${{ secrets.PREVIEW_DATABASE_URL }}
+      POSTGRES_PRISMA_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
       PREVIEW_TEST_PASSWORD: ${{ secrets.PREVIEW_TEST_PASSWORD }}
-      SEED_USERS: ${{ inputs.seed_users }}
 
     steps:
       - name: Checkout fixed Preview branch
@@ -45,81 +50,57 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Verify Preview release secrets before any DB write
+        shell: bash
+        env:
+          SEED_USERS: ${{ inputs.seed_users }}
+        run: |
+          set -euo pipefail
+          [ -n "${PREVIEW_DATABASE_URL:-}" ] || {
+            echo "PREVIEW_DATABASE_URL is not configured in the GitHub preview environment."
+            exit 1
+          }
+          [ "${DATABASE_URL}" = "${PREVIEW_DATABASE_URL}" ] || {
+            echo "DATABASE_URL must exactly match PREVIEW_DATABASE_URL."
+            exit 1
+          }
+          if [ "${SEED_USERS}" = "true" ] && [ -z "${PREVIEW_TEST_PASSWORD:-}" ]; then
+            echo "seed_users=true requires PREVIEW_TEST_PASSWORD in the GitHub preview environment."
+            exit 1
+          fi
+          echo "Preview release prerequisites are present. Secret values are not printed."
+
       - name: Install dependencies
         run: npm ci
 
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Verify optional seed prerequisites before any DB write
-        shell: bash
-        run: |
-          set -euo pipefail
-          [ -n "${VERCEL_TOKEN:-}" ] || { echo "VERCEL_TOKEN is not configured."; exit 1; }
-          if [ "${SEED_USERS}" = "true" ] && [ -z "${PREVIEW_TEST_PASSWORD:-}" ]; then
-            echo "seed_users=true requires PREVIEW_TEST_PASSWORD in the GitHub preview environment."
-            exit 1
-          fi
+      - name: Preview DB safety preflight
+        run: npm run preview:db:preflight
 
-      - name: Link Vercel project for Preview secret injection
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf .vercel
-          npx --yes vercel@latest link \
-            --yes \
-            --project=coco \
-            --scope=hiroyuki-desperado-yahoocojps-projects \
-            --token="${VERCEL_TOKEN}"
+      - name: Apply guarded Preview migrations
+        run: npm run preview:db:migrate
 
-      - name: Apply guarded Preview DB release using Vercel Preview secrets
-        shell: bash
-        run: |
-          set -euo pipefail
+      - name: Verify Preview schema
+        run: npm run preview:db:verify
 
-          export COCO_PREVIEW_TEST_PASSWORD="${PREVIEW_TEST_PASSWORD:-}"
-          export COCO_PREVIEW_SEED_USERS="${SEED_USERS}"
+      - name: Seed Preview test users when explicitly requested
+        if: ${{ inputs.seed_users }}
+        run: npm run seed:preview
 
-          npx --yes vercel@latest env run \
-            -e preview \
-            --git-branch preview \
-            --token="${VERCEL_TOKEN}" \
-            -- bash -lc '
-              set -euo pipefail
-
-              : "${PREVIEW_DATABASE_URL:?PREVIEW_DATABASE_URL was not injected by Vercel}"
-
-              export VERCEL_ENV=preview
-              export VERCEL_GIT_COMMIT_REF=preview
-              export PREVIEW_MIGRATION_CONFIRM=MIGRATE_COCO_PREVIEW
-              export PREVIEW_ALLOW_BASELINE=0
-              export DATABASE_URL="${PREVIEW_DATABASE_URL}"
-              export POSTGRES_URL_NON_POOLING="${PREVIEW_DATABASE_URL}"
-              export POSTGRES_PRISMA_URL="${PREVIEW_DATABASE_URL}"
-
-              npm run preview:db:preflight
-              npm run preview:db:migrate
-              npm run preview:db:verify
-
-              if [ "${COCO_PREVIEW_SEED_USERS:-false}" = "true" ]; then
-                export PREVIEW_SEED_USERS=1
-                export PREVIEW_TEST_PASSWORD="${COCO_PREVIEW_TEST_PASSWORD}"
-                npm run seed:preview
-              else
-                echo "Preview test-user seed skipped by default."
-              fi
-
-              npx prisma migrate status
-            '
+      - name: Confirm migration status
+        run: npx prisma migrate status
 
       - name: Emit Preview DB release summary
         shell: bash
+        env:
+          SEED_USERS: ${{ inputs.seed_users }}
         run: |
           {
             echo "## CoCo Preview DB release"
             echo
             echo "- branch: preview"
-            echo "- database source: Vercel Preview PREVIEW_DATABASE_URL"
             echo "- migration guard: MIGRATE_COCO_PREVIEW"
             echo "- seed users requested: ${SEED_USERS}"
             echo "- Production DB: untouched"
