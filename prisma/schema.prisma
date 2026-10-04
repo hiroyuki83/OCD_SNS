@@ -236,6 +236,8 @@ model YbocsResult {
   symptomsPast     String[]
 
   user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
 }
 
 model IesrResult {
@@ -270,6 +272,8 @@ model IesrResult {
   q22               Int
 
   user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
 }
 
 model ItqResult {
@@ -311,6 +315,8 @@ model ItqResult {
   c9               Int
 
   user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
 }
 
 model LsasResult {
@@ -371,6 +377,8 @@ model LsasResult {
   a24         Int
 
   user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
 }
 
 model Reaction {
