@@ -1,11 +1,26 @@
-﻿import { auth } from '@/auth';
+import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import TestTabs from '@/components/test/TestTabs';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function TestPage() {
+type TestTab = 'ybocs' | 'iesr' | 'itq' | 'lsas';
+
+function resolveTab(value: string | string[] | undefined): TestTab {
+    const tab = Array.isArray(value) ? value[0] : value;
+    if (tab === 'iesr' || tab === 'itq' || tab === 'lsas') return tab;
+    return 'ybocs';
+}
+
+export default async function TestPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ tab?: string | string[] }>;
+}) {
+    const params = await searchParams;
+    const activeTab = resolveTab(params.tab);
+
     const session = await auth();
     let userId = session?.user?.id ?? null;
     if (!userId && session?.user?.email) {
@@ -16,74 +31,78 @@ export default async function TestPage() {
         userId = user?.id ?? null;
     }
 
-    const ybocsResults = userId
-        ? await prisma.ybocsResult.findMany({
-              where: { userId },
-              orderBy: { createdAt: 'asc' },
-              select: {
-                  id: true,
-                  createdAt: true,
-                  totalScore: true,
-                  obsessionsScore: true,
-                  compulsionsScore: true,
-              },
-          })
-        : [];
+    const ybocsResults =
+        userId && activeTab === 'ybocs'
+            ? await prisma.ybocsResult.findMany({
+                  where: { userId },
+                  orderBy: { createdAt: 'asc' },
+                  select: {
+                      id: true,
+                      createdAt: true,
+                      totalScore: true,
+                      obsessionsScore: true,
+                      compulsionsScore: true,
+                  },
+              })
+            : [];
 
-    const iesrResults = userId
-        ? await prisma.iesrResult.findMany({
-              where: { userId },
-              orderBy: { createdAt: 'asc' },
-              select: {
-                  id: true,
-                  createdAt: true,
-                  totalScore: true,
-                  intrusionScore: true,
-                  avoidanceScore: true,
-                  hyperarousalScore: true,
-              },
-          })
-        : [];
+    const iesrResults =
+        userId && activeTab === 'iesr'
+            ? await prisma.iesrResult.findMany({
+                  where: { userId },
+                  orderBy: { createdAt: 'asc' },
+                  select: {
+                      id: true,
+                      createdAt: true,
+                      totalScore: true,
+                      intrusionScore: true,
+                      avoidanceScore: true,
+                      hyperarousalScore: true,
+                  },
+              })
+            : [];
 
-    const itqResults = userId
-        ? await prisma.itqResult.findMany({
-              where: { userId },
-              orderBy: { createdAt: 'asc' },
-              select: {
-                  id: true,
-                  createdAt: true,
-                  eventTiming: true,
-                  ptsdScore: true,
-                  dsoScore: true,
-                  reScore: true,
-                  avScore: true,
-                  thScore: true,
-                  adScore: true,
-                  nscScore: true,
-                  drScore: true,
-                  ptsdFunctional: true,
-                  dsoFunctional: true,
-                  ptsdMet: true,
-                  dsoMet: true,
-                  resultLabel: true,
-              },
-          })
-        : [];
+    const itqResults =
+        userId && activeTab === 'itq'
+            ? await prisma.itqResult.findMany({
+                  where: { userId },
+                  orderBy: { createdAt: 'asc' },
+                  select: {
+                      id: true,
+                      createdAt: true,
+                      eventTiming: true,
+                      ptsdScore: true,
+                      dsoScore: true,
+                      reScore: true,
+                      avScore: true,
+                      thScore: true,
+                      adScore: true,
+                      nscScore: true,
+                      drScore: true,
+                      ptsdFunctional: true,
+                      dsoFunctional: true,
+                      ptsdMet: true,
+                      dsoMet: true,
+                      resultLabel: true,
+                  },
+              })
+            : [];
 
-    const lsasResults = userId
-        ? await prisma.lsasResult.findMany({
-              where: { userId },
-              orderBy: { createdAt: 'asc' },
-              select: {
-                  id: true,
-                  createdAt: true,
-                  totalScore: true,
-                  fearScore: true,
-                  avoidScore: true,
-                  resultLabel: true,
-              },
-          })
-        : [];
+    const lsasResults =
+        userId && activeTab === 'lsas'
+            ? await prisma.lsasResult.findMany({
+                  where: { userId },
+                  orderBy: { createdAt: 'asc' },
+                  select: {
+                      id: true,
+                      createdAt: true,
+                      totalScore: true,
+                      fearScore: true,
+                      avoidScore: true,
+                      resultLabel: true,
+                  },
+              })
+            : [];
 
     return (
         <div className="min-h-screen border-r border-border">

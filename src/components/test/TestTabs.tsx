@@ -1,16 +1,19 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useTransition } from 'react';
-import YbocsForm from '@/components/test/YbocsForm';
-import IesrForm from '@/components/test/IesrForm';
-import ItqForm from '@/components/test/ItqForm';
-import LsasForm from '@/components/test/LsasForm';
 import AssessmentOverview, {
     type AssessmentBand,
 } from '@/components/test/AssessmentOverview';
 import { deleteSelfTestResult } from '@/app/lib/actions';
+
+const formLoading = () => <div className="text-sm text-zinc-500">検査フォームを読み込んでいます...</div>;
+const YbocsForm = dynamic(() => import('@/components/test/YbocsForm'), { loading: formLoading });
+const IesrForm = dynamic(() => import('@/components/test/IesrForm'), { loading: formLoading });
+const ItqForm = dynamic(() => import('@/components/test/ItqForm'), { loading: formLoading });
+const LsasForm = dynamic(() => import('@/components/test/LsasForm'), { loading: formLoading });
 
 type YbocsResult = {
     id: string;
