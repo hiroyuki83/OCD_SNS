@@ -1,0 +1,73 @@
+name: One-shot CoCo Preview DB Migration
+
+on:
+  push:
+    branches:
+      - preview
+
+concurrency:
+  group: coco-preview-db-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: preview
+    env:
+      VERCEL_ENV: preview
+      VERCEL_GIT_COMMIT_REF: preview
+      PREVIEW_MIGRATION_CONFIRM: MIGRATE_COCO_PREVIEW
+      PREVIEW_ALLOW_BASELINE: '0'
+      PREVIEW_SEED_USERS: '0'
+      DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+      POSTGRES_URL_NON_POOLING: ${{ secrets.PREVIEW_DATABASE_URL }}
+      POSTGRES_PRISMA_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
+
+    steps:
+      - name: Checkout fixed Preview branch
+        uses: actions/checkout@v6
+        with:
+          ref: preview
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Verify Preview release secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${PREVIEW_DATABASE_URL:-}" ] || {
+            echo "PREVIEW_DATABASE_URL is not configured in the GitHub preview environment."
+            exit 1
+          }
+          [ "${DATABASE_URL}" = "${PREVIEW_DATABASE_URL}" ] || {
+            echo "DATABASE_URL must exactly match PREVIEW_DATABASE_URL."
+            exit 1
+          }
+          echo "Preview release prerequisites are present. Secret values are not printed."
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Preview DB safety preflight
+        run: npm run preview:db:preflight
+
+      - name: Apply guarded Preview migrations
+        run: npm run preview:db:migrate
+
+      - name: Verify Preview schema
+        run: npm run preview:db:verify
+
+      - name: Confirm migration status
+        run: npx prisma migrate status
