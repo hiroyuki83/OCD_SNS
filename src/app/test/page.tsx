@@ -1,16 +1,19 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import TestTabs from '@/components/test/TestTabs';
+import {
+    ASSESSMENT_DEFINITIONS,
+    ASSESSMENT_SUMMARIES,
+    isSelfAssessmentKey,
+} from '@/lib/selfAssessmentDefinitions';
+import type { SelfAssessmentKey } from '@/lib/selfAssessmentTypes';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-type TestTab = 'ybocs' | 'iesr' | 'itq' | 'lsas';
-
-function resolveTab(value: string | string[] | undefined): TestTab {
+function resolveTab(value: string | string[] | undefined): SelfAssessmentKey {
     const tab = Array.isArray(value) ? value[0] : value;
-    if (tab === 'iesr' || tab === 'itq' || tab === 'lsas') return tab;
-    return 'ybocs';
+    return isSelfAssessmentKey(tab) ? tab : 'depression';
 }
 
 export default async function TestPage({
@@ -20,6 +23,7 @@ export default async function TestPage({
 }) {
     const params = await searchParams;
     const activeTab = resolveTab(params.tab);
+    const definition = ASSESSMENT_DEFINITIONS[activeTab];
 
     const session = await auth();
     let userId = session?.user?.id ?? null;
@@ -31,111 +35,54 @@ export default async function TestPage({
         userId = user?.id ?? null;
     }
 
-    const ybocsResults =
-        userId && activeTab === 'ybocs'
-            ? await prisma.ybocsResult.findMany({
-                  where: { userId },
-                  orderBy: { createdAt: 'asc' },
-                  select: {
-                      id: true,
-                      createdAt: true,
-                      totalScore: true,
-                      obsessionsScore: true,
-                      compulsionsScore: true,
-                  },
-              })
-            : [];
-
-    const iesrResults =
-        userId && activeTab === 'iesr'
-            ? await prisma.iesrResult.findMany({
-                  where: { userId },
-                  orderBy: { createdAt: 'asc' },
-                  select: {
-                      id: true,
-                      createdAt: true,
-                      totalScore: true,
-                      intrusionScore: true,
-                      avoidanceScore: true,
-                      hyperarousalScore: true,
-                  },
-              })
-            : [];
-
-    const itqResults =
-        userId && activeTab === 'itq'
-            ? await prisma.itqResult.findMany({
-                  where: { userId },
-                  orderBy: { createdAt: 'asc' },
-                  select: {
-                      id: true,
-                      createdAt: true,
-                      eventTiming: true,
-                      ptsdScore: true,
-                      dsoScore: true,
-                      reScore: true,
-                      avScore: true,
-                      thScore: true,
-                      adScore: true,
-                      nscScore: true,
-                      drScore: true,
-                      ptsdFunctional: true,
-                      dsoFunctional: true,
-                      ptsdMet: true,
-                      dsoMet: true,
-                      resultLabel: true,
-                  },
-              })
-            : [];
-
-    const lsasResults =
-        userId && activeTab === 'lsas'
-            ? await prisma.lsasResult.findMany({
-                  where: { userId },
-                  orderBy: { createdAt: 'asc' },
-                  select: {
-                      id: true,
-                      createdAt: true,
-                      totalScore: true,
-                      fearScore: true,
-                      avoidScore: true,
-                      resultLabel: true,
-                  },
-              })
-            : [];
+    const results = userId
+        ? await prisma.selfAssessmentResult.findMany({
+              where: {
+                  userId,
+                  assessmentKey: activeTab,
+              },
+              orderBy: { createdAt: 'asc' },
+              select: {
+                  id: true,
+                  createdAt: true,
+                  totalScore: true,
+                  functionScore: true,
+                  subscaleScores: true,
+                  safetyFlags: true,
+              },
+          })
+        : [];
 
     return (
         <div className="min-h-screen border-r border-border">
-            <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center px-4">
-                <h1 className="font-bold text-base">心理検査</h1>
+            <div className="sticky top-0 z-10 flex h-14 items-center border-b border-border bg-background/80 px-4 backdrop-blur-md">
+                <h1 className="text-base font-bold">セルフチェック</h1>
             </div>
 
             {!session?.user && (
                 <div className="p-6 text-sm text-zinc-400">
-                    テストを保存するにはログインが必要です
+                    結果を保存するにはログインが必要です
                 </div>
             )}
 
-            <div className="p-4 space-y-6">
-                <div className="text-xs text-zinc-500 leading-relaxed border border-border rounded-2xl p-4">
-                    このテストは自己チェック用です。診断や治療の代わりにはなりません。保存した結果は本人の心理検査ページだけに表示し、公開プロフィールや通常の管理画面には表示しません。
+            <div className="space-y-6 p-4">
+                <div className="rounded-2xl border border-border p-4 text-xs leading-relaxed text-zinc-500">
+                    CoCo独自の経過モニタリング項目です。診断や治療、標準化された心理検査の代わりにはなりません。保存した結果は本人のセルフチェックページだけに表示し、公開プロフィールや通常の管理画面には表示しません。
                 </div>
+
                 <TestTabs
-                    ybocsResults={ybocsResults.map((result) => ({
-                        ...result,
+                    definition={definition}
+                    tabs={ASSESSMENT_SUMMARIES}
+                    canSave={Boolean(session?.user)}
+                    results={results.map((result) => ({
+                        id: result.id,
                         createdAt: result.createdAt.toISOString(),
-                    }))}
-                    iesrResults={iesrResults.map((result) => ({
-                        ...result,
-                        createdAt: result.createdAt.toISOString(),
-                    }))}
-                    itqResults={itqResults.map((result) => ({
-                        ...result,
-                        createdAt: result.createdAt.toISOString(),
-                    }))}
-                    lsasResults={lsasResults.map((result) => ({
-                        ...result,
-                        createdAt: result.createdAt.toISOString(),
+                        totalScore: result.totalScore,
+                        functionScore: result.functionScore,
+                        subscaleScores: result.subscaleScores as Record<string, number>,
+                        safetyFlags: Array.isArray(result.safetyFlags)
+                            ? result.safetyFlags.filter((value): value is string => typeof value === 'string')
+                            : [],
                     }))}
                 />
             </div>
