@@ -130,9 +130,7 @@ export async function submitSelfAssessment(
             },
         });
     } catch (error) {
-        logOperationalError('SELF_ASSESSMENT_RESULT_SAVE_FAILED', error, {
-            assessmentKey,
-        });
+        logOperationalError('SELF_ASSESSMENT_RESULT_SAVE_FAILED', error);
         return { message: '結果の保存に失敗しました。' };
     }
 
