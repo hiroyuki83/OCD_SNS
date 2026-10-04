@@ -7,6 +7,9 @@ import YbocsForm from '@/components/test/YbocsForm';
 import IesrForm from '@/components/test/IesrForm';
 import ItqForm from '@/components/test/ItqForm';
 import LsasForm from '@/components/test/LsasForm';
+import AssessmentOverview, {
+    type AssessmentBand,
+} from '@/components/test/AssessmentOverview';
 import { deleteSelfTestResult } from '@/app/lib/actions';
 
 type YbocsResult = {
@@ -54,6 +57,54 @@ type LsasResult = {
     resultLabel: string;
 };
 
+const YBOCS_BANDS: AssessmentBand[] = [
+    { label: '寛解（12以下）', min: 0, max: 12, fill: '#dcfce7' },
+    { label: '', min: 12, max: 15, fill: '#f4f4f5' },
+    { label: '軽症（15〜21）', min: 15, max: 21, fill: '#e0f2fe' },
+    { label: '中等症（22〜34）', min: 22, max: 34, fill: '#fef3c7' },
+    { label: '重症（35〜50）', min: 35, max: 50, fill: '#fee2e2' },
+];
+
+const LSAS_BANDS: AssessmentBand[] = [
+    { label: '正常範囲（0〜29）', min: 0, max: 29, fill: '#dcfce7' },
+    { label: '境界域（30〜49）', min: 30, max: 49, fill: '#e0f2fe' },
+    { label: '中程度（50〜69）', min: 50, max: 69, fill: '#fef3c7' },
+    { label: '症状が著しい（70〜89）', min: 70, max: 89, fill: '#ffedd5' },
+    { label: '重度（90〜144）', min: 90, max: 144, fill: '#fee2e2' },
+];
+
+function resultDateLabel(value: string) {
+    return new Date(value).toLocaleDateString('ja-JP', {
+        month: '2-digit',
+        day: '2-digit',
+    });
+}
+
+function resultDateTimeLabel(value: string) {
+    return new Date(value).toLocaleString('ja-JP', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+function deltaLabel(current: number, previous?: number) {
+    if (previous === undefined) return undefined;
+    const delta = current - previous;
+    const sign = delta > 0 ? '+' : '';
+    return `${sign}${delta}（前回 ${previous}）`;
+}
+
+function ybocsSeverity(score: number) {
+    if (score <= 12) return '寛解';
+    if (score >= 15 && score <= 21) return '軽症';
+    if (score >= 22 && score <= 34) return '中等症';
+    if (score >= 35) return '重症';
+    return undefined;
+}
+
 function DeleteResultButton({
     testType,
     resultId,
@@ -81,97 +132,6 @@ function DeleteResultButton({
     );
 }
 
-function ScoreChart({
-    scores,
-    labels,
-    statusLabels,
-    maxScore,
-}: {
-    scores: number[];
-    labels: string[];
-    statusLabels: string[];
-    maxScore: number;
-}) {
-    if (scores.length === 0) return null;
-
-    const width = 640;
-    const height = 200;
-    const padding = 32;
-    const xLabelOffset = 14;
-    const statusLabelOffset = 6;
-    const yAxisLabelOffset = 6;
-    const points = scores.map((score, index) => {
-        const x =
-            scores.length === 1
-                ? width / 2
-                : padding + (index * (width - padding * 2)) / (scores.length - 1);
-        const y = padding + ((maxScore - score) / maxScore) * (height - padding * 2);
-        return { x, y };
-    });
-    const path = points
-        .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
-        .join(' ');
-
-    const gridLines = 5;
-    const yTicks = Array.from({ length: gridLines + 1 }, (_, i) => {
-        const value = maxScore - (i * maxScore) / gridLines;
-        const y = padding + (i * (height - padding * 2)) / gridLines;
-        return { value, y };
-    });
-
-    return (
-        <div className="border border-border rounded-2xl p-4">
-            <div className="text-sm font-bold mb-2">スコア推移</div>
-            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-52">
-                <rect x="0" y="0" width={width} height={height} fill="transparent" />
-                <g stroke="#27272a" strokeWidth="1">
-                    {yTicks.map((tick) => (
-                        <line key={tick.value} x1={padding} y1={tick.y} x2={width - padding} y2={tick.y} />
-                    ))}
-                </g>
-                <path d={path} fill="none" stroke="#1d9bf0" strokeWidth="2" />
-                {points.map((point, index) => (
-                    <circle key={index} cx={point.x} cy={point.y} r="3" fill="#1d9bf0" />
-                ))}
-                <g fill="#a1a1aa" fontSize="10">
-                    {labels.map((label, index) => {
-                        const x =
-                            labels.length === 1
-                                ? width / 2
-                                : padding + (index * (width - padding * 2)) / (labels.length - 1);
-                        return (
-                            <text key={label} x={x} y={height - xLabelOffset} textAnchor="middle">
-                                {label}
-                            </text>
-                        );
-                    })}
-                </g>
-                <g fill="#60a5fa" fontSize="9">
-                    {statusLabels.map((label, index) => {
-                        if (!label) return null;
-                        const x =
-                            statusLabels.length === 1
-                                ? width / 2
-                                : padding + (index * (width - padding * 2)) / (statusLabels.length - 1);
-                        return (
-                            <text key={`${label}-${index}`} x={x} y={height - statusLabelOffset} textAnchor="middle">
-                                {label}
-                            </text>
-                        );
-                    })}
-                </g>
-                <g fill="#71717a" fontSize="10" textAnchor="end">
-                    {yTicks.map((tick) => (
-                        <text key={`y-${tick.value}`} x={padding - yAxisLabelOffset} y={tick.y + 3}>
-                            {Math.round(tick.value)}
-                        </text>
-                    ))}
-                </g>
-            </svg>
-        </div>
-    );
-}
-
 export default function TestTabs({
     ybocsResults,
     iesrResults,
@@ -194,35 +154,20 @@ export default function TestTabs({
                     ? 'lsas'
                     : 'ybocs';
 
-    const ybocsScores = ybocsResults.map((result) => result.totalScore);
-    const ybocsLabels = ybocsResults.map((result) =>
-        new Date(result.createdAt).toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }),
-    );
-    const ybocsStatusLabels = ybocsResults.map((result, index) => {
-        if (index === 0) return '';
-        const previous = ybocsResults[index - 1];
-        const response =
-            previous.totalScore > 0 &&
-            (previous.totalScore - result.totalScore) / previous.totalScore >= 0.35;
-        const remission = result.totalScore <= 12;
-        if (remission) return '寛解';
-        if (response) return '治療効果あり';
-        return '';
-    });
-    const ybocsChartMinWidth = ybocsScores.length > 7 ? 640 + (ybocsScores.length - 7) * 120 : 640;
-
-    const iesrScores = iesrResults.map((result) => result.totalScore);
-    const iesrLabels = iesrResults.map((result) =>
-        new Date(result.createdAt).toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }),
-    );
-    const iesrChartMinWidth = iesrScores.length > 7 ? 640 + (iesrScores.length - 7) * 120 : 640;
+    const latestYbocs = ybocsResults.at(-1);
+    const previousYbocs = ybocsResults.at(-2);
+    const latestIesr = iesrResults.at(-1);
+    const previousIesr = iesrResults.at(-2);
+    const latestItq = itqResults.at(-1);
+    const latestLsas = lsasResults.at(-1);
+    const previousLsas = lsasResults.at(-2);
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center gap-2 border-b border-border">
+            <div className="flex items-center gap-2 overflow-x-auto border-b border-border">
                 <Link
                     href="/test?tab=ybocs"
-                    className={`px-4 py-2 text-sm font-bold transition-colors ${
+                    className={`shrink-0 px-4 py-2 text-sm font-bold transition-colors ${
                         activeTab === 'ybocs'
                             ? 'text-[#1d9bf0] border-b-2 border-[#1d9bf0]'
                             : 'text-zinc-500 hover:text-zinc-700'
@@ -232,7 +177,7 @@ export default function TestTabs({
                 </Link>
                 <Link
                     href="/test?tab=iesr"
-                    className={`px-4 py-2 text-sm font-bold transition-colors ${
+                    className={`shrink-0 px-4 py-2 text-sm font-bold transition-colors ${
                         activeTab === 'iesr'
                             ? 'text-[#1d9bf0] border-b-2 border-[#1d9bf0]'
                             : 'text-zinc-500 hover:text-zinc-700'
@@ -242,7 +187,7 @@ export default function TestTabs({
                 </Link>
                 <Link
                     href="/test?tab=itq"
-                    className={`px-4 py-2 text-sm font-bold transition-colors ${
+                    className={`shrink-0 px-4 py-2 text-sm font-bold transition-colors ${
                         activeTab === 'itq'
                             ? 'text-[#1d9bf0] border-b-2 border-[#1d9bf0]'
                             : 'text-zinc-500 hover:text-zinc-700'
@@ -252,7 +197,7 @@ export default function TestTabs({
                 </Link>
                 <Link
                     href="/test?tab=lsas"
-                    className={`px-4 py-2 text-sm font-bold transition-colors ${
+                    className={`shrink-0 px-4 py-2 text-sm font-bold transition-colors ${
                         activeTab === 'lsas'
                             ? 'text-[#1d9bf0] border-b-2 border-[#1d9bf0]'
                             : 'text-zinc-500 hover:text-zinc-700'
@@ -262,31 +207,50 @@ export default function TestTabs({
                 </Link>
             </div>
 
-            {activeTab === 'ybocs' && ybocsResults.length > 0 && (
+            {activeTab === 'ybocs' && latestYbocs && (
                 <>
-                    <div className="border border-border rounded-2xl p-4 space-y-3">
-                        <div className="text-sm font-bold">スコア推移</div>
-                        <div className="overflow-x-auto pb-2">
-                            <div style={{ minWidth: `${ybocsChartMinWidth}px` }}>
-                                <ScoreChart
-                                    scores={ybocsScores}
-                                    labels={ybocsLabels}
-                                    statusLabels={ybocsStatusLabels}
-                                    maxScore={50}
-                                />
-                            </div>
-                        </div>
-                        <div className="text-xs text-zinc-500">
-                            {ybocsResults.length > 7 && '横スクロールで過去のスコアを確認できます。'}
-                        </div>
-                    </div>
-                    <div className="border border-border rounded-2xl p-4 text-xs text-zinc-500 space-y-2">
-                        <div className="font-bold text-zinc-400">目安</div>
-                        <div>寛解 12以下</div>
-                        <div>軽症 15〜21点</div>
-                        <div>中等症 22〜34点</div>
-                        <div>重症 35〜50点</div>
-                    </div>
+                    <AssessmentOverview
+                        title="Y-BOCS"
+                        subtitle="強迫症状の経過と、直近の強迫観念・強迫行為"
+                        labels={ybocsResults.map((result) => resultDateLabel(result.createdAt))}
+                        trendSeries={[
+                            {
+                                label: '合計',
+                                color: '#0284c7',
+                                values: ybocsResults.map((result) => result.totalScore),
+                            },
+                        ]}
+                        maxScore={50}
+                        summaryItems={[
+                            {
+                                label: '今回のスコア',
+                                value: latestYbocs.totalScore,
+                                max: 50,
+                            },
+                        ]}
+                        statusLabel={ybocsSeverity(latestYbocs.totalScore)}
+                        deltaLabel={deltaLabel(latestYbocs.totalScore, previousYbocs?.totalScore)}
+                        bands={YBOCS_BANDS}
+                        profileGroups={[
+                            {
+                                title: '直近の内訳',
+                                color: '#0284c7',
+                                items: [
+                                    {
+                                        label: '強迫観念',
+                                        value: latestYbocs.obsessionsScore,
+                                        max: 25,
+                                    },
+                                    {
+                                        label: '強迫行為',
+                                        value: latestYbocs.compulsionsScore,
+                                        max: 25,
+                                    },
+                                ],
+                            },
+                        ]}
+                    />
+
                     <div className="border border-border rounded-2xl p-4 space-y-2 max-h-80 overflow-y-auto">
                         <div className="text-sm font-bold">履歴</div>
                         <div className="grid gap-2 text-sm">
@@ -306,24 +270,16 @@ export default function TestTabs({
                                     return (
                                         <div
                                             key={result.id}
-                                            className="grid items-center gap-2 text-zinc-400"
+                                            className="grid items-center gap-2 text-zinc-500"
                                             style={{
                                                 gridTemplateColumns:
                                                     'minmax(140px,1.2fr) minmax(90px,0.8fr) minmax(80px,0.6fr) minmax(90px,0.7fr) minmax(90px,0.7fr) minmax(50px,0.4fr)',
                                             }}
                                         >
-                                            <span>
-                                                {new Date(result.createdAt).toLocaleString('ja-JP', {
-                                                    year: 'numeric',
-                                                    month: '2-digit',
-                                                    day: '2-digit',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                })}
-                                            </span>
+                                            <span>{resultDateTimeLabel(result.createdAt)}</span>
                                             <span className="flex items-center gap-2">
                                                 {response && <span className="text-[#1d9bf0]">治療効果あり</span>}
-                                                {remission && <span className="text-green-400">寛解</span>}
+                                                {remission && <span className="text-green-600">寛解</span>}
                                             </span>
                                             <span>合計 {result.totalScore}</span>
                                             <span>強迫観念 {result.obsessionsScore}</span>
@@ -337,29 +293,60 @@ export default function TestTabs({
                 </>
             )}
 
-            {activeTab === 'iesr' && iesrResults.length > 0 && (
+            {activeTab === 'iesr' && latestIesr && (
                 <>
-                    <div className="border border-border rounded-2xl p-4 space-y-3">
-                        <div className="text-sm font-bold">スコア推移</div>
-                        <div className="overflow-x-auto pb-2">
-                            <div style={{ minWidth: `${iesrChartMinWidth}px` }}>
-                                <ScoreChart
-                                    scores={iesrScores}
-                                    labels={iesrLabels}
-                                    statusLabels={new Array(iesrScores.length).fill('')}
-                                    maxScore={88}
-                                />
-                            </div>
-                        </div>
-                        <div className="text-xs text-zinc-500">
-                            {iesrResults.length > 7 && '横スクロールで過去のスコアを確認できます。'}
-                        </div>
-                    </div>
+                    <AssessmentOverview
+                        title="IES-R"
+                        subtitle="心的外傷後ストレス症状の経過と、直近の症状プロフィール"
+                        labels={iesrResults.map((result) => resultDateLabel(result.createdAt))}
+                        trendSeries={[
+                            {
+                                label: '合計',
+                                color: '#0284c7',
+                                values: iesrResults.map((result) => result.totalScore),
+                            },
+                        ]}
+                        maxScore={88}
+                        summaryItems={[
+                            {
+                                label: '今回のスコア',
+                                value: latestIesr.totalScore,
+                                max: 88,
+                            },
+                        ]}
+                        statusLabel={latestIesr.totalScore >= 25 ? '境界値以上' : '境界値未満'}
+                        deltaLabel={deltaLabel(latestIesr.totalScore, previousIesr?.totalScore)}
+                        profileGroups={[
+                            {
+                                title: '直近の下位尺度',
+                                color: '#0ea5e9',
+                                items: [
+                                    {
+                                        label: '侵入症状',
+                                        value: latestIesr.intrusionScore,
+                                        max: 32,
+                                    },
+                                    {
+                                        label: '回避',
+                                        value: latestIesr.avoidanceScore,
+                                        max: 32,
+                                    },
+                                    {
+                                        label: '過覚醒',
+                                        value: latestIesr.hyperarousalScore,
+                                        max: 24,
+                                    },
+                                ],
+                            },
+                        ]}
+                    />
+
                     <div className="border border-border rounded-2xl p-4 text-xs text-zinc-500 space-y-2">
-                        <div className="font-bold text-zinc-400">目安</div>
-                        <div>合計点 24 / 25 点がスクリーニングの境界値</div>
+                        <div className="font-bold text-zinc-600">目安</div>
+                        <div>合計点 24 / 25 点がスクリーニングの境界値です。</div>
                         <div>医学的な診断に代わるものではありません。</div>
                     </div>
+
                     <div className="border border-border rounded-2xl p-4 space-y-2 max-h-80 overflow-y-auto">
                         <div className="text-sm font-bold">履歴</div>
                         <div className="grid gap-2 text-sm">
@@ -369,21 +356,13 @@ export default function TestTabs({
                                 .map((result) => (
                                     <div
                                         key={result.id}
-                                        className="grid items-center gap-2 text-zinc-400"
+                                        className="grid items-center gap-2 text-zinc-500"
                                         style={{
                                             gridTemplateColumns:
                                                 'minmax(140px,1.2fr) minmax(90px,0.8fr) minmax(100px,0.8fr) minmax(100px,0.8fr) minmax(100px,0.8fr) minmax(50px,0.4fr)',
                                         }}
                                     >
-                                        <span>
-                                            {new Date(result.createdAt).toLocaleString('ja-JP', {
-                                                year: 'numeric',
-                                                month: '2-digit',
-                                                day: '2-digit',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                            })}
-                                        </span>
+                                        <span>{resultDateTimeLabel(result.createdAt)}</span>
                                         <span>合計 {result.totalScore}</span>
                                         <span>侵入 {result.intrusionScore}</span>
                                         <span>回避 {result.avoidanceScore}</span>
@@ -396,13 +375,66 @@ export default function TestTabs({
                 </>
             )}
 
-            {activeTab === 'itq' && itqResults.length > 0 && (
+            {activeTab === 'itq' && latestItq && (
                 <>
+                    <AssessmentOverview
+                        title="ITQ"
+                        subtitle="PTSD症状とDSO症状の経過、直近の6領域"
+                        labels={itqResults.map((result) => resultDateLabel(result.createdAt))}
+                        trendSeries={[
+                            {
+                                label: 'PTSD',
+                                color: '#0284c7',
+                                values: itqResults.map((result) => result.ptsdScore),
+                            },
+                            {
+                                label: 'DSO',
+                                color: '#0f766e',
+                                values: itqResults.map((result) => result.dsoScore),
+                            },
+                        ]}
+                        maxScore={24}
+                        summaryItems={[
+                            {
+                                label: 'PTSD症状',
+                                value: latestItq.ptsdScore,
+                                max: 24,
+                            },
+                            {
+                                label: 'DSO症状',
+                                value: latestItq.dsoScore,
+                                max: 24,
+                            },
+                        ]}
+                        statusLabel={latestItq.resultLabel}
+                        profileGroups={[
+                            {
+                                title: 'PTSD（3領域）',
+                                color: '#0284c7',
+                                items: [
+                                    { label: '再体験', value: latestItq.reScore, max: 8 },
+                                    { label: '回避', value: latestItq.avScore, max: 8 },
+                                    { label: '脅威感', value: latestItq.thScore, max: 8 },
+                                ],
+                            },
+                            {
+                                title: 'DSO（自己組織化の障害）',
+                                color: '#0f766e',
+                                items: [
+                                    { label: '感情調整困難', value: latestItq.adScore, max: 8 },
+                                    { label: '否定的自己概念', value: latestItq.nscScore, max: 8 },
+                                    { label: '対人関係困難', value: latestItq.drScore, max: 8 },
+                                ],
+                            },
+                        ]}
+                    />
+
                     <div className="border border-border rounded-2xl p-4 text-xs text-zinc-500 space-y-2">
-                        <div className="font-bold text-zinc-400">判定</div>
+                        <div className="font-bold text-zinc-600">判定</div>
                         <div>PTSD / CPTSD の可能性をスクリーニングします。</div>
                         <div>※CPTSDの基準を満たしている場合、PTSDの診断は受けません（CPTSDに含まれます）。</div>
                     </div>
+
                     <div className="border border-border rounded-2xl p-4 space-y-2 max-h-80 overflow-y-auto">
                         <div className="text-sm font-bold">履歴</div>
                         <div className="grid gap-2 text-sm">
@@ -412,26 +444,18 @@ export default function TestTabs({
                                 .map((result) => (
                                     <div
                                         key={result.id}
-                                        className="grid items-center gap-2 text-zinc-400"
+                                        className="grid items-center gap-2 text-zinc-500"
                                         style={{
                                             gridTemplateColumns:
                                                 'minmax(140px,1.2fr) minmax(180px,1.2fr) minmax(80px,0.7fr) minmax(80px,0.7fr) minmax(120px,0.9fr) minmax(50px,0.4fr)',
                                         }}
                                     >
-                                        <span>
-                                            {new Date(result.createdAt).toLocaleString('ja-JP', {
-                                                year: 'numeric',
-                                                month: '2-digit',
-                                                day: '2-digit',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                            })}
-                                        </span>
-                                        <span className="text-zinc-300">{result.resultLabel}</span>
+                                        <span>{resultDateTimeLabel(result.createdAt)}</span>
+                                        <span>{result.resultLabel}</span>
                                         <span>PTSD {result.ptsdScore}</span>
                                         <span>DSO {result.dsoScore}</span>
                                         <span className="text-xs">
-                                            侵入 {result.reScore} / 回避 {result.avScore} / 過覚醒 {result.thScore}
+                                            再体験 {result.reScore} / 回避 {result.avScore} / 脅威感 {result.thScore}
                                         </span>
                                         <DeleteResultButton testType="itq" resultId={result.id} />
                                     </div>
@@ -441,12 +465,50 @@ export default function TestTabs({
                 </>
             )}
 
-            {activeTab === 'lsas' && lsasResults.length > 0 && (
+            {activeTab === 'lsas' && latestLsas && (
                 <>
-                    <div className="border border-border rounded-2xl p-4 text-xs text-zinc-500 space-y-2">
-                        <div className="font-bold text-zinc-400">判定</div>
-                        <div>総合得点に基づいて判定します。</div>
-                    </div>
+                    <AssessmentOverview
+                        title="LSAS-J"
+                        subtitle="社交不安症状の経過と、直近の恐怖・不安／回避"
+                        labels={lsasResults.map((result) => resultDateLabel(result.createdAt))}
+                        trendSeries={[
+                            {
+                                label: '合計',
+                                color: '#0284c7',
+                                values: lsasResults.map((result) => result.totalScore),
+                            },
+                        ]}
+                        maxScore={144}
+                        summaryItems={[
+                            {
+                                label: '今回のスコア',
+                                value: latestLsas.totalScore,
+                                max: 144,
+                            },
+                        ]}
+                        statusLabel={latestLsas.resultLabel}
+                        deltaLabel={deltaLabel(latestLsas.totalScore, previousLsas?.totalScore)}
+                        bands={LSAS_BANDS}
+                        profileGroups={[
+                            {
+                                title: '直近の内訳',
+                                color: '#0284c7',
+                                items: [
+                                    {
+                                        label: '恐怖感 / 不安感',
+                                        value: latestLsas.fearScore,
+                                        max: 72,
+                                    },
+                                    {
+                                        label: '回避',
+                                        value: latestLsas.avoidScore,
+                                        max: 72,
+                                    },
+                                ],
+                            },
+                        ]}
+                    />
+
                     <div className="border border-border rounded-2xl p-4 space-y-2 max-h-80 overflow-y-auto">
                         <div className="text-sm font-bold">履歴</div>
                         <div className="grid gap-2 text-sm">
@@ -456,22 +518,14 @@ export default function TestTabs({
                                 .map((result) => (
                                     <div
                                         key={result.id}
-                                        className="grid items-center gap-2 text-zinc-400"
+                                        className="grid items-center gap-2 text-zinc-500"
                                         style={{
                                             gridTemplateColumns:
                                                 'minmax(140px,1.2fr) minmax(140px,1fr) minmax(80px,0.7fr) minmax(90px,0.8fr) minmax(90px,0.8fr) minmax(50px,0.4fr)',
                                         }}
                                     >
-                                        <span>
-                                            {new Date(result.createdAt).toLocaleString('ja-JP', {
-                                                year: 'numeric',
-                                                month: '2-digit',
-                                                day: '2-digit',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                            })}
-                                        </span>
-                                        <span className="text-zinc-300">{result.resultLabel}</span>
+                                        <span>{resultDateTimeLabel(result.createdAt)}</span>
+                                        <span>{result.resultLabel}</span>
                                         <span>合計 {result.totalScore}</span>
                                         <span>恐怖 {result.fearScore}</span>
                                         <span>回避 {result.avoidScore}</span>
