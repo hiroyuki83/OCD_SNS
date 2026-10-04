@@ -60,6 +60,7 @@ export type SelfAssessmentResultView = {
     id: string;
     createdAt: string;
     totalScore: number | null;
+    functionScore: number;
     subscaleScores: Record<string, number>;
     safetyFlags: string[];
 };
