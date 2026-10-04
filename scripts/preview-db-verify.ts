@@ -78,6 +78,13 @@ try {
     ['Appeal.reviewerId present', await columnExists('Appeal', 'reviewerId')],
     ['Appeal.sanctionId present', await columnExists('Appeal', 'sanctionId')],
     ['Appeal.userId present', await columnExists('Appeal', 'userId')],
+    ['SelfAssessmentResult table present', await tableExists('SelfAssessmentResult')],
+    ['SelfAssessmentResult.assessmentKey present', await columnExists('SelfAssessmentResult', 'assessmentKey')],
+    ['SelfAssessmentResult.totalScore present', await columnExists('SelfAssessmentResult', 'totalScore')],
+    ['SelfAssessmentResult.functionScore present', await columnExists('SelfAssessmentResult', 'functionScore')],
+    ['SelfAssessmentResult.subscaleScores present', await columnExists('SelfAssessmentResult', 'subscaleScores')],
+    ['SelfAssessmentResult.answers present', await columnExists('SelfAssessmentResult', 'answers')],
+    ['SelfAssessmentResult.safetyFlags present', await columnExists('SelfAssessmentResult', 'safetyFlags')],
   ] as const;
 
   const failures = checks.filter(([, ok]) => !ok).map(([name]) => name);
