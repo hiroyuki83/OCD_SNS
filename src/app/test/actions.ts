@@ -107,13 +107,15 @@ export async function submitSelfAssessment(
     }
 
     let functionScore = 0;
-    for (let index = 1; index <= FUNCTION_ITEMS; index += 1) {
-        const value = parseAllowedAnswer(formData.get(`function_${index}`), [0, 1, 2, 3, 4]);
-        if (value === null) {
-            return { message: '生活への影響について、すべての項目に回答してください。' };
+    if (definition.includeFunctionImpact !== false) {
+        for (let index = 1; index <= FUNCTION_ITEMS; index += 1) {
+            const value = parseAllowedAnswer(formData.get(`function_${index}`), [0, 1, 2, 3, 4]);
+            if (value === null) {
+                return { message: '生活への影響について、すべての項目に回答してください。' };
+            }
+            answers[`function_${index}`] = value;
+            functionScore += value;
         }
-        answers[`function_${index}`] = value;
-        functionScore += value;
     }
 
     try {
