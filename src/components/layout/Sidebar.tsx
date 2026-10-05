@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Gavel, LogOut, Pencil, Shield } from "lucide-react";
+import { LogOut, Pencil } from "lucide-react";
 import { auth, signOut } from "@/auth";
 import MobileMenu from "@/components/layout/MobileMenu";
 import SidebarNavItem, {
