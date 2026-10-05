@@ -1,44 +1,18 @@
-﻿'use client';
+'use client';
 
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
-import NotificationsLink from '@/components/layout/NotificationsLink';
-import {
-    Bell,
-    Bookmark,
-    ClipboardCheck,
-    Gavel,
-    HeartHandshake,
-    Home,
-    LogOut,
-    Pencil,
-    Search,
-    Settings,
-    Shield,
-    User,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { LogOut, Pencil } from 'lucide-react';
 import { signOut } from 'next-auth/react';
-
-const iconMap = {
-    home: Home,
-    test: ClipboardCheck,
-    notifications: Bell,
-    safety: HeartHandshake,
-    search: Search,
-    bookmarks: Bookmark,
-    profile: User,
-    moderation: Gavel,
-    admin: Shield,
-};
-
-type IconKey = keyof typeof iconMap;
+import SidebarNavItem, {
+    type NavigationIconKey,
+} from '@/components/layout/SidebarNavItem';
 
 type NavItem = {
     label: string;
     href: string;
-    iconKey: IconKey;
+    iconKey: NavigationIconKey;
 };
 
 type Labels = {
@@ -71,27 +45,30 @@ export default function MobileMenu({
     const toggle = () => setOpen((prev) => !prev);
 
     return (
-        <div className="lg:hidden sticky top-0 z-40 bg-white border-b border-border">
-            <div className="px-3 py-2 flex items-center gap-2">
+        <div className="sticky top-0 z-40 border-b border-border bg-white lg:hidden">
+            <div className="flex h-14 items-center px-3">
                 <button
                     type="button"
                     onClick={toggle}
-                    className="flex items-center gap-2"
+                    className="flex h-11 items-center gap-2 rounded-xl pr-3 transition-colors hover:bg-zinc-100"
                     aria-expanded={open}
                     aria-controls="mobile-nav-panel"
-                    aria-label={open ? "メニューを閉じる" : "メニューを開く"}
+                    aria-label={open ? 'メニューを閉じる' : 'メニューを開く'}
                 >
-                    <Image
-                        src="/icon/logo.png"
-                        alt=""
-                        width={44}
-                        height={44}
-                        className="h-11 w-11 rounded-full object-cover"
-                        priority
-                    />
-                    <span className="text-sm text-zinc-500">メニュー</span>
+                    <span className="flex h-11 w-11 items-center justify-center">
+                        <Image
+                            src="/icon/logo.png"
+                            alt=""
+                            width={40}
+                            height={40}
+                            className="h-10 w-10 rounded-full object-cover"
+                            priority
+                        />
+                    </span>
+                    <span className="text-sm font-medium text-zinc-600">メニュー</span>
                 </button>
             </div>
+
             {open && (
                 <div className="fixed inset-0 z-40">
                     <button
@@ -100,130 +77,131 @@ export default function MobileMenu({
                         className="absolute inset-0 bg-black/30"
                         aria-label="メニューを閉じる"
                     />
-                    <div
+
+                    <aside
                         id="mobile-nav-panel"
-                        className="absolute left-0 top-0 h-full w-72 bg-white border-r border-border p-2 overflow-y-auto"
+                        className="absolute left-0 top-0 flex h-full w-72 flex-col justify-between overflow-y-auto border-r border-border bg-white p-3 shadow-xl"
                     >
-                        <div className="flex flex-col gap-2 mt-1">
+                        <div>
                             <Link
                                 href="/"
                                 onClick={close}
-                                className="w-14 h-14 flex items-center justify-center rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
+                                className="mb-3 flex h-12 items-center gap-3 rounded-xl px-1 transition-colors hover:bg-zinc-100"
                             >
-                                <Image
-                                    src="/icon/logo.png"
-                                    alt="CoCo ホーム"
-                                    width={56}
-                                    height={56}
-                                    className="h-full w-full rounded-full object-cover"
-                                    priority
-                                />
+                                <span className="flex h-12 w-12 shrink-0 items-center justify-center">
+                                    <Image
+                                        src="/icon/logo.png"
+                                        alt=""
+                                        width={44}
+                                        height={44}
+                                        className="h-11 w-11 rounded-full object-cover"
+                                        priority
+                                    />
+                                </span>
+                                <span className="text-base font-semibold text-zinc-900">CoCo</span>
                             </Link>
+
                             <nav aria-label="主要ナビゲーション" className="flex flex-col gap-1">
-                                {navItems.map((item) => {
-                                    const Icon = iconMap[item.iconKey];
-                                    return (
-                                        item.iconKey === 'notifications' ? (
-                                            <NotificationsLink
-                                                key={item.label}
-                                                href={item.href}
-                                                className="group flex items-center gap-4 p-3 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
-                                                label={item.label}
-                                                unread={unreadNotifications}
-                                                onNavigate={close}
-                                                icon={<Icon className="app-nav-icon text-zinc-900" />}
-                                            />
-                                        ) : (
-                                            <Link
-                                                key={item.label}
-                                                href={item.href}
-                                                onClick={close}
-                                                className="group flex items-center gap-4 p-3 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
-                                            >
-                                                <span className="relative">
-                                                    <Icon className="app-nav-icon text-zinc-900" />
-                                                </span>
-                                                <span className="text-xl font-normal">{item.label}</span>
-                                            </Link>
-                                        )
-                                    );
-                                })}
+                                {navItems.map((item) => (
+                                    <SidebarNavItem
+                                        key={item.href}
+                                        {...item}
+                                        unread={
+                                            item.iconKey === 'notifications'
+                                                ? unreadNotifications
+                                                : 0
+                                        }
+                                        mobile
+                                        onNavigate={close}
+                                    />
+                                ))}
                             </nav>
+
                             <Link
                                 href="/?compose=1"
                                 onClick={close}
-                                className="group flex items-center gap-4 p-3 w-fit rounded-full bg-[#1d9bf0] hover:bg-[#1a8cd8] transition-colors mt-4"
+                                className="mt-3 flex h-12 w-full items-center rounded-xl bg-sky-500 transition-colors hover:bg-sky-600"
                                 aria-label={labels.post}
                             >
-                                <Pencil className="app-compose-icon text-white" />
-                                <span className="text-xl font-normal text-white">{labels.post}</span>
+                                <span className="flex h-12 w-12 shrink-0 items-center justify-center">
+                                    <Pencil
+                                        className="h-6 w-6 shrink-0 badge-text-white"
+                                        strokeWidth={2}
+                                    />
+                                </span>
+                                <span className="text-[15px] font-semibold badge-text-white">
+                                    {labels.post}
+                                </span>
                             </Link>
                         </div>
 
-                        <div className="mb-4 mt-6">
-                            <div className="px-2 mb-2">
-                                <Link
-                                    href="/settings"
-                                    onClick={close}
-                                    className="group flex items-center gap-4 p-3 w-fit rounded-full hover:bg-zinc-900/10 dark:hover:bg-zinc-800 transition-colors"
-                                >
-                                    <Settings className="app-nav-icon text-zinc-900" />
-                                    <span className="text-xl font-normal">{labels.settings}</span>
-                                </Link>
-                            </div>
-                            {user ? (
-                                <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-3 p-3 flex-1 rounded-full text-left overflow-hidden">
+                        <div className="mt-6 border-t border-zinc-100 pt-3">
+                            {user && (
+                                <div className="mb-2 flex min-h-14 items-center rounded-xl bg-zinc-50 px-1">
+                                    <span className="flex h-12 w-12 shrink-0 items-center justify-center">
                                         {user.avatarUrl ? (
                                             <img
                                                 src={user.avatarUrl}
                                                 alt="プロフィール画像"
-                                                className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                                                className="h-9 w-9 rounded-full object-cover"
                                             />
                                         ) : (
-                                            <div className="w-10 h-10 rounded-full bg-slate-400 flex-shrink-0"></div>
+                                            <span className="h-9 w-9 rounded-full bg-slate-300" />
                                         )}
-                                        <div className="flex-1 overflow-hidden">
-                                            <p className="font-bold text-sm truncate">{user.name}</p>
-                                            <p className="text-zinc-500 text-sm truncate">{user.email}</p>
-                                        </div>
+                                    </span>
+                                    <div className="min-w-0 flex-1 pr-2">
+                                        <p className="truncate text-sm font-semibold text-zinc-900">
+                                            {user.name}
+                                        </p>
+                                        <p className="truncate text-xs text-zinc-500">{user.email}</p>
                                     </div>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-zinc-500 hover:text-red-500"
-                                        aria-label={labels.logout}
-                                        onClick={() => {
-                                            close();
-                                            signOut({ callbackUrl: '/' });
-                                        }}
-                                    >
-                                        <LogOut className="w-5 h-5" />
-                                    </Button>
                                 </div>
+                            )}
+
+                            <SidebarNavItem
+                                label={labels.settings}
+                                href="/settings"
+                                iconKey="settings"
+                                mobile
+                                onNavigate={close}
+                            />
+
+                            {user ? (
+                                <button
+                                    type="button"
+                                    className="group flex h-12 w-full items-center rounded-xl text-zinc-600 transition-colors hover:bg-red-50 hover:text-red-600"
+                                    onClick={() => {
+                                        close();
+                                        signOut({ callbackUrl: '/' });
+                                    }}
+                                >
+                                    <span className="flex h-12 w-12 shrink-0 items-center justify-center">
+                                        <LogOut className="h-6 w-6 shrink-0" strokeWidth={1.9} />
+                                    </span>
+                                    <span className="text-[15px] font-medium">{labels.logout}</span>
+                                </button>
                             ) : (
-                                <div className="flex flex-col gap-2 p-2">
+                                <div className="mt-3 flex flex-col gap-2">
                                     <Link
                                         href="/login"
                                         onClick={close}
-                                        className="inline-flex h-9 w-full items-center justify-center rounded-full border border-input bg-background px-4 text-sm font-bold shadow-xs hover:bg-accent hover:text-accent-foreground"
+                                        className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-800 hover:bg-zinc-50"
                                     >
                                         {labels.login}
                                     </Link>
                                     <Link
                                         href="/register"
                                         onClick={close}
-                                        className="inline-flex h-9 w-full items-center justify-center rounded-full bg-black px-4 text-sm font-bold badge-text-white hover:bg-zinc-800"
+                                        className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-zinc-900 px-4 text-sm font-semibold badge-text-white hover:bg-zinc-800"
                                     >
                                         {labels.register}
                                     </Link>
                                 </div>
                             )}
                         </div>
-                    </div>
+                    </aside>
                 </div>
             )}
         </div>
     );
 }
-
