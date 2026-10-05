@@ -120,7 +120,7 @@ export default function MobileMenu({
                             <Link
                                 href="/?compose=1"
                                 onClick={close}
-                                className="mt-3 flex h-12 w-full items-center rounded-xl bg-sky-500 transition-colors hover:bg-sky-600"
+                                className="mt-3 flex h-12 w-full items-center rounded-full bg-sky-500 transition-colors hover:bg-sky-600"
                                 aria-label={labels.post}
                             >
                                 <span className="flex h-12 w-12 shrink-0 items-center justify-center">
