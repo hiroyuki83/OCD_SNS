@@ -576,7 +576,7 @@ export default function Feed({
                                                 aria-label="リアクションメニューを閉じる"
                                             />
                                             <div
-                                                className="fixed inset-x-0 bottom-0 z-[70] mx-auto w-full max-w-md rounded-t-3xl border border-zinc-200 bg-white p-4 shadow-2xl md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:rounded-3xl"
+                                                className="fixed inset-x-0 bottom-0 z-[70] isolate mx-auto w-full max-w-md rounded-t-3xl border border-zinc-200 bg-white p-4 shadow-2xl md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:rounded-3xl"
                                                 onClick={(event) => event.stopPropagation()}
                                             >
                                                 <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-200 md:hidden" />
@@ -605,7 +605,7 @@ export default function Feed({
                                                             setReactionPickerPostId(null);
                                                         }}
                                                         className={
-                                                            'flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors ' +
+                                                            'flex w-full items-center gap-3 rounded-2xl border bg-white p-3 text-left transition-colors ' +
                                                             (post.liked
                                                                 ? 'border-sky-200 bg-sky-50'
                                                                 : 'border-zinc-200 hover:bg-zinc-50')
@@ -627,7 +627,7 @@ export default function Feed({
                                                             setReactionPickerPostId(null);
                                                         }}
                                                         className={
-                                                            'flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors ' +
+                                                            'flex w-full items-center gap-3 rounded-2xl border bg-white p-3 text-left transition-colors ' +
                                                             (post.wakaruReacted
                                                                 ? 'border-teal-200 bg-teal-50'
                                                                 : 'border-zinc-200 hover:bg-zinc-50')
@@ -649,7 +649,7 @@ export default function Feed({
                                                             setReactionPickerPostId(null);
                                                         }}
                                                         className={
-                                                            'flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors ' +
+                                                            'flex w-full items-center gap-3 rounded-2xl border bg-white p-3 text-left transition-colors ' +
                                                             (post.ganbattaReacted
                                                                 ? 'border-orange-200 bg-orange-50'
                                                                 : 'border-zinc-200 hover:bg-zinc-50')
