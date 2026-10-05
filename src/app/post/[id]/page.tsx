@@ -187,7 +187,7 @@ export default async function PostPage({
                             <>
                                 <div className="text-xs">いいね {likeCount}</div>
                                 <div className="text-xs">わかる {post.wakaruCount}</div>
-                                <div className="text-xs">頑張った！ {post.ganbattaCount}</div>
+                                <div className="text-xs">応援 {post.ganbattaCount}</div>
                                 <div className="text-xs">ブックマーク {post._count.bookmarks}</div>
                             </>
                         )}
