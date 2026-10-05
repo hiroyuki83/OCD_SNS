@@ -13,7 +13,28 @@ export const revalidate = 0;
 
 function resolveTab(value: string | string[] | undefined): SelfAssessmentKey {
     const tab = Array.isArray(value) ? value[0] : value;
+    if (tab === 'ocd-profile') return 'ocd';
     return isSelfAssessmentKey(tab) ? tab : 'depression';
+}
+
+function toResultView(result: {
+    id: string;
+    createdAt: Date;
+    totalScore: number | null;
+    functionScore: number;
+    subscaleScores: unknown;
+    safetyFlags: unknown;
+}) {
+    return {
+        id: result.id,
+        createdAt: result.createdAt.toISOString(),
+        totalScore: result.totalScore,
+        functionScore: result.functionScore,
+        subscaleScores: result.subscaleScores as Record<string, number>,
+        safetyFlags: Array.isArray(result.safetyFlags)
+            ? result.safetyFlags.filter((value): value is string => typeof value === 'string')
+            : [],
+    };
 }
 
 export default async function TestPage({
@@ -35,6 +56,15 @@ export default async function TestPage({
         userId = user?.id ?? null;
     }
 
+    const resultSelect = {
+        id: true,
+        createdAt: true,
+        totalScore: true,
+        functionScore: true,
+        subscaleScores: true,
+        safetyFlags: true,
+    } as const;
+
     const results = userId
         ? await prisma.selfAssessmentResult.findMany({
               where: {
@@ -42,16 +72,21 @@ export default async function TestPage({
                   assessmentKey: activeTab,
               },
               orderBy: { createdAt: 'asc' },
-              select: {
-                  id: true,
-                  createdAt: true,
-                  totalScore: true,
-                  functionScore: true,
-                  subscaleScores: true,
-                  safetyFlags: true,
-              },
+              select: resultSelect,
           })
         : [];
+
+    const ocdProfileResults =
+        userId && activeTab === 'ocd'
+            ? await prisma.selfAssessmentResult.findMany({
+                  where: {
+                      userId,
+                      assessmentKey: 'ocd-profile',
+                  },
+                  orderBy: { createdAt: 'asc' },
+                  select: resultSelect,
+              })
+            : [];
 
     return (
         <div className="min-h-screen border-r border-border">
@@ -65,25 +100,16 @@ export default async function TestPage({
                 </div>
             )}
 
-            <div className="space-y-6 p-4">
-                <div className="rounded-2xl border border-border p-4 text-xs leading-relaxed text-zinc-500">
-                    CoCo独自の経過モニタリング項目です。診断や治療、標準化された心理検査の代わりにはなりません。保存した結果は本人のセルフチェックページだけに表示し、公開プロフィールや通常の管理画面には表示しません。
-                </div>
-
+            <div className="p-4">
                 <TestTabs
                     definition={definition}
                     tabs={ASSESSMENT_SUMMARIES}
                     canSave={Boolean(session?.user)}
-                    results={results.map((result) => ({
-                        id: result.id,
-                        createdAt: result.createdAt.toISOString(),
-                        totalScore: result.totalScore,
-                        functionScore: result.functionScore,
-                        subscaleScores: result.subscaleScores as Record<string, number>,
-                        safetyFlags: Array.isArray(result.safetyFlags)
-                            ? result.safetyFlags.filter((value): value is string => typeof value === 'string')
-                            : [],
-                    }))}
+                    results={results.map(toResultView)}
+                    ocdProfileDefinition={
+                        activeTab === 'ocd' ? ASSESSMENT_DEFINITIONS['ocd-profile'] : undefined
+                    }
+                    ocdProfileResults={ocdProfileResults.map(toResultView)}
                 />
             </div>
         </div>
