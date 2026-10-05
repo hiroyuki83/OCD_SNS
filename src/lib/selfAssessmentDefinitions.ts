@@ -280,13 +280,48 @@ const personality: SelfAssessmentDefinition = {
 
 const ocd: SelfAssessmentDefinition = {
     key: 'ocd',
-    title: '強迫症状',
+    title: '強迫症',
     shortTitle: '強迫症',
-    subtitle: 'よくある強迫症状の内容と、強迫観念・強迫行為・回避の重症度を分けて確認します。',
-    period: '症状内容：現在・過去／重症度：過去7日間',
+    subtitle: '強迫観念・強迫行為・回避が、現在の生活にどのくらい影響しているかを確認します。',
+    period: '過去7日間',
     defaultOptions: SCALE_0_4,
     showTotal: false,
     primaryTrendIds: ['obsessionSeverity', 'compulsionSeverity', 'avoidanceSeverity'],
+    version: 2,
+    sections: [
+        section('obsessionSeverity', '強迫観念の重症度', [
+            '一日のうち、強迫的な考えに注意を奪われる時間はどのくらいだったか。',
+            '一度気になり始めた考えから、注意を別のことへ戻すのはどのくらい難しかったか。',
+            '強迫的な考えによる不安、不快感、嫌悪感などはどのくらい強かったか。',
+            '強迫的な考えは、仕事、学習、家事、人付き合いなどをどのくらい妨げたか。',
+            '「気にしなくてよい」と考えても、その問題から離れるのはどのくらい難しかったか。',
+        ]),
+        section('compulsionSeverity', '強迫行為の重症度', [
+            '強迫行為や頭の中の儀式に、一日合計どのくらい時間を使ったか。',
+            '「今これをしなければならない」という感覚はどのくらい強かったか。',
+            '強迫行為を後回しにしたり、途中でやめたりするのはどのくらい難しかったか。',
+            '強迫行為をしないままでいると、どのくらい不安や不快感が続いたか。',
+            '強迫行為によって、生活にどのくらい時間的・行動的な制限が生じたか。',
+        ]),
+        section('avoidanceSeverity', '回避', [
+            '強迫症状が起こりそうな場所、人、物、情報、活動などを避けた。',
+            '強迫症状を起こさないために、本来したいことや必要なことを諦めた。',
+            '自分だけでは避けられないため、他人に代わりにしてもらった。',
+            '強迫症状を防ぐため、生活する範囲や行動の選択肢が狭くなった。',
+        ]),
+    ],
+};
+
+const ocdProfile: SelfAssessmentDefinition = {
+    key: 'ocd-profile',
+    title: '強迫症の症状プロフィール',
+    shortTitle: '症状プロフィール',
+    subtitle: 'どのような強迫観念・強迫行為があるかを整理します。毎回行う必要はなく、症状内容が変わったときに更新できます。',
+    period: '現在・過去',
+    defaultOptions: PRESENCE_OPTIONS,
+    showTotal: false,
+    primaryTrendIds: [],
+    includeFunctionImpact: false,
     version: 1,
     sections: [
         section('contamination', '汚染・清潔', [
@@ -355,26 +390,6 @@ const ocd: SelfAssessmentDefinition = {
             '汚染や間違いを避けるため、家族や周囲の人にも一定のルールを守ってもらう。',
             '自分で行わず、家族や周囲の人に確認や作業を代わってもらう。',
         ], { options: PRESENCE_OPTIONS, scored: false, scoringMode: 'currentCount' }),
-        section('obsessionSeverity', '強迫観念の重症度', [
-            '一日のうち、強迫的な考えに注意を奪われる時間はどのくらいだったか。',
-            '一度気になり始めた考えから、注意を別のことへ戻すのはどのくらい難しかったか。',
-            '強迫的な考えによる不安、不快感、嫌悪感などはどのくらい強かったか。',
-            '強迫的な考えは、仕事、学習、家事、人付き合いなどをどのくらい妨げたか。',
-            '「気にしなくてよい」と考えても、その問題から離れるのはどのくらい難しかったか。',
-        ]),
-        section('compulsionSeverity', '強迫行為の重症度', [
-            '強迫行為や頭の中の儀式に、一日合計どのくらい時間を使ったか。',
-            '「今これをしなければならない」という感覚はどのくらい強かったか。',
-            '強迫行為を後回しにしたり、途中でやめたりするのはどのくらい難しかったか。',
-            '強迫行為をしないままでいると、どのくらい不安や不快感が続いたか。',
-            '強迫行為によって、生活にどのくらい時間的・行動的な制限が生じたか。',
-        ]),
-        section('avoidanceSeverity', '回避', [
-            '強迫症状が起こりそうな場所、人、物、情報、活動などを避けた。',
-            '強迫症状を起こさないために、本来したいことや必要なことを諦めた。',
-            '自分だけでは避けられないため、他人に代わりにしてもらった。',
-            '強迫症状を防ぐため、生活する範囲や行動の選択肢が狭くなった。',
-        ]),
     ],
 };
 
@@ -692,6 +707,7 @@ export const ASSESSMENT_DEFINITIONS: Record<SelfAssessmentKey, SelfAssessmentDef
     panic,
     personality,
     ocd,
+    'ocd-profile': ocdProfile,
     'social-anxiety': socialAnxiety,
     dpdr,
     ptsd,
