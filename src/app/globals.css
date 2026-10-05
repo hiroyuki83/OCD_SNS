@@ -130,12 +130,12 @@
 
 @layer utilities {
   .app-nav-icon {
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
   }
   .app-compose-icon {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
   }
   .feed-action-area,
   .feed-action-area * {
