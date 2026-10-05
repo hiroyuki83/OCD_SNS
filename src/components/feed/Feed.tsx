@@ -407,7 +407,7 @@ export default function Feed({
                                     <div className="w-10 h-10 rounded-full bg-slate-400" />
                                 )}
                             </Link>
-                            <div className="flex-1 flex flex-col gap-2 relative z-10">
+                            <div className="flex-1 flex flex-col gap-2 relative">
                                 <div className="flex items-center justify-between gap-2 text-sm flex-wrap">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <Link href={`/user/${handle}`} className="font-bold hover:underline">
@@ -423,7 +423,7 @@ export default function Feed({
                                 </div>
                                 {post.content && <HashtagText text={post.content} className="text-sm" />}
                                 <div
-                                    className="relative z-30 mt-1 flex flex-wrap items-center justify-between gap-2 feed-action-area"
+                                    className="relative mt-1 flex flex-wrap items-center justify-between gap-2 feed-action-area"
                                     data-action-area
                                 >
                                     <div className="flex flex-wrap items-center gap-2">
@@ -568,7 +568,7 @@ export default function Feed({
                                         <>
                                             <button
                                                 type="button"
-                                                className="fixed inset-0 z-[60] bg-black/20"
+                                                className="fixed inset-0 z-[100] bg-black/25"
                                                 onClick={(event) => {
                                                     event.stopPropagation();
                                                     setReactionPickerPostId(null);
@@ -576,7 +576,7 @@ export default function Feed({
                                                 aria-label="リアクションメニューを閉じる"
                                             />
                                             <div
-                                                className="fixed inset-x-0 bottom-0 z-[70] isolate mx-auto w-full max-w-md rounded-t-3xl border border-zinc-200 bg-white p-4 shadow-2xl md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:rounded-3xl"
+                                                className="fixed inset-x-0 bottom-0 z-[110] isolate mx-auto w-full max-w-md rounded-t-3xl border border-zinc-200 bg-white p-4 shadow-2xl md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:rounded-3xl"
                                                 onClick={(event) => event.stopPropagation()}
                                             >
                                                 <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-200 md:hidden" />
