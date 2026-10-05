@@ -152,7 +152,7 @@ export default async function Sidebar() {
 
           <Link
             href="/?compose=1"
-            className="group mt-3 flex h-12 w-full items-center rounded-full bg-sky-500 text-white transition-colors hover:bg-sky-600"
+            className="group mt-3 mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-sky-500 text-white transition-colors hover:bg-sky-600 xl:mx-0 xl:w-full xl:justify-start"
             aria-label={LABEL_POST}
             title={LABEL_POST}
           >
