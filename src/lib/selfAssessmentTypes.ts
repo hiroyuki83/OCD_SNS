@@ -5,6 +5,7 @@ export type SelfAssessmentKey =
     | 'panic'
     | 'personality'
     | 'ocd'
+    | 'ocd-profile'
     | 'social-anxiety'
     | 'dpdr'
     | 'ptsd'
@@ -53,6 +54,7 @@ export type SelfAssessmentDefinition = {
     showTotal: boolean;
     derivedScores?: DerivedAssessmentScore[];
     primaryTrendIds?: string[];
+    includeFunctionImpact?: boolean;
     version: number;
 };
 
