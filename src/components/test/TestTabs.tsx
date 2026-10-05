@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import AssessmentOverview, {
     type AssessmentProfileGroup,
@@ -220,28 +220,35 @@ export default function TestTabs({
     tabs: Array<{ key: SelfAssessmentKey; title: string; shortTitle: string }>;
     canSave: boolean;
 }) {
+    const router = useRouter();
     const latest = results.at(-1);
     const trendIds = chooseTrendIds(definition, latest);
     const trendMax = Math.max(1, ...trendIds.map((id) => scoreMax(definition, id)));
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center gap-1 overflow-x-auto border-b border-border pb-px">
-                {tabs.map((tab) => (
-                    <Link
-                        key={tab.key}
-                        href={'/test?tab=' + encodeURIComponent(tab.key)}
-                        title={tab.title}
-                        className={
-                            'shrink-0 px-3 py-2 text-sm font-bold transition-colors ' +
-                            (definition.key === tab.key
-                                ? 'border-b-2 border-[#1d9bf0] text-[#1d9bf0]'
-                                : 'text-zinc-500 hover:text-zinc-700')
-                        }
-                    >
-                        {tab.shortTitle}
-                    </Link>
-                ))}
+            <div className="space-y-2">
+                <label
+                    htmlFor="assessment-selector"
+                    className="block text-sm font-bold text-zinc-900"
+                >
+                    チェックする領域
+                </label>
+                <select
+                    id="assessment-selector"
+                    value={definition.key}
+                    onChange={(event) => {
+                        router.push('/test?tab=' + encodeURIComponent(event.target.value));
+                    }}
+                    className="w-full rounded-xl border border-border bg-white px-4 py-3 text-sm font-medium text-zinc-900 outline-none transition focus:border-[#1d9bf0] focus:ring-2 focus:ring-[#1d9bf0]/20"
+                    aria-label="セルフチェックの領域を選択"
+                >
+                    {tabs.map((tab) => (
+                        <option key={tab.key} value={tab.key}>
+                            {tab.title}
+                        </option>
+                    ))}
+                </select>
             </div>
 
             {latest && trendIds.length > 0 && (
