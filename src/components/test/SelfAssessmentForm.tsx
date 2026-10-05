@@ -57,9 +57,11 @@ function AnswerRow({
 export default function SelfAssessmentForm({
     definition,
     canSave,
+    submitLabel = '結果を保存する',
 }: {
     definition: SelfAssessmentDefinition;
     canSave: boolean;
+    submitLabel?: string;
 }) {
     const router = useRouter();
     const boundAction = submitSelfAssessment.bind(null, definition.key);
@@ -100,22 +102,24 @@ export default function SelfAssessmentForm({
                 </section>
             ))}
 
-            <section className="rounded-2xl border border-border bg-white p-4 md:p-5">
-                <div className="text-sm font-bold text-zinc-900">生活への影響</div>
-                <div className="mt-1 text-xs text-zinc-500">
-                    症状そのものとは別に、現在の生活への影響を共通項目で確認します。
-                </div>
-                <div className="mt-2">
-                    {FUNCTION_ITEMS.map((item, index) => (
-                        <AnswerRow
-                            key={item}
-                            name={'function_' + (index + 1)}
-                            text={item}
-                            options={FUNCTION_OPTIONS}
-                        />
-                    ))}
-                </div>
-            </section>
+            {definition.includeFunctionImpact !== false && (
+                <section className="rounded-2xl border border-border bg-white p-4 md:p-5">
+                    <div className="text-sm font-bold text-zinc-900">生活への影響</div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                        症状そのものとは別に、現在の生活への影響を共通項目で確認します。
+                    </div>
+                    <div className="mt-2">
+                        {FUNCTION_ITEMS.map((item, index) => (
+                            <AnswerRow
+                                key={item}
+                                name={'function_' + (index + 1)}
+                                text={item}
+                                options={FUNCTION_OPTIONS}
+                            />
+                        ))}
+                    </div>
+                </section>
+            )}
 
             {!canSave && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-900">
@@ -147,7 +151,7 @@ export default function SelfAssessmentForm({
                 disabled={pending || !canSave}
                 className="w-full rounded-full bg-sky-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-zinc-300"
             >
-                {pending ? '保存中...' : canSave ? '結果を保存する' : 'ログインすると保存できます'}
+                {pending ? '保存中...' : canSave ? submitLabel : 'ログインすると保存できます'}
             </button>
         </form>
     );
