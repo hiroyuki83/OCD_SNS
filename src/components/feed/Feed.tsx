@@ -10,6 +10,7 @@ import { formatPostTime } from '@/lib/formatTime';
 import { promptForReport, submitReport } from '@/lib/reportClient';
 import { DeletePostForm } from '@/components/profile/ProfileDangerActions';
 import PaginationLinks from '@/components/shared/PaginationLinks';
+import { Bookmark, CircleDot, Heart, Plus, Sparkles, X } from 'lucide-react';
 
 type FeedPost = {
     id: string;
@@ -77,6 +78,7 @@ export default function Feed({
     const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
     const [hasLoaded, setHasLoaded] = useState(false);
     const [reportingPostId, setReportingPostId] = useState<string | null>(null);
+    const [reactionPickerPostId, setReactionPickerPostId] = useState<string | null>(null);
     const pendingPostActionKeys = useRef(new Set<string>());
     const [pendingPostActions, setPendingPostActions] = useState<Set<string>>(
         () => new Set(),
@@ -420,80 +422,250 @@ export default function Feed({
                                     {null}
                                 </div>
                                 {post.content && <HashtagText text={post.content} className="text-sm" />}
-                                <div className="flex items-center gap-3 text-zinc-500 flex-wrap relative z-30 feed-action-area" data-action-area>
-                                    {data.viewerId ? (
-                                        <button
-                                            type="button"
-                                            onClick={(event) => handleAction(event, post.id, 'like')}
-                                            aria-pressed={post.liked}
-                                            disabled={pendingPostActions.has(`${post.id}:like`)}
-                                            className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors disabled:opacity-50 ${
-                                                post.liked ? 'text-red-500' : 'hover:text-red-500'
-                                            }`}
-                                        >
-                                            いいね
-                                            <span>{post.likeCount}</span>
-                                        </button>
-                                    ) : (
-                                        <div className="text-xs">いいね {post.likeCount}</div>
-                                    )}
-                                    {data.viewerId ? (
-                                        <button
-                                            type="button"
-                                            onClick={(event) => handleAction(event, post.id, 'wakaru')}
-                                            aria-pressed={post.wakaruReacted}
-                                            disabled={pendingPostActions.has(`${post.id}:wakaru`)}
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
-                                                post.wakaruReacted ? 'text-yellow-400' : 'hover:text-yellow-400'
-                                            }`}
-                                        >
-                                            わかる <span>{post.wakaruCount}</span>
-                                        </button>
-                                    ) : (
-                                        <div className="text-xs">わかる {post.wakaruCount}</div>
-                                    )}
-                                    {data.viewerId ? (
-                                        <button
-                                            type="button"
-                                            onClick={(event) => handleAction(event, post.id, 'ganbatta')}
-                                            aria-pressed={post.ganbattaReacted}
-                                            disabled={pendingPostActions.has(`${post.id}:ganbatta`)}
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
-                                                post.ganbattaReacted ? 'text-green-400' : 'hover:text-green-400'
-                                            }`}
-                                        >
-                                            頑張った <span>{post.ganbattaCount}</span>
-                                        </button>
-                                    ) : (
-                                        <div className="text-xs">頑張った {post.ganbattaCount}</div>
-                                    )}
-                                    {data.viewerId ? (
-                                        <button
-                                            type="button"
-                                            onClick={(event) => handleAction(event, post.id, 'bookmark')}
-                                            aria-pressed={post.bookmarked}
-                                            disabled={pendingPostActions.has(`${post.id}:bookmark`)}
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
-                                                post.bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
-                                            }`}
-                                        >
-                                            ブックマーク <span>{post.bookmarkCount}</span>
-                                        </button>
-                                    ) : (
-                                        <div className="text-xs">ブックマーク {post.bookmarkCount}</div>
-                                    )}
-                                    {data.viewerId && post.author.id === data.viewerId && (
-                                        <DeletePostForm postId={post.id} />
-                                    )}
-                                    {data.viewerId && post.author.id !== data.viewerId && (
-                                        <button
-                                            type="button"
-                                            onClick={(event) => reportPost(event, post.id)}
-                                            className="text-xs text-zinc-500 hover:text-red-500"
-                                            disabled={reportingPostId === post.id}
-                                        >
-                                            {reportingPostId === post.id ? '送信中' : '通報'}
-                                        </button>
+                                <div
+                                    className="relative z-30 mt-1 flex flex-wrap items-center justify-between gap-2 feed-action-area"
+                                    data-action-area
+                                >
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {(post.likeCount > 0 || post.liked) && (
+                                            data.viewerId ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => handleAction(event, post.id, 'like')}
+                                                    aria-pressed={post.liked}
+                                                    disabled={pendingPostActions.has(`${post.id}:like`)}
+                                                    className={
+                                                        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:opacity-50 ' +
+                                                        (post.liked
+                                                            ? 'border-sky-200 bg-sky-50 text-sky-700'
+                                                            : 'border-zinc-200 bg-white text-zinc-600 hover:bg-sky-50 hover:text-sky-700')
+                                                    }
+                                                >
+                                                    <Heart
+                                                        className="h-4 w-4 text-sky-500"
+                                                        fill={post.liked ? 'currentColor' : 'none'}
+                                                    />
+                                                    <span>いいね</span>
+                                                    <span className="tabular-nums text-zinc-500">{post.likeCount}</span>
+                                                </button>
+                                            ) : (
+                                                <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-600">
+                                                    <Heart className="h-4 w-4 text-sky-500" />
+                                                    <span>いいね</span>
+                                                    <span className="tabular-nums">{post.likeCount}</span>
+                                                </span>
+                                            )
+                                        )}
+
+                                        {(post.wakaruCount > 0 || post.wakaruReacted) && (
+                                            data.viewerId ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => handleAction(event, post.id, 'wakaru')}
+                                                    aria-pressed={post.wakaruReacted}
+                                                    disabled={pendingPostActions.has(`${post.id}:wakaru`)}
+                                                    className={
+                                                        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:opacity-50 ' +
+                                                        (post.wakaruReacted
+                                                            ? 'border-teal-200 bg-teal-50 text-teal-700'
+                                                            : 'border-zinc-200 bg-white text-zinc-600 hover:bg-teal-50 hover:text-teal-700')
+                                                    }
+                                                >
+                                                    <CircleDot className="h-4 w-4 text-teal-500" />
+                                                    <span>わかる</span>
+                                                    <span className="tabular-nums text-zinc-500">{post.wakaruCount}</span>
+                                                </button>
+                                            ) : (
+                                                <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-600">
+                                                    <CircleDot className="h-4 w-4 text-teal-500" />
+                                                    <span>わかる</span>
+                                                    <span className="tabular-nums">{post.wakaruCount}</span>
+                                                </span>
+                                            )
+                                        )}
+
+                                        {(post.ganbattaCount > 0 || post.ganbattaReacted) && (
+                                            data.viewerId ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => handleAction(event, post.id, 'ganbatta')}
+                                                    aria-pressed={post.ganbattaReacted}
+                                                    disabled={pendingPostActions.has(`${post.id}:ganbatta`)}
+                                                    className={
+                                                        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:opacity-50 ' +
+                                                        (post.ganbattaReacted
+                                                            ? 'border-orange-200 bg-orange-50 text-orange-700'
+                                                            : 'border-zinc-200 bg-white text-zinc-600 hover:bg-orange-50 hover:text-orange-700')
+                                                    }
+                                                >
+                                                    <Sparkles className="h-4 w-4 text-orange-500" />
+                                                    <span>応援</span>
+                                                    <span className="tabular-nums text-zinc-500">{post.ganbattaCount}</span>
+                                                </button>
+                                            ) : (
+                                                <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-600">
+                                                    <Sparkles className="h-4 w-4 text-orange-500" />
+                                                    <span>応援</span>
+                                                    <span className="tabular-nums">{post.ganbattaCount}</span>
+                                                </span>
+                                            )
+                                        )}
+
+                                        {data.viewerId && (
+                                            <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    setReactionPickerPostId(post.id);
+                                                }}
+                                                className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-zinc-500 transition-colors hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600"
+                                                aria-label="リアクションを追加"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="ml-auto flex items-center gap-1">
+                                        {data.viewerId ? (
+                                            <button
+                                                type="button"
+                                                onClick={(event) => handleAction(event, post.id, 'bookmark')}
+                                                aria-pressed={post.bookmarked}
+                                                disabled={pendingPostActions.has(`${post.id}:bookmark`)}
+                                                className={
+                                                    'flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:opacity-50 ' +
+                                                    (post.bookmarked
+                                                        ? 'bg-sky-50 text-sky-600'
+                                                        : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700')
+                                                }
+                                                aria-label={post.bookmarked ? 'ブックマーク済み' : 'ブックマーク'}
+                                                title="ブックマーク"
+                                            >
+                                                <Bookmark
+                                                    className="h-4 w-4"
+                                                    fill={post.bookmarked ? 'currentColor' : 'none'}
+                                                />
+                                            </button>
+                                        ) : null}
+
+                                        {data.viewerId && post.author.id === data.viewerId && (
+                                            <DeletePostForm postId={post.id} />
+                                        )}
+                                        {data.viewerId && post.author.id !== data.viewerId && (
+                                            <button
+                                                type="button"
+                                                onClick={(event) => reportPost(event, post.id)}
+                                                className="rounded-full px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-100 hover:text-red-500"
+                                                disabled={reportingPostId === post.id}
+                                            >
+                                                {reportingPostId === post.id ? '送信中' : '通報'}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {reactionPickerPostId === post.id && data.viewerId && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                className="fixed inset-0 z-[60] bg-black/20"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    setReactionPickerPostId(null);
+                                                }}
+                                                aria-label="リアクションメニューを閉じる"
+                                            />
+                                            <div
+                                                className="fixed inset-x-0 bottom-0 z-[70] mx-auto w-full max-w-md rounded-t-3xl border border-zinc-200 bg-white p-4 shadow-2xl md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:rounded-3xl"
+                                                onClick={(event) => event.stopPropagation()}
+                                            >
+                                                <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-200 md:hidden" />
+                                                <div className="mb-3 flex items-center justify-between">
+                                                    <div>
+                                                        <div className="text-base font-bold text-zinc-900">反応する</div>
+                                                        <div className="mt-0.5 text-xs text-zinc-500">
+                                                            投稿をどう受け取ったかを、そっと伝えられます。
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setReactionPickerPostId(null)}
+                                                        className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 hover:bg-zinc-100"
+                                                        aria-label="閉じる"
+                                                    >
+                                                        <X className="h-5 w-5" />
+                                                    </button>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(event) => {
+                                                            handleAction(event, post.id, 'like');
+                                                            setReactionPickerPostId(null);
+                                                        }}
+                                                        className={
+                                                            'flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors ' +
+                                                            (post.liked
+                                                                ? 'border-sky-200 bg-sky-50'
+                                                                : 'border-zinc-200 hover:bg-zinc-50')
+                                                        }
+                                                    >
+                                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-500">
+                                                            <Heart className="h-5 w-5" fill={post.liked ? 'currentColor' : 'none'} />
+                                                        </span>
+                                                        <span>
+                                                            <span className="block text-sm font-bold text-zinc-900">いいね</span>
+                                                            <span className="block text-xs text-zinc-500">素敵な投稿だと思ったときに</span>
+                                                        </span>
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={(event) => {
+                                                            handleAction(event, post.id, 'wakaru');
+                                                            setReactionPickerPostId(null);
+                                                        }}
+                                                        className={
+                                                            'flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors ' +
+                                                            (post.wakaruReacted
+                                                                ? 'border-teal-200 bg-teal-50'
+                                                                : 'border-zinc-200 hover:bg-zinc-50')
+                                                        }
+                                                    >
+                                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-500">
+                                                            <CircleDot className="h-5 w-5" />
+                                                        </span>
+                                                        <span>
+                                                            <span className="block text-sm font-bold text-zinc-900">わかる</span>
+                                                            <span className="block text-xs text-zinc-500">気持ちに共感したときに</span>
+                                                        </span>
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={(event) => {
+                                                            handleAction(event, post.id, 'ganbatta');
+                                                            setReactionPickerPostId(null);
+                                                        }}
+                                                        className={
+                                                            'flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors ' +
+                                                            (post.ganbattaReacted
+                                                                ? 'border-orange-200 bg-orange-50'
+                                                                : 'border-zinc-200 hover:bg-zinc-50')
+                                                        }
+                                                    >
+                                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-50 text-orange-500">
+                                                            <Sparkles className="h-5 w-5" />
+                                                        </span>
+                                                        <span>
+                                                            <span className="block text-sm font-bold text-zinc-900">応援している</span>
+                                                            <span className="block text-xs text-zinc-500">そっと背中を押したいときに</span>
+                                                        </span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             </div>
