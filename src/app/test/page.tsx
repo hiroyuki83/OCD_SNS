@@ -7,6 +7,7 @@ import {
     isSelfAssessmentKey,
 } from '@/lib/selfAssessmentDefinitions';
 import type { SelfAssessmentKey } from '@/lib/selfAssessmentTypes';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -47,7 +48,8 @@ export default async function TestPage({
     const definition = ASSESSMENT_DEFINITIONS[activeTab];
 
     const session = await auth();
-    let userId = session?.user?.id ?? null;
+    if (!session?.user) redirect('/login');
+    let userId = session.user.id ?? null;
     if (!userId && session?.user?.email) {
         const user = await prisma.user.findUnique({
             where: { email: session.user.email },
@@ -93,12 +95,6 @@ export default async function TestPage({
             <div className="sticky top-0 z-10 flex h-14 items-center border-b border-border bg-background/80 px-4 backdrop-blur-md">
                 <h1 className="text-base font-bold">セルフチェック</h1>
             </div>
-
-            {!session?.user && (
-                <div className="p-6 text-sm text-zinc-400">
-                    結果を保存するにはログインが必要です
-                </div>
-            )}
 
             <div className="p-4">
                 <TestTabs
