@@ -63,6 +63,8 @@ export default function ProfilePostActionForm({
   const [failed, setFailed] = useState(false);
   const localActiveRef = useRef(active);
   const localCountRef = useRef(count);
+  const confirmedActiveRef = useRef(active);
+  const confirmedCountRef = useRef(count);
   const desiredActiveRef = useRef<boolean | null>(null);
   const inFlightRef = useRef(false);
 
@@ -127,6 +129,10 @@ export default function ProfilePostActionForm({
 
           if (desiredActiveRef.current === targetActive) {
             desiredActiveRef.current = null;
+            confirmedActiveRef.current = payload.active;
+            if (typeof payload?.count === 'number') {
+              confirmedCountRef.current = Math.max(0, payload.count);
+            }
             setOptimisticState(
               payload.active,
               typeof payload?.count === 'number'
@@ -138,10 +144,10 @@ export default function ProfilePostActionForm({
         }
       } catch {
         desiredActiveRef.current = null;
-        localActiveRef.current = active;
-        setLocalActive(active);
-        localCountRef.current = count;
-        setLocalCount(count);
+        localActiveRef.current = confirmedActiveRef.current;
+        setLocalActive(confirmedActiveRef.current);
+        localCountRef.current = confirmedCountRef.current;
+        setLocalCount(confirmedCountRef.current);
         setFailed(true);
       } finally {
         inFlightRef.current = false;
