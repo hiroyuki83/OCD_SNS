@@ -28,6 +28,9 @@ export async function GET(request: Request) {
         });
         viewerId = viewer?.id ?? null;
     }
+    if (!viewerId) {
+        return privateJson({ user: null }, { status: 401 });
+    }
 
     const user = await prisma.user.findUnique({
         where: { handle },
