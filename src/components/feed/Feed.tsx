@@ -68,10 +68,8 @@ export default function Feed({
     const skipInitialFetchRef = useRef(true);
     const [reportingPostId, setReportingPostId] = useState<string | null>(null);
     const [reactionPickerPostId, setReactionPickerPostId] = useState<string | null>(null);
-    const pendingPostActionKeys = useRef(new Set<string>());
-    const [pendingPostActions, setPendingPostActions] = useState<Set<string>>(
-        () => new Set(),
-    );
+    const inFlightPostActionKeys = useRef(new Set<string>());
+    const desiredPostActionState = useRef(new Map<string, boolean>());
 
     useEffect(() => {
         const nextTab = searchParams.get('tab') === 'following' ? 'following' : 'for-you';
@@ -185,7 +183,7 @@ export default function Feed({
         }));
     };
 
-    const runPostAction = async (
+    const runPostAction = (
         postId: string,
         action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark',
     ) => {
@@ -194,7 +192,8 @@ export default function Feed({
         const currentPost = data.posts.find((post) => post.id === postId);
         if (!currentPost) return;
 
-        const currentActive =
+        const actionKey = `${postId}:${action}`;
+        const renderedActive =
             action === 'like'
                 ? currentPost.liked
                 : action === 'bookmark'
@@ -202,53 +201,61 @@ export default function Feed({
                   : action === 'wakaru'
                     ? currentPost.wakaruReacted
                     : currentPost.ganbattaReacted;
-        const desiredActive = !currentActive;
+        const currentDesired =
+            desiredPostActionState.current.get(actionKey) ?? renderedActive;
+        const nextDesired = !currentDesired;
 
-        const actionKey = `${postId}:${action}`;
-        if (pendingPostActionKeys.current.has(actionKey)) return;
+        desiredPostActionState.current.set(actionKey, nextDesired);
+        setLocalPostAction(postId, action, nextDesired);
 
-        pendingPostActionKeys.current.add(actionKey);
-        setPendingPostActions((prev) => {
-            const next = new Set(prev);
-            next.add(actionKey);
-            return next;
-        });
+        if (inFlightPostActionKeys.current.has(actionKey)) return;
+        inFlightPostActionKeys.current.add(actionKey);
 
-        setLocalPostAction(postId, action, desiredActive);
+        void (async () => {
+            try {
+                while (desiredPostActionState.current.has(actionKey)) {
+                    const targetActive = desiredPostActionState.current.get(actionKey);
+                    if (typeof targetActive !== 'boolean') break;
 
-        try {
-            const res = await fetch('/api/post-action', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    postId,
-                    action,
-                    active: desiredActive,
-                }),
-            });
-            if (!res.ok) throw new Error('failed');
+                    const res = await fetch('/api/post-action', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            postId,
+                            action,
+                            active: targetActive,
+                        }),
+                    });
+                    if (!res.ok) throw new Error('failed');
 
-            const payload = await res.json();
-            if (typeof payload?.active !== 'boolean') {
-                throw new Error('invalid response');
+                    const payload = await res.json();
+                    if (typeof payload?.active !== 'boolean') {
+                        throw new Error('invalid response');
+                    }
+
+                    const latestDesired =
+                        desiredPostActionState.current.get(actionKey);
+
+                    if (latestDesired === targetActive) {
+                        desiredPostActionState.current.delete(actionKey);
+                        setLocalPostAction(
+                            postId,
+                            action,
+                            payload.active,
+                            typeof payload?.count === 'number'
+                                ? payload.count
+                                : undefined,
+                        );
+                        break;
+                    }
+                }
+            } catch {
+                desiredPostActionState.current.delete(actionKey);
+                await fetchFeed();
+            } finally {
+                inFlightPostActionKeys.current.delete(actionKey);
             }
-
-            setLocalPostAction(
-                postId,
-                action,
-                payload.active,
-                typeof payload?.count === 'number' ? payload.count : undefined,
-            );
-        } catch {
-            setLocalPostAction(postId, action, currentActive);
-        } finally {
-            pendingPostActionKeys.current.delete(actionKey);
-            setPendingPostActions((prev) => {
-                const next = new Set(prev);
-                next.delete(actionKey);
-                return next;
-            });
-        }
+        })();
     };
 
     const handleAction = (
@@ -414,7 +421,7 @@ export default function Feed({
                                                     type="button"
                                                     onClick={(event) => handleAction(event, post.id, 'like')}
                                                     aria-pressed={post.liked}
-                                                    disabled={pendingPostActions.has(`${post.id}:like`)}
+
                                                     className={
                                                         'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:opacity-50 ' +
                                                         (post.liked
@@ -444,7 +451,7 @@ export default function Feed({
                                                     type="button"
                                                     onClick={(event) => handleAction(event, post.id, 'wakaru')}
                                                     aria-pressed={post.wakaruReacted}
-                                                    disabled={pendingPostActions.has(`${post.id}:wakaru`)}
+
                                                     className={
                                                         'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:opacity-50 ' +
                                                         (post.wakaruReacted
@@ -471,7 +478,7 @@ export default function Feed({
                                                     type="button"
                                                     onClick={(event) => handleAction(event, post.id, 'ganbatta')}
                                                     aria-pressed={post.ganbattaReacted}
-                                                    disabled={pendingPostActions.has(`${post.id}:ganbatta`)}
+
                                                     className={
                                                         'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:opacity-50 ' +
                                                         (post.ganbattaReacted
@@ -513,7 +520,7 @@ export default function Feed({
                                                 type="button"
                                                 onClick={(event) => handleAction(event, post.id, 'bookmark')}
                                                 aria-pressed={post.bookmarked}
-                                                disabled={pendingPostActions.has(`${post.id}:bookmark`)}
+
                                                 className={
                                                     'flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:opacity-50 ' +
                                                     (post.bookmarked
