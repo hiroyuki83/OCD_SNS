@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     if (!session?.user) {
         return privateJson({ ok: false }, { status: 401 });
     }
-    let userId = session.user.id ?? null;
+    let userId: string | null = session.user.id ?? null;
 
     const sessionEmail = session.user.email;
     if (!userId && sessionEmail) {
