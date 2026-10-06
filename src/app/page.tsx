@@ -20,7 +20,7 @@ export default async function Home({
 
   const session = await auth();
   if (!session?.user) redirect("/login");
-  let userId = session.user.id ?? null;
+  let userId: string | null = session.user.id ?? null;
 
   const sessionEmail = session.user.email;
   if (!userId && sessionEmail) {
