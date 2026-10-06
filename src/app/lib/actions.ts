@@ -24,7 +24,6 @@ import { togglePostInteraction } from '@/lib/postInteractions';
 import { mutateBlockRelation, mutateMuteRelation } from '@/lib/userPrivacyRelations';
 import { getNormalizedAccountModerationState } from '@/lib/accountModeration';
 import { isE2eBlobMode } from '@/lib/blobDeliveryMode';
-import { normalizeImageAlt } from '@/lib/postImageAlt';
 import { sanitizeImageMetadata } from '@/lib/imageSanitizationCore';
 import { logOperationalError } from '@/lib/operationalError';
 import { allowPublicEmailRequestFromCurrentIp } from '@/lib/publicEmailRateLimit';
@@ -278,9 +277,9 @@ export async function createPost(
     const rawContent = formData.get('content');
     const content = typeof rawContent === 'string' ? rawContent.trim() : '';
     const image = formData.get('image');
-    const imageAltResult = normalizeImageAlt(formData.get('imageAlt'));
-    if (!imageAltResult.ok) return { message: imageAltResult.error };
-    const imageAlt = imageAltResult.value;
+    if (image instanceof File && image.size > 0) {
+        return { message: '画像付き投稿には対応していません。' };
+    }
 
     let autoHashtag: string | null = null;
     if (userId) {
@@ -307,9 +306,8 @@ export async function createPost(
         return { message: safetyError };
     }
 
-    const hasImage = image instanceof File && image.size > 0;
-    if (!finalContent && !hasImage) {
-        return { message: '本文か画像のどちらかは必要です。' };
+    if (!finalContent) {
+        return { message: '本文を入力してください。' };
     }
 
     const safetyAssessment = evaluatePostSafety(finalContent);
@@ -319,13 +317,6 @@ export async function createPost(
             message: '安全を確認するため、案内を読んでから投稿を続けてください。',
             safety: { requiresAcknowledgement: true },
         };
-    }
-
-    let imageUrl: string | null = null;
-    if (hasImage) {
-        const upload = await uploadImage(image, `posts/${userId}`);
-        if ('error' in upload) return { message: upload.error ?? '画像のアップロードに失敗しました。' };
-        imageUrl = upload.url;
     }
 
     try {
@@ -340,9 +331,9 @@ export async function createPost(
 
             const post = await tx.post.create({
                 data: {
-                    content: finalContent || '',
-                    imageUrl,
-                    imageAlt: imageUrl ? imageAlt : null,
+                    content: finalContent,
+                    imageUrl: null,
+                    imageAlt: null,
                     authorId: userId,
                 },
                 select: { id: true },
@@ -373,13 +364,9 @@ export async function createPost(
         });
 
         if (!created) {
-            if (imageUrl) await deleteManagedBlob(imageUrl);
             return { message: 'アカウント状態が変更されたため投稿できませんでした。画面を更新してください。' };
         }
     } catch (error) {
-        if (imageUrl) {
-            await deleteManagedBlob(imageUrl);
-        }
         logOperationalError('POST_CREATE_FAILED', error);
         return { message: '投稿に失敗しました。' };
     }

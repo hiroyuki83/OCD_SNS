@@ -34,8 +34,10 @@ test('Preview historical, pending and deferred migration sets do not overlap', (
   );
 });
 
-test('Preview has no pending migration after appeal acceptance', () => {
-  assert.deepEqual(PREVIEW_PENDING_MIGRATIONS, []);
+test('Preview pending migrations contain the generic self-assessment storage release', () => {
+  assert.deepEqual(PREVIEW_PENDING_MIGRATIONS, [
+    '20261004102000_add_generic_self_assessments',
+  ]);
 });
 
 test('sanction migration is historical after shared Preview acceptance', () => {

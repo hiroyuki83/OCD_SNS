@@ -46,6 +46,7 @@ model User {
   iesrResults             IesrResult[]
   itqResults              ItqResult[]
   lsasResults             LsasResult[]
+  selfAssessmentResults   SelfAssessmentResult[]
   reactions               Reaction[]
   blocksInitiated         Block[]              @relation("UserBlocks")
   blockedBy               Block[]              @relation("UserBlockedBy")
@@ -371,6 +372,24 @@ model LsasResult {
   a24         Int
 
   user User @relation(fields: [userId], references: [id])
+}
+
+
+model SelfAssessmentResult {
+  id             String   @id @default(cuid())
+  userId         String
+  assessmentKey  String
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+  totalScore     Int?
+  functionScore  Int
+  subscaleScores Json
+  answers        Json
+  safetyFlags    Json
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, assessmentKey, createdAt])
 }
 
 model Reaction {

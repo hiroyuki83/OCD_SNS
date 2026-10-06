@@ -42,7 +42,9 @@ export const PREVIEW_HISTORICAL_MIGRATIONS = [
   '20260928110500_add_sanction_appeals',
 ] as const;
 
-export const PREVIEW_PENDING_MIGRATIONS = [] as const;
+export const PREVIEW_PENDING_MIGRATIONS = [
+  '20261004102000_add_generic_self_assessments',
+] as const;
 
 export const PREVIEW_DEFERRED_MIGRATIONS = [] as const;
 

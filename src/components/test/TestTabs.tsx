@@ -1,64 +1,200 @@
 'use client';
 
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { useTransition } from 'react';
-import YbocsForm from '@/components/test/YbocsForm';
-import IesrForm from '@/components/test/IesrForm';
-import ItqForm from '@/components/test/ItqForm';
-import LsasForm from '@/components/test/LsasForm';
-import { deleteSelfTestResult } from '@/app/lib/actions';
+import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
+import { useState, useTransition } from 'react';
+import AssessmentOverview, {
+    type AssessmentProfileGroup,
+} from '@/components/test/AssessmentOverview';
+import { deleteGenericSelfAssessmentResult } from '@/app/test/actions';
+import type {
+    AssessmentSection,
+    SelfAssessmentDefinition,
+    SelfAssessmentKey,
+    SelfAssessmentResultView,
+} from '@/lib/selfAssessmentTypes';
 
-type YbocsResult = {
-    id: string;
-    createdAt: string;
-    totalScore: number;
-    obsessionsScore: number;
-    compulsionsScore: number;
-};
+const SelfAssessmentForm = dynamic(() => import('@/components/test/SelfAssessmentForm'), {
+    loading: () => <div className="text-sm text-zinc-500">セルフチェックを読み込んでいます...</div>,
+});
 
-type IesrResult = {
-    id: string;
-    createdAt: string;
-    totalScore: number;
-    intrusionScore: number;
-    avoidanceScore: number;
-    hyperarousalScore: number;
-};
+const TREND_COLORS = ['#0284c7', '#0f766e', '#7c3aed', '#c2410c', '#be123c'];
 
-type ItqResult = {
-    id: string;
-    createdAt: string;
-    eventTiming: string;
-    ptsdScore: number;
-    dsoScore: number;
-    reScore: number;
-    avScore: number;
-    thScore: number;
-    adScore: number;
-    nscScore: number;
-    drScore: number;
-    ptsdFunctional: boolean;
-    dsoFunctional: boolean;
-    ptsdMet: boolean;
-    dsoMet: boolean;
-    resultLabel: string;
-};
+const TAB_GROUPS: Array<{
+    label: string;
+    keys: SelfAssessmentKey[];
+}> = [
+    {
+        label: '気分・不安',
+        keys: ['depression', 'mania', 'gad', 'panic', 'social-anxiety'],
+    },
+    {
+        label: '強迫・トラウマ',
+        keys: ['ocd', 'ptsd', 'cptsd'],
+    },
+    {
+        label: '解離',
+        keys: ['dpdr', 'dissociation'],
+    },
+    {
+        label: 'その他',
+        keys: ['personality', 'eating', 'sleep'],
+    },
+];
 
-type LsasResult = {
-    id: string;
-    createdAt: string;
-    totalScore: number;
-    fearScore: number;
-    avoidScore: number;
-    resultLabel: string;
-};
+function resultDateLabel(value: string) {
+    return new Date(value).toLocaleDateString('ja-JP', {
+        month: '2-digit',
+        day: '2-digit',
+    });
+}
+
+function resultDateTimeLabel(value: string) {
+    return new Date(value).toLocaleString('ja-JP', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+function optionMax(values: Array<{ value: number }>) {
+    return Math.max(...values.map((option) => option.value));
+}
+
+function sectionMax(definition: SelfAssessmentDefinition, section: AssessmentSection) {
+    if (section.scoringMode === 'currentCount') return section.items.length;
+    return section.items.reduce(
+        (sum, item) => sum + optionMax(item.options ?? definition.defaultOptions),
+        0,
+    );
+}
+
+function totalMax(definition: SelfAssessmentDefinition) {
+    return definition.sections
+        .filter((section) => section.scored !== false)
+        .reduce((sum, section) => sum + sectionMax(definition, section), 0);
+}
+
+function derivedMax(definition: SelfAssessmentDefinition, id: string) {
+    const derived = definition.derivedScores?.find((item) => item.id === id);
+    if (!derived) return null;
+    return derived.sectionIds.reduce((sum, sectionId) => {
+        const section = definition.sections.find((item) => item.id === sectionId);
+        return sum + (section ? sectionMax(definition, section) : 0);
+    }, 0);
+}
+
+function scoreMax(definition: SelfAssessmentDefinition, id: string) {
+    if (id === '$total') return totalMax(definition);
+    const derived = derivedMax(definition, id);
+    if (derived !== null) return derived;
+    const section = definition.sections.find((item) => item.id === id);
+    return section ? sectionMax(definition, section) : 1;
+}
+
+function scoreLabel(definition: SelfAssessmentDefinition, id: string) {
+    if (id === '$total') return '総合';
+    const derived = definition.derivedScores?.find((item) => item.id === id);
+    if (derived) return derived.label;
+    return definition.sections.find((item) => item.id === id)?.title ?? id;
+}
+
+function scoreValue(result: SelfAssessmentResultView, id: string) {
+    if (id === '$total') return result.totalScore ?? 0;
+    return result.subscaleScores[id] ?? 0;
+}
+
+function chooseTrendIds(
+    definition: SelfAssessmentDefinition,
+    latest: SelfAssessmentResultView | undefined,
+) {
+    if (definition.primaryTrendIds && definition.primaryTrendIds.length > 0) {
+        return definition.primaryTrendIds;
+    }
+    if (definition.showTotal) return ['$total'];
+    if (!latest) return [];
+
+    return definition.sections
+        .filter((section) => section.profile !== false)
+        .map((section) => ({
+            id: section.id,
+            ratio:
+                (latest.subscaleScores[section.id] ?? 0) /
+                Math.max(1, sectionMax(definition, section)),
+        }))
+        .sort((a, b) => b.ratio - a.ratio)
+        .slice(0, 3)
+        .map((item) => item.id);
+}
+
+function profileItems(
+    definition: SelfAssessmentDefinition,
+    result: SelfAssessmentResultView,
+    sections: AssessmentSection[],
+) {
+    return sections
+        .filter((section) => section.profile !== false)
+        .map((section) => ({
+            label: section.title,
+            value: result.subscaleScores[section.id] ?? 0,
+            max: sectionMax(definition, section),
+        }));
+}
+
+function buildProfileGroups(
+    definition: SelfAssessmentDefinition,
+    result: SelfAssessmentResultView,
+): AssessmentProfileGroup[] {
+    if (definition.key === 'ocd') {
+        return [
+            {
+                title: '直近の重症度',
+                color: '#0284c7',
+                items: profileItems(definition, result, definition.sections),
+            },
+        ];
+    }
+
+    if (definition.key === 'cptsd') {
+        const ptsdIds = new Set(['reexperiencing', 'traumaAvoidance', 'threat']);
+        return [
+            {
+                title: 'PTSD中核症状',
+                color: '#0284c7',
+                items: profileItems(
+                    definition,
+                    result,
+                    definition.sections.filter((section) => ptsdIds.has(section.id)),
+                ),
+            },
+            {
+                title: '自己組織化の困難',
+                color: '#0f766e',
+                items: profileItems(
+                    definition,
+                    result,
+                    definition.sections.filter((section) => !ptsdIds.has(section.id)),
+                ),
+            },
+        ];
+    }
+
+    return [
+        {
+            title: '直近の領域別プロフィール',
+            color: '#0284c7',
+            items: profileItems(definition, result, definition.sections),
+        },
+    ];
+}
 
 function DeleteResultButton({
-    testType,
+    assessmentKey,
     resultId,
 }: {
-    testType: 'ybocs' | 'iesr' | 'itq' | 'lsas';
+    assessmentKey: SelfAssessmentKey;
     resultId: string;
 }) {
     const [pending, startTransition] = useTransition();
@@ -70,7 +206,7 @@ function DeleteResultButton({
             onClick={() => {
                 if (!window.confirm('この保存結果を削除しますか？この操作は元に戻せません。')) return;
                 startTransition(async () => {
-                    await deleteSelfTestResult(testType, resultId);
+                    await deleteGenericSelfAssessmentResult(assessmentKey, resultId);
                     window.location.reload();
                 });
             }}
@@ -81,417 +217,246 @@ function DeleteResultButton({
     );
 }
 
-function ScoreChart({
-    scores,
-    labels,
-    statusLabels,
-    maxScore,
-}: {
-    scores: number[];
-    labels: string[];
-    statusLabels: string[];
-    maxScore: number;
-}) {
-    if (scores.length === 0) return null;
-
-    const width = 640;
-    const height = 200;
-    const padding = 32;
-    const xLabelOffset = 14;
-    const statusLabelOffset = 6;
-    const yAxisLabelOffset = 6;
-    const points = scores.map((score, index) => {
-        const x =
-            scores.length === 1
-                ? width / 2
-                : padding + (index * (width - padding * 2)) / (scores.length - 1);
-        const y = padding + ((maxScore - score) / maxScore) * (height - padding * 2);
-        return { x, y };
-    });
-    const path = points
-        .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
-        .join(' ');
-
-    const gridLines = 5;
-    const yTicks = Array.from({ length: gridLines + 1 }, (_, i) => {
-        const value = maxScore - (i * maxScore) / gridLines;
-        const y = padding + (i * (height - padding * 2)) / gridLines;
-        return { value, y };
-    });
-
-    return (
-        <div className="border border-border rounded-2xl p-4">
-            <div className="text-sm font-bold mb-2">スコア推移</div>
-            <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-52">
-                <rect x="0" y="0" width={width} height={height} fill="transparent" />
-                <g stroke="#27272a" strokeWidth="1">
-                    {yTicks.map((tick) => (
-                        <line key={tick.value} x1={padding} y1={tick.y} x2={width - padding} y2={tick.y} />
-                    ))}
-                </g>
-                <path d={path} fill="none" stroke="#1d9bf0" strokeWidth="2" />
-                {points.map((point, index) => (
-                    <circle key={index} cx={point.x} cy={point.y} r="3" fill="#1d9bf0" />
-                ))}
-                <g fill="#a1a1aa" fontSize="10">
-                    {labels.map((label, index) => {
-                        const x =
-                            labels.length === 1
-                                ? width / 2
-                                : padding + (index * (width - padding * 2)) / (labels.length - 1);
-                        return (
-                            <text key={label} x={x} y={height - xLabelOffset} textAnchor="middle">
-                                {label}
-                            </text>
-                        );
-                    })}
-                </g>
-                <g fill="#60a5fa" fontSize="9">
-                    {statusLabels.map((label, index) => {
-                        if (!label) return null;
-                        const x =
-                            statusLabels.length === 1
-                                ? width / 2
-                                : padding + (index * (width - padding * 2)) / (statusLabels.length - 1);
-                        return (
-                            <text key={`${label}-${index}`} x={x} y={height - statusLabelOffset} textAnchor="middle">
-                                {label}
-                            </text>
-                        );
-                    })}
-                </g>
-                <g fill="#71717a" fontSize="10" textAnchor="end">
-                    {yTicks.map((tick) => (
-                        <text key={`y-${tick.value}`} x={padding - yAxisLabelOffset} y={tick.y + 3}>
-                            {Math.round(tick.value)}
-                        </text>
-                    ))}
-                </g>
-            </svg>
-        </div>
-    );
-}
-
 export default function TestTabs({
-    ybocsResults,
-    iesrResults,
-    itqResults,
-    lsasResults,
+    definition,
+    results,
+    tabs,
+    canSave,
+    ocdProfileDefinition,
+    ocdProfileResults = [],
 }: {
-    ybocsResults: YbocsResult[];
-    iesrResults: IesrResult[];
-    itqResults: ItqResult[];
-    lsasResults: LsasResult[];
+    definition: SelfAssessmentDefinition;
+    results: SelfAssessmentResultView[];
+    tabs: Array<{ key: SelfAssessmentKey; title: string; shortTitle: string }>;
+    canSave: boolean;
+    ocdProfileDefinition?: SelfAssessmentDefinition;
+    ocdProfileResults?: SelfAssessmentResultView[];
 }) {
-    const searchParams = useSearchParams();
-    const tabValue = searchParams.get('tab');
-    const activeTab =
-        tabValue === 'iesr'
-            ? 'iesr'
-            : tabValue === 'itq'
-                ? 'itq'
-                : tabValue === 'lsas'
-                    ? 'lsas'
-                    : 'ybocs';
-
-    const ybocsScores = ybocsResults.map((result) => result.totalScore);
-    const ybocsLabels = ybocsResults.map((result) =>
-        new Date(result.createdAt).toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }),
-    );
-    const ybocsStatusLabels = ybocsResults.map((result, index) => {
-        if (index === 0) return '';
-        const previous = ybocsResults[index - 1];
-        const response =
-            previous.totalScore > 0 &&
-            (previous.totalScore - result.totalScore) / previous.totalScore >= 0.35;
-        const remission = result.totalScore <= 12;
-        if (remission) return '寛解';
-        if (response) return '治療効果あり';
-        return '';
-    });
-    const ybocsChartMinWidth = ybocsScores.length > 7 ? 640 + (ybocsScores.length - 7) * 120 : 640;
-
-    const iesrScores = iesrResults.map((result) => result.totalScore);
-    const iesrLabels = iesrResults.map((result) =>
-        new Date(result.createdAt).toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' }),
-    );
-    const iesrChartMinWidth = iesrScores.length > 7 ? 640 + (iesrScores.length - 7) * 120 : 640;
+    const router = useRouter();
+    const [activeForm, setActiveForm] = useState<'main' | 'profile' | null>(null);
+    const latest = results.at(-1);
+    const latestOcdProfile = ocdProfileResults.at(-1);
+    const trendIds = chooseTrendIds(definition, latest);
+    const trendMax = Math.max(1, ...trendIds.map((id) => scoreMax(definition, id)));
+    const isOcd = definition.key === 'ocd';
+    const currentOcdProfileSections =
+        isOcd && latestOcdProfile && ocdProfileDefinition
+            ? ocdProfileDefinition.sections.filter(
+                  (section) => (latestOcdProfile.subscaleScores[section.id] ?? 0) > 0,
+              )
+            : [];
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center gap-2 border-b border-border">
-                <Link
-                    href="/test?tab=ybocs"
-                    className={`px-4 py-2 text-sm font-bold transition-colors ${
-                        activeTab === 'ybocs'
-                            ? 'text-[#1d9bf0] border-b-2 border-[#1d9bf0]'
-                            : 'text-zinc-500 hover:text-zinc-700'
-                    }`}
+        <div className="space-y-5">
+            <section className="rounded-2xl border border-border bg-white p-4 md:p-5">
+                <select
+                    id="assessment-selector"
+                    value={definition.key}
+                    onChange={(event) => {
+                        setActiveForm(null);
+                        router.push('/test?tab=' + encodeURIComponent(event.target.value));
+                    }}
+                    className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-bold text-zinc-900 outline-none transition focus:border-[#1d9bf0] focus:ring-2 focus:ring-[#1d9bf0]/20"
+                    aria-label="セルフチェックの領域を選択"
                 >
-                    Y-BOCS
-                </Link>
-                <Link
-                    href="/test?tab=iesr"
-                    className={`px-4 py-2 text-sm font-bold transition-colors ${
-                        activeTab === 'iesr'
-                            ? 'text-[#1d9bf0] border-b-2 border-[#1d9bf0]'
-                            : 'text-zinc-500 hover:text-zinc-700'
-                    }`}
-                >
-                    IES-R
-                </Link>
-                <Link
-                    href="/test?tab=itq"
-                    className={`px-4 py-2 text-sm font-bold transition-colors ${
-                        activeTab === 'itq'
-                            ? 'text-[#1d9bf0] border-b-2 border-[#1d9bf0]'
-                            : 'text-zinc-500 hover:text-zinc-700'
-                    }`}
-                >
-                    ITQ
-                </Link>
-                <Link
-                    href="/test?tab=lsas"
-                    className={`px-4 py-2 text-sm font-bold transition-colors ${
-                        activeTab === 'lsas'
-                            ? 'text-[#1d9bf0] border-b-2 border-[#1d9bf0]'
-                            : 'text-zinc-500 hover:text-zinc-700'
-                    }`}
-                >
-                    LSAS
-                </Link>
-            </div>
+                    {TAB_GROUPS.map((group) => {
+                        const groupedTabs = group.keys
+                            .map((key) => tabs.find((tab) => tab.key === key))
+                            .filter((tab): tab is (typeof tabs)[number] => Boolean(tab));
 
-            {activeTab === 'ybocs' && ybocsResults.length > 0 && (
-                <>
-                    <div className="border border-border rounded-2xl p-4 space-y-3">
-                        <div className="text-sm font-bold">スコア推移</div>
-                        <div className="overflow-x-auto pb-2">
-                            <div style={{ minWidth: `${ybocsChartMinWidth}px` }}>
-                                <ScoreChart
-                                    scores={ybocsScores}
-                                    labels={ybocsLabels}
-                                    statusLabels={ybocsStatusLabels}
-                                    maxScore={50}
-                                />
+                        if (groupedTabs.length === 0) return null;
+
+                        return (
+                            <optgroup key={group.label} label={group.label}>
+                                {groupedTabs.map((tab) => (
+                                    <option key={tab.key} value={tab.key}>
+                                        {tab.title}
+                                    </option>
+                                ))}
+                            </optgroup>
+                        );
+                    })}
+                </select>
+
+                <div className="mt-4">
+                    <h2 className="text-lg font-bold text-zinc-950">{definition.title}</h2>
+                    <p className="mt-1 text-sm leading-6 text-zinc-600">{definition.subtitle}</p>
+                    <p className="mt-2 text-xs text-zinc-400">回答期間：{definition.period}</p>
+                </div>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                    <button
+                        type="button"
+                        onClick={() => setActiveForm(activeForm === 'main' ? null : 'main')}
+                        className="rounded-full bg-sky-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-sky-600"
+                    >
+                        {activeForm === 'main'
+                            ? 'チェックを閉じる'
+                            : isOcd
+                              ? '重症度をチェックする'
+                              : 'セルフチェックを始める'}
+                    </button>
+
+                    {isOcd && ocdProfileDefinition && (
+                        <button
+                            type="button"
+                            onClick={() => setActiveForm(activeForm === 'profile' ? null : 'profile')}
+                            className="rounded-full border border-zinc-300 bg-white px-5 py-3 text-sm font-bold text-zinc-700 transition hover:bg-zinc-50"
+                        >
+                            {activeForm === 'profile'
+                                ? 'プロフィールを閉じる'
+                                : latestOcdProfile
+                                  ? '症状プロフィールを確認・更新'
+                                  : '症状プロフィールを作成'}
+                        </button>
+                    )}
+                </div>
+            </section>
+
+            {activeForm === 'main' && (
+                <SelfAssessmentForm
+                    definition={definition}
+                    canSave={canSave}
+                    submitLabel={isOcd ? '重症度を保存する' : '結果を保存する'}
+                />
+            )}
+
+            {activeForm === 'profile' && isOcd && ocdProfileDefinition && (
+                <SelfAssessmentForm
+                    definition={ocdProfileDefinition}
+                    canSave={canSave}
+                    submitLabel="症状プロフィールを保存する"
+                />
+            )}
+
+            {(latest || (isOcd && latestOcdProfile)) && (
+                <section className="space-y-4">
+                    <div>
+                        <h2 className="text-base font-bold text-zinc-950">あなたの記録</h2>
+                        <p className="mt-1 text-xs text-zinc-500">
+                            直近の状態と、これまでの変化を確認できます。
+                        </p>
+                    </div>
+
+                    {latest && trendIds.length > 0 && (
+                        <AssessmentOverview
+                            title={definition.title}
+                            subtitle={definition.subtitle}
+                            labels={results.map((result) => resultDateLabel(result.createdAt))}
+                            trendSeries={trendIds.map((id, index) => ({
+                                label: scoreLabel(definition, id),
+                                color: TREND_COLORS[index % TREND_COLORS.length],
+                                values: results.map((result) => scoreValue(result, id)),
+                            }))}
+                            maxScore={trendMax}
+                            summaryItems={[
+                                ...trendIds.map((id) => ({
+                                    label: scoreLabel(definition, id),
+                                    value: scoreValue(latest, id),
+                                    max: scoreMax(definition, id),
+                                })),
+                                {
+                                    label: '生活への影響',
+                                    value: latest.functionScore,
+                                    max: 20,
+                                },
+                            ]}
+                            profileGroups={buildProfileGroups(definition, latest)}
+                        />
+                    )}
+
+                    {isOcd && ocdProfileDefinition && (
+                        <div className="rounded-2xl border border-border bg-white p-4 md:p-5">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <div className="text-sm font-bold text-zinc-900">症状プロフィール</div>
+                                    <div className="mt-1 text-xs text-zinc-500">
+                                        毎回のチェックは不要です。症状内容が変わったときに更新できます。
+                                    </div>
+                                </div>
+                                {latestOcdProfile && (
+                                    <div className="text-xs text-zinc-400">
+                                        最終更新：{resultDateTimeLabel(latestOcdProfile.createdAt)}
+                                    </div>
+                                )}
                             </div>
+
+                            {latestOcdProfile ? (
+                                currentOcdProfileSections.length > 0 ? (
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                        {currentOcdProfileSections.map((section) => (
+                                            <span
+                                                key={section.id}
+                                                className="rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-700"
+                                            >
+                                                {section.title}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="mt-4 text-sm text-zinc-500">
+                                        現在みられる症状として選択された領域はありません。
+                                    </div>
+                                )
+                            ) : (
+                                <div className="mt-4 text-sm text-zinc-500">
+                                    症状プロフィールはまだ作成されていません。
+                                </div>
+                            )}
                         </div>
-                        <div className="text-xs text-zinc-500">
-                            {ybocsResults.length > 7 && '横スクロールで過去のスコアを確認できます。'}
-                        </div>
-                    </div>
-                    <div className="border border-border rounded-2xl p-4 text-xs text-zinc-500 space-y-2">
-                        <div className="font-bold text-zinc-400">目安</div>
-                        <div>寛解 12以下</div>
-                        <div>軽症 15〜21点</div>
-                        <div>中等症 22〜34点</div>
-                        <div>重症 35〜50点</div>
-                    </div>
-                    <div className="border border-border rounded-2xl p-4 space-y-2 max-h-80 overflow-y-auto">
-                        <div className="text-sm font-bold">履歴</div>
-                        <div className="grid gap-2 text-sm">
-                            {ybocsResults
+                    )}
+                </section>
+            )}
+
+            {!latest && !(isOcd && latestOcdProfile) && (
+                <div className="rounded-2xl border border-dashed border-zinc-300 bg-white p-5 text-sm text-zinc-500">
+                    保存された記録はまだありません。上のボタンからチェックを始められます。
+                </div>
+            )}
+
+            {results.length > 0 && (
+                <details className="rounded-2xl border border-border bg-white">
+                    <summary className="cursor-pointer list-none px-4 py-4 text-sm font-bold text-zinc-900">
+                        過去の記録を見る（{results.length}件）
+                    </summary>
+                    <div className="max-h-80 overflow-y-auto border-t border-zinc-100 px-4">
+                        <div className="divide-y divide-zinc-100">
+                            {results
                                 .slice()
                                 .reverse()
-                                .map((result) => {
-                                    const chronologicalIndex = ybocsResults.findIndex((item) => item.id === result.id);
-                                    const previous =
-                                        chronologicalIndex > 0 ? ybocsResults[chronologicalIndex - 1] : null;
-                                    const response =
-                                        previous &&
-                                        previous.totalScore > 0 &&
-                                        (previous.totalScore - result.totalScore) / previous.totalScore >= 0.35;
-                                    const remission = result.totalScore <= 12;
-
-                                    return (
-                                        <div
-                                            key={result.id}
-                                            className="grid items-center gap-2 text-zinc-400"
-                                            style={{
-                                                gridTemplateColumns:
-                                                    'minmax(140px,1.2fr) minmax(90px,0.8fr) minmax(80px,0.6fr) minmax(90px,0.7fr) minmax(90px,0.7fr) minmax(50px,0.4fr)',
-                                            }}
-                                        >
-                                            <span>
-                                                {new Date(result.createdAt).toLocaleString('ja-JP', {
-                                                    year: 'numeric',
-                                                    month: '2-digit',
-                                                    day: '2-digit',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                })}
-                                            </span>
-                                            <span className="flex items-center gap-2">
-                                                {response && <span className="text-[#1d9bf0]">治療効果あり</span>}
-                                                {remission && <span className="text-green-400">寛解</span>}
-                                            </span>
-                                            <span>合計 {result.totalScore}</span>
-                                            <span>強迫観念 {result.obsessionsScore}</span>
-                                            <span>強迫行為 {result.compulsionsScore}</span>
-                                            <DeleteResultButton testType="ybocs" resultId={result.id} />
+                                .map((result) => (
+                                    <div
+                                        key={result.id}
+                                        className="flex flex-wrap items-center justify-between gap-3 py-3 text-xs text-zinc-500"
+                                    >
+                                        <span>{resultDateTimeLabel(result.createdAt)}</span>
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            {definition.showTotal && result.totalScore !== null && (
+                                                <span>
+                                                    総合 {result.totalScore} / {totalMax(definition)}
+                                                </span>
+                                            )}
+                                            <span>生活への影響 {result.functionScore} / 20</span>
+                                            <DeleteResultButton
+                                                assessmentKey={definition.key}
+                                                resultId={result.id}
+                                            />
                                         </div>
-                                    );
-                                })}
-                        </div>
-                    </div>
-                </>
-            )}
-
-            {activeTab === 'iesr' && iesrResults.length > 0 && (
-                <>
-                    <div className="border border-border rounded-2xl p-4 space-y-3">
-                        <div className="text-sm font-bold">スコア推移</div>
-                        <div className="overflow-x-auto pb-2">
-                            <div style={{ minWidth: `${iesrChartMinWidth}px` }}>
-                                <ScoreChart
-                                    scores={iesrScores}
-                                    labels={iesrLabels}
-                                    statusLabels={new Array(iesrScores.length).fill('')}
-                                    maxScore={88}
-                                />
-                            </div>
-                        </div>
-                        <div className="text-xs text-zinc-500">
-                            {iesrResults.length > 7 && '横スクロールで過去のスコアを確認できます。'}
-                        </div>
-                    </div>
-                    <div className="border border-border rounded-2xl p-4 text-xs text-zinc-500 space-y-2">
-                        <div className="font-bold text-zinc-400">目安</div>
-                        <div>合計点 24 / 25 点がスクリーニングの境界値</div>
-                        <div>医学的な診断に代わるものではありません。</div>
-                    </div>
-                    <div className="border border-border rounded-2xl p-4 space-y-2 max-h-80 overflow-y-auto">
-                        <div className="text-sm font-bold">履歴</div>
-                        <div className="grid gap-2 text-sm">
-                            {iesrResults
-                                .slice()
-                                .reverse()
-                                .map((result) => (
-                                    <div
-                                        key={result.id}
-                                        className="grid items-center gap-2 text-zinc-400"
-                                        style={{
-                                            gridTemplateColumns:
-                                                'minmax(140px,1.2fr) minmax(90px,0.8fr) minmax(100px,0.8fr) minmax(100px,0.8fr) minmax(100px,0.8fr) minmax(50px,0.4fr)',
-                                        }}
-                                    >
-                                        <span>
-                                            {new Date(result.createdAt).toLocaleString('ja-JP', {
-                                                year: 'numeric',
-                                                month: '2-digit',
-                                                day: '2-digit',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                            })}
-                                        </span>
-                                        <span>合計 {result.totalScore}</span>
-                                        <span>侵入 {result.intrusionScore}</span>
-                                        <span>回避 {result.avoidanceScore}</span>
-                                        <span>過覚醒 {result.hyperarousalScore}</span>
-                                        <DeleteResultButton testType="iesr" resultId={result.id} />
                                     </div>
                                 ))}
                         </div>
                     </div>
-                </>
+                </details>
             )}
 
-            {activeTab === 'itq' && itqResults.length > 0 && (
-                <>
-                    <div className="border border-border rounded-2xl p-4 text-xs text-zinc-500 space-y-2">
-                        <div className="font-bold text-zinc-400">判定</div>
-                        <div>PTSD / CPTSD の可能性をスクリーニングします。</div>
-                        <div>※CPTSDの基準を満たしている場合、PTSDの診断は受けません（CPTSDに含まれます）。</div>
-                    </div>
-                    <div className="border border-border rounded-2xl p-4 space-y-2 max-h-80 overflow-y-auto">
-                        <div className="text-sm font-bold">履歴</div>
-                        <div className="grid gap-2 text-sm">
-                            {itqResults
-                                .slice()
-                                .reverse()
-                                .map((result) => (
-                                    <div
-                                        key={result.id}
-                                        className="grid items-center gap-2 text-zinc-400"
-                                        style={{
-                                            gridTemplateColumns:
-                                                'minmax(140px,1.2fr) minmax(180px,1.2fr) minmax(80px,0.7fr) minmax(80px,0.7fr) minmax(120px,0.9fr) minmax(50px,0.4fr)',
-                                        }}
-                                    >
-                                        <span>
-                                            {new Date(result.createdAt).toLocaleString('ja-JP', {
-                                                year: 'numeric',
-                                                month: '2-digit',
-                                                day: '2-digit',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                            })}
-                                        </span>
-                                        <span className="text-zinc-300">{result.resultLabel}</span>
-                                        <span>PTSD {result.ptsdScore}</span>
-                                        <span>DSO {result.dsoScore}</span>
-                                        <span className="text-xs">
-                                            侵入 {result.reScore} / 回避 {result.avScore} / 過覚醒 {result.thScore}
-                                        </span>
-                                        <DeleteResultButton testType="itq" resultId={result.id} />
-                                    </div>
-                                ))}
-                        </div>
-                    </div>
-                </>
-            )}
-
-            {activeTab === 'lsas' && lsasResults.length > 0 && (
-                <>
-                    <div className="border border-border rounded-2xl p-4 text-xs text-zinc-500 space-y-2">
-                        <div className="font-bold text-zinc-400">判定</div>
-                        <div>総合得点に基づいて判定します。</div>
-                    </div>
-                    <div className="border border-border rounded-2xl p-4 space-y-2 max-h-80 overflow-y-auto">
-                        <div className="text-sm font-bold">履歴</div>
-                        <div className="grid gap-2 text-sm">
-                            {lsasResults
-                                .slice()
-                                .reverse()
-                                .map((result) => (
-                                    <div
-                                        key={result.id}
-                                        className="grid items-center gap-2 text-zinc-400"
-                                        style={{
-                                            gridTemplateColumns:
-                                                'minmax(140px,1.2fr) minmax(140px,1fr) minmax(80px,0.7fr) minmax(90px,0.8fr) minmax(90px,0.8fr) minmax(50px,0.4fr)',
-                                        }}
-                                    >
-                                        <span>
-                                            {new Date(result.createdAt).toLocaleString('ja-JP', {
-                                                year: 'numeric',
-                                                month: '2-digit',
-                                                day: '2-digit',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                            })}
-                                        </span>
-                                        <span className="text-zinc-300">{result.resultLabel}</span>
-                                        <span>合計 {result.totalScore}</span>
-                                        <span>恐怖 {result.fearScore}</span>
-                                        <span>回避 {result.avoidScore}</span>
-                                        <DeleteResultButton testType="lsas" resultId={result.id} />
-                                    </div>
-                                ))}
-                        </div>
-                    </div>
-                </>
-            )}
-
-            {activeTab === 'ybocs' ? (
-                <YbocsForm />
-            ) : activeTab === 'iesr' ? (
-                <IesrForm />
-            ) : activeTab === 'itq' ? (
-                <ItqForm />
-            ) : (
-                <LsasForm />
-            )}
+            <details className="rounded-2xl border border-border bg-white">
+                <summary className="cursor-pointer list-none px-4 py-4 text-sm font-medium text-zinc-600">
+                    このセルフチェックについて
+                </summary>
+                <div className="border-t border-zinc-100 px-4 py-4 text-xs leading-relaxed text-zinc-500">
+                    CoCo独自の経過モニタリング項目です。診断や治療、既存の標準化心理検査の代わりになるものではありません。現段階ではカットオフや「軽症・中等症・重症」の判定は行いません。保存した結果は本人のセルフチェックページだけに表示します。
+                </div>
+            </details>
         </div>
     );
 }

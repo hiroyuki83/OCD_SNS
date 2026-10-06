@@ -10,17 +10,15 @@ import { formatPostTime } from '@/lib/formatTime';
 import { promptForReport, submitReport } from '@/lib/reportClient';
 import { DeletePostForm } from '@/components/profile/ProfileDangerActions';
 import PaginationLinks from '@/components/shared/PaginationLinks';
+import { Bookmark, CircleDot, Heart, Plus, Sparkles, X } from 'lucide-react';
 
 type FeedPost = {
     id: string;
     content: string;
-    imageUrl: string | null;
-    imageAlt: string | null;
     createdAt: string;
     wakaruCount: number;
     ganbattaCount: number;
     likeCount: number;
-    bookmarkCount: number;
     liked: boolean;
     bookmarked: boolean;
     wakaruReacted: boolean;
@@ -53,36 +51,25 @@ type AnnouncementNotice = {
 
 export default function Feed({
     focusCompose = false,
-    initialViewerId = null,
-    initialViewerAvatarUrl = null,
+    initialData,
     announcements = [],
 }: {
     focusCompose?: boolean;
-    initialViewerId?: string | null;
-    initialViewerAvatarUrl?: string | null;
+    initialData: FeedResponse;
     announcements?: AnnouncementNotice[];
 }) {
     const searchParams = useSearchParams();
     const router = useRouter();
     const initialTab = searchParams.get('tab') === 'following' ? 'following' : 'for-you';
     const [tab, setTab] = useState<'for-you' | 'following'>(initialTab);
-    const [data, setData] = useState<FeedResponse>({
-        posts: [],
-        viewerId: initialViewerId,
-        viewerAvatarUrl: initialViewerAvatarUrl,
-        totalCount: 0,
-        page: 1,
-        totalPages: 1,
-        hasPrevious: false,
-        hasNext: false,
-    });
-    const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
-    const [hasLoaded, setHasLoaded] = useState(false);
+    const [data, setData] = useState<FeedResponse>(initialData);
+    const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+    const [hasLoaded, setHasLoaded] = useState(true);
+    const skipInitialFetchRef = useRef(true);
     const [reportingPostId, setReportingPostId] = useState<string | null>(null);
-    const pendingPostActionKeys = useRef(new Set<string>());
-    const [pendingPostActions, setPendingPostActions] = useState<Set<string>>(
-        () => new Set(),
-    );
+    const [reactionPickerPostId, setReactionPickerPostId] = useState<string | null>(null);
+    const inFlightPostActionKeys = useRef(new Set<string>());
+    const desiredPostActionState = useRef(new Map<string, boolean>());
 
     useEffect(() => {
         const nextTab = searchParams.get('tab') === 'following' ? 'following' : 'for-you';
@@ -92,10 +79,6 @@ export default function Feed({
     const fetchFeed = useMemo(
         () => async (signal?: AbortSignal) => {
             setStatus('loading');
-            setData((prev) => ({
-                ...prev,
-                posts: [],
-            }));
             try {
                 const requestedPage =
                     tab === 'following' ? searchParams.get('page') ?? '1' : '1';
@@ -126,16 +109,6 @@ export default function Feed({
                 setHasLoaded(true);
             } catch {
                 if (signal?.aborted) return;
-                setData({
-                    posts: [],
-                    viewerId: null,
-                    viewerAvatarUrl: null,
-                    totalCount: 0,
-                    page: 1,
-                    totalPages: 1,
-                    hasPrevious: false,
-                    hasNext: false,
-                });
                 setStatus('error');
                 setHasLoaded(true);
             }
@@ -144,6 +117,11 @@ export default function Feed({
     );
 
     useEffect(() => {
+        if (skipInitialFetchRef.current) {
+            skipInitialFetchRef.current = false;
+            return;
+        }
+
         const controller = new AbortController();
         fetchFeed(controller.signal);
         return () => {
@@ -151,123 +129,133 @@ export default function Feed({
         };
     }, [fetchFeed]);
 
-    const applyLocalPostAction = (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
-        setData((prev) => ({
-            ...prev,
-            posts: prev.posts.map((post) => {
-                if (post.id !== postId) return post;
-                if (action === 'like') {
-                    const nextLiked = !post.liked;
-                    return {
-                        ...post,
-                        liked: nextLiked,
-                        likeCount: Math.max(0, post.likeCount + (nextLiked ? 1 : -1)),
-                    };
-                }
-                if (action === 'bookmark') {
-                    const nextBookmarked = !post.bookmarked;
-                    return {
-                        ...post,
-                        bookmarked: nextBookmarked,
-                        bookmarkCount: Math.max(0, post.bookmarkCount + (nextBookmarked ? 1 : -1)),
-                    };
-                }
-                if (action === 'wakaru') {
-                    const nextWakaru = !post.wakaruReacted;
-                    return {
-                        ...post,
-                        wakaruReacted: nextWakaru,
-                        wakaruCount: Math.max(0, post.wakaruCount + (nextWakaru ? 1 : -1)),
-                    };
-                }
-                const nextGanbatta = !post.ganbattaReacted;
-                return {
-                    ...post,
-                    ganbattaReacted: nextGanbatta,
-                    ganbattaCount: Math.max(0, post.ganbattaCount + (nextGanbatta ? 1 : -1)),
-                };
-            }),
-        }));
-    };
-
-    const reconcileLocalPostAction = (
+    const setLocalPostAction = (
         postId: string,
         action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark',
         active: boolean,
-        count: number | undefined,
+        count?: number,
     ) => {
         setData((prev) => ({
             ...prev,
             posts: prev.posts.map((post) => {
                 if (post.id !== postId) return post;
+
                 if (action === 'like') {
-                    return {
-                        ...post,
-                        liked: active,
-                        likeCount: typeof count === 'number' ? Math.max(0, count) : post.likeCount,
-                    };
+                    const nextCount =
+                        typeof count === 'number'
+                            ? Math.max(0, count)
+                            : post.liked === active
+                              ? post.likeCount
+                              : Math.max(0, post.likeCount + (active ? 1 : -1));
+                    return { ...post, liked: active, likeCount: nextCount };
                 }
+
                 if (action === 'bookmark') {
-                    return {
-                        ...post,
-                        bookmarked: active,
-                        bookmarkCount:
-                            typeof count === 'number' ? Math.max(0, count) : post.bookmarkCount,
-                    };
+                    return { ...post, bookmarked: active };
                 }
+
                 if (action === 'wakaru') {
+                    const nextCount =
+                        typeof count === 'number'
+                            ? Math.max(0, count)
+                            : post.wakaruReacted === active
+                              ? post.wakaruCount
+                              : Math.max(0, post.wakaruCount + (active ? 1 : -1));
                     return {
                         ...post,
                         wakaruReacted: active,
-                        wakaruCount: typeof count === 'number' ? Math.max(0, count) : post.wakaruCount,
+                        wakaruCount: nextCount,
                     };
                 }
+
+                const nextCount =
+                    typeof count === 'number'
+                        ? Math.max(0, count)
+                        : post.ganbattaReacted === active
+                          ? post.ganbattaCount
+                          : Math.max(0, post.ganbattaCount + (active ? 1 : -1));
                 return {
                     ...post,
                     ganbattaReacted: active,
-                    ganbattaCount:
-                        typeof count === 'number' ? Math.max(0, count) : post.ganbattaCount,
+                    ganbattaCount: nextCount,
                 };
             }),
         }));
     };
 
-    const runPostAction = async (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
+    const runPostAction = (
+        postId: string,
+        action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark',
+    ) => {
         if (!data.viewerId || !postId || postId.length > 128) return;
+
+        const currentPost = data.posts.find((post) => post.id === postId);
+        if (!currentPost) return;
+
         const actionKey = `${postId}:${action}`;
-        if (pendingPostActionKeys.current.has(actionKey)) return;
-        pendingPostActionKeys.current.add(actionKey);
-        setPendingPostActions((prev) => {
-            const next = new Set(prev);
-            next.add(actionKey);
-            return next;
-        });
-        applyLocalPostAction(postId, action);
-        try {
-            const res = await fetch('/api/post-action', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ postId, action }),
-            });
-            if (!res.ok) throw new Error('failed');
-            const payload = await res.json();
-            if (typeof payload?.active !== 'boolean') throw new Error('invalid response');
-            reconcileLocalPostAction(
-                postId,
-                action,
-                payload.active,
-                typeof payload?.count === 'number' ? payload.count : undefined,
-            );
-        } catch {
-            await fetchFeed();
-        } finally {
-            pendingPostActionKeys.current.delete(actionKey);
-            setPendingPostActions((prev) => {
-                const next = new Set(prev);
-                next.delete(actionKey);
-                return next;
-            });
-        }
+        const renderedActive =
+            action === 'like'
+                ? currentPost.liked
+                : action === 'bookmark'
+                  ? currentPost.bookmarked
+                  : action === 'wakaru'
+                    ? currentPost.wakaruReacted
+                    : currentPost.ganbattaReacted;
+        const currentDesired =
+            desiredPostActionState.current.get(actionKey) ?? renderedActive;
+        const nextDesired = !currentDesired;
+
+        desiredPostActionState.current.set(actionKey, nextDesired);
+        setLocalPostAction(postId, action, nextDesired);
+
+        if (inFlightPostActionKeys.current.has(actionKey)) return;
+        inFlightPostActionKeys.current.add(actionKey);
+
+        void (async () => {
+            try {
+                while (desiredPostActionState.current.has(actionKey)) {
+                    const targetActive = desiredPostActionState.current.get(actionKey);
+                    if (typeof targetActive !== 'boolean') break;
+
+                    const res = await fetch('/api/post-action', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            postId,
+                            action,
+                            active: targetActive,
+                        }),
+                    });
+                    if (!res.ok) throw new Error('failed');
+
+                    const payload = await res.json();
+                    if (typeof payload?.active !== 'boolean') {
+                        throw new Error('invalid response');
+                    }
+
+                    const latestDesired =
+                        desiredPostActionState.current.get(actionKey);
+
+                    if (latestDesired === targetActive) {
+                        desiredPostActionState.current.delete(actionKey);
+                        setLocalPostAction(
+                            postId,
+                            action,
+                            payload.active,
+                            typeof payload?.count === 'number'
+                                ? payload.count
+                                : undefined,
+                        );
+                        break;
+                    }
+                }
+            } catch {
+                desiredPostActionState.current.delete(actionKey);
+                await fetchFeed();
+            } finally {
+                inFlightPostActionKeys.current.delete(actionKey);
+            }
+        })();
     };
 
     const handleAction = (
@@ -407,7 +395,7 @@ export default function Feed({
                                     <div className="w-10 h-10 rounded-full bg-slate-400" />
                                 )}
                             </Link>
-                            <div className="flex-1 flex flex-col gap-2 relative z-10">
+                            <div className="flex-1 flex flex-col gap-2 relative">
                                 <div className="flex items-center justify-between gap-2 text-sm flex-wrap">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <Link href={`/user/${handle}`} className="font-bold hover:underline">
@@ -422,87 +410,250 @@ export default function Feed({
                                     {null}
                                 </div>
                                 {post.content && <HashtagText text={post.content} className="text-sm" />}
-                                {post.imageUrl && (
-                                    <img
-                                        src={post.imageUrl}
-                                        alt={post.imageAlt ?? ''}
-                                        className="mt-2 rounded-2xl border border-border max-h-[480px] object-cover"
-                                    />
-                                )}
-                                <div className="flex items-center gap-3 text-zinc-500 flex-wrap relative z-30 feed-action-area" data-action-area>
-                                    {data.viewerId ? (
-                                        <button
-                                            type="button"
-                                            onClick={(event) => handleAction(event, post.id, 'like')}
-                                            aria-pressed={post.liked}
-                                            disabled={pendingPostActions.has(`${post.id}:like`)}
-                                            className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs transition-colors disabled:opacity-50 ${
-                                                post.liked ? 'text-red-500' : 'hover:text-red-500'
-                                            }`}
-                                        >
-                                            いいね
-                                            <span>{post.likeCount}</span>
-                                        </button>
-                                    ) : (
-                                        <div className="text-xs">いいね {post.likeCount}</div>
-                                    )}
-                                    {data.viewerId ? (
-                                        <button
-                                            type="button"
-                                            onClick={(event) => handleAction(event, post.id, 'wakaru')}
-                                            aria-pressed={post.wakaruReacted}
-                                            disabled={pendingPostActions.has(`${post.id}:wakaru`)}
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
-                                                post.wakaruReacted ? 'text-yellow-400' : 'hover:text-yellow-400'
-                                            }`}
-                                        >
-                                            わかる <span>{post.wakaruCount}</span>
-                                        </button>
-                                    ) : (
-                                        <div className="text-xs">わかる {post.wakaruCount}</div>
-                                    )}
-                                    {data.viewerId ? (
-                                        <button
-                                            type="button"
-                                            onClick={(event) => handleAction(event, post.id, 'ganbatta')}
-                                            aria-pressed={post.ganbattaReacted}
-                                            disabled={pendingPostActions.has(`${post.id}:ganbatta`)}
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
-                                                post.ganbattaReacted ? 'text-green-400' : 'hover:text-green-400'
-                                            }`}
-                                        >
-                                            頑張った <span>{post.ganbattaCount}</span>
-                                        </button>
-                                    ) : (
-                                        <div className="text-xs">頑張った {post.ganbattaCount}</div>
-                                    )}
-                                    {data.viewerId ? (
-                                        <button
-                                            type="button"
-                                            onClick={(event) => handleAction(event, post.id, 'bookmark')}
-                                            aria-pressed={post.bookmarked}
-                                            disabled={pendingPostActions.has(`${post.id}:bookmark`)}
-                                            className={`text-xs rounded-full px-3 py-1 transition-colors disabled:opacity-50 ${
-                                                post.bookmarked ? 'text-blue-400' : 'hover:text-blue-400'
-                                            }`}
-                                        >
-                                            ブックマーク <span>{post.bookmarkCount}</span>
-                                        </button>
-                                    ) : (
-                                        <div className="text-xs">ブックマーク {post.bookmarkCount}</div>
-                                    )}
-                                    {data.viewerId && post.author.id === data.viewerId && (
-                                        <DeletePostForm postId={post.id} />
-                                    )}
-                                    {data.viewerId && post.author.id !== data.viewerId && (
-                                        <button
-                                            type="button"
-                                            onClick={(event) => reportPost(event, post.id)}
-                                            className="text-xs text-zinc-500 hover:text-red-500"
-                                            disabled={reportingPostId === post.id}
-                                        >
-                                            {reportingPostId === post.id ? '送信中' : '通報'}
-                                        </button>
+                                <div
+                                    className="relative mt-1 flex flex-wrap items-center justify-between gap-2 feed-action-area"
+                                    data-action-area
+                                >
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {(post.likeCount > 0 || post.liked) && (
+                                            data.viewerId ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => handleAction(event, post.id, 'like')}
+                                                    aria-pressed={post.liked}
+
+                                                    className={
+                                                        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:opacity-50 ' +
+                                                        (post.liked
+                                                            ? 'border-sky-200 bg-sky-50 text-sky-700'
+                                                            : 'border-zinc-200 bg-white text-zinc-600 hover:bg-sky-50 hover:text-sky-700')
+                                                    }
+                                                >
+                                                    <Heart
+                                                        className="h-4 w-4 text-sky-500"
+                                                        fill={post.liked ? 'currentColor' : 'none'}
+                                                    />
+                                                    <span>いいね</span>
+                                                    <span className="tabular-nums text-zinc-500">{post.likeCount}</span>
+                                                </button>
+                                            ) : (
+                                                <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-600">
+                                                    <Heart className="h-4 w-4 text-sky-500" />
+                                                    <span>いいね</span>
+                                                    <span className="tabular-nums">{post.likeCount}</span>
+                                                </span>
+                                            )
+                                        )}
+
+                                        {(post.wakaruCount > 0 || post.wakaruReacted) && (
+                                            data.viewerId ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => handleAction(event, post.id, 'wakaru')}
+                                                    aria-pressed={post.wakaruReacted}
+
+                                                    className={
+                                                        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:opacity-50 ' +
+                                                        (post.wakaruReacted
+                                                            ? 'border-teal-200 bg-teal-50 text-teal-700'
+                                                            : 'border-zinc-200 bg-white text-zinc-600 hover:bg-teal-50 hover:text-teal-700')
+                                                    }
+                                                >
+                                                    <CircleDot className="h-4 w-4 text-teal-500" />
+                                                    <span>わかる</span>
+                                                    <span className="tabular-nums text-zinc-500">{post.wakaruCount}</span>
+                                                </button>
+                                            ) : (
+                                                <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-600">
+                                                    <CircleDot className="h-4 w-4 text-teal-500" />
+                                                    <span>わかる</span>
+                                                    <span className="tabular-nums">{post.wakaruCount}</span>
+                                                </span>
+                                            )
+                                        )}
+
+                                        {(post.ganbattaCount > 0 || post.ganbattaReacted) && (
+                                            data.viewerId ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => handleAction(event, post.id, 'ganbatta')}
+                                                    aria-pressed={post.ganbattaReacted}
+
+                                                    className={
+                                                        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:opacity-50 ' +
+                                                        (post.ganbattaReacted
+                                                            ? 'border-orange-200 bg-orange-50 text-orange-700'
+                                                            : 'border-zinc-200 bg-white text-zinc-600 hover:bg-orange-50 hover:text-orange-700')
+                                                    }
+                                                >
+                                                    <Sparkles className="h-4 w-4 text-orange-500" />
+                                                    <span>応援</span>
+                                                    <span className="tabular-nums text-zinc-500">{post.ganbattaCount}</span>
+                                                </button>
+                                            ) : (
+                                                <span className="inline-flex h-8 items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-600">
+                                                    <Sparkles className="h-4 w-4 text-orange-500" />
+                                                    <span>応援</span>
+                                                    <span className="tabular-nums">{post.ganbattaCount}</span>
+                                                </span>
+                                            )
+                                        )}
+
+                                        {data.viewerId && (
+                                            <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    setReactionPickerPostId(post.id);
+                                                }}
+                                                className="flex h-8 w-8 items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-zinc-500 transition-colors hover:border-sky-200 hover:bg-sky-50 hover:text-sky-600"
+                                                aria-label="リアクションを追加"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="ml-auto flex items-center gap-1">
+                                        {data.viewerId ? (
+                                            <button
+                                                type="button"
+                                                onClick={(event) => handleAction(event, post.id, 'bookmark')}
+                                                aria-pressed={post.bookmarked}
+
+                                                className={
+                                                    'flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:opacity-50 ' +
+                                                    (post.bookmarked
+                                                        ? 'bg-sky-50 text-sky-600'
+                                                        : 'text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700')
+                                                }
+                                                aria-label={post.bookmarked ? 'ブックマーク済み' : 'ブックマーク'}
+                                                title="ブックマーク"
+                                            >
+                                                <Bookmark
+                                                    className="h-4 w-4"
+                                                    fill={post.bookmarked ? 'currentColor' : 'none'}
+                                                />
+                                            </button>
+                                        ) : null}
+
+                                        {data.viewerId && post.author.id === data.viewerId && (
+                                            <DeletePostForm postId={post.id} />
+                                        )}
+                                        {data.viewerId && post.author.id !== data.viewerId && (
+                                            <button
+                                                type="button"
+                                                onClick={(event) => reportPost(event, post.id)}
+                                                className="rounded-full px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-100 hover:text-red-500"
+                                                disabled={reportingPostId === post.id}
+                                            >
+                                                {reportingPostId === post.id ? '送信中' : '通報'}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {reactionPickerPostId === post.id && data.viewerId && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                className="fixed inset-0 z-[100] bg-black/25"
+                                                onClick={(event) => {
+                                                    event.stopPropagation();
+                                                    setReactionPickerPostId(null);
+                                                }}
+                                                aria-label="リアクションメニューを閉じる"
+                                            />
+                                            <div
+                                                className="fixed inset-x-0 bottom-0 z-[110] isolate mx-auto w-full max-w-md rounded-t-3xl border border-zinc-200 bg-white p-4 shadow-2xl md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:rounded-3xl"
+                                                onClick={(event) => event.stopPropagation()}
+                                            >
+                                                <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-200 md:hidden" />
+                                                <div className="mb-3 flex items-center justify-between">
+                                                    <div>
+                                                        <div className="text-base font-bold text-zinc-900">反応する</div>
+                                                        <div className="mt-0.5 text-xs text-zinc-500">
+                                                            投稿をどう受け取ったかを、そっと伝えられます。
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setReactionPickerPostId(null)}
+                                                        className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 hover:bg-zinc-100"
+                                                        aria-label="閉じる"
+                                                    >
+                                                        <X className="h-5 w-5" />
+                                                    </button>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(event) => {
+                                                            handleAction(event, post.id, 'like');
+                                                            setReactionPickerPostId(null);
+                                                        }}
+                                                        className={
+                                                            'flex w-full items-center gap-3 rounded-2xl border bg-white p-3 text-left transition-colors ' +
+                                                            (post.liked
+                                                                ? 'border-sky-200 bg-sky-50'
+                                                                : 'border-zinc-200 hover:bg-zinc-50')
+                                                        }
+                                                    >
+                                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-500">
+                                                            <Heart className="h-5 w-5" fill={post.liked ? 'currentColor' : 'none'} />
+                                                        </span>
+                                                        <span>
+                                                            <span className="block text-sm font-bold text-zinc-900">いいね</span>
+                                                            <span className="block text-xs text-zinc-500">素敵な投稿だと思ったときに</span>
+                                                        </span>
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={(event) => {
+                                                            handleAction(event, post.id, 'wakaru');
+                                                            setReactionPickerPostId(null);
+                                                        }}
+                                                        className={
+                                                            'flex w-full items-center gap-3 rounded-2xl border bg-white p-3 text-left transition-colors ' +
+                                                            (post.wakaruReacted
+                                                                ? 'border-teal-200 bg-teal-50'
+                                                                : 'border-zinc-200 hover:bg-zinc-50')
+                                                        }
+                                                    >
+                                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-50 text-teal-500">
+                                                            <CircleDot className="h-5 w-5" />
+                                                        </span>
+                                                        <span>
+                                                            <span className="block text-sm font-bold text-zinc-900">わかる</span>
+                                                            <span className="block text-xs text-zinc-500">気持ちに共感したときに</span>
+                                                        </span>
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={(event) => {
+                                                            handleAction(event, post.id, 'ganbatta');
+                                                            setReactionPickerPostId(null);
+                                                        }}
+                                                        className={
+                                                            'flex w-full items-center gap-3 rounded-2xl border bg-white p-3 text-left transition-colors ' +
+                                                            (post.ganbattaReacted
+                                                                ? 'border-orange-200 bg-orange-50'
+                                                                : 'border-zinc-200 hover:bg-zinc-50')
+                                                        }
+                                                    >
+                                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-50 text-orange-500">
+                                                            <Sparkles className="h-5 w-5" />
+                                                        </span>
+                                                        <span>
+                                                            <span className="block text-sm font-bold text-zinc-900">応援している</span>
+                                                            <span className="block text-xs text-zinc-500">そっと背中を押したいときに</span>
+                                                        </span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             </div>

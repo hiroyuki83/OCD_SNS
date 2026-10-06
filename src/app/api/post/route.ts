@@ -13,13 +13,20 @@ export async function GET(request: Request) {
     }
 
     const session = await auth();
-    let viewerId = session?.user?.id ?? null;
-    if (!viewerId && session?.user?.email) {
+    if (!session?.user) {
+        return privateJson({ post: null }, { status: 401 });
+    }
+    let viewerId: string | null = session.user.id ?? null;
+    const sessionEmail = session.user.email;
+    if (!viewerId && sessionEmail) {
         const viewer = await prisma.user.findUnique({
-            where: { email: session.user.email },
+            where: { email: sessionEmail },
             select: { id: true },
         });
         viewerId = viewer?.id ?? null;
+    }
+    if (!viewerId) {
+        return privateJson({ post: null }, { status: 401 });
     }
 
     const post = await prisma.post.findFirst({
@@ -27,8 +34,6 @@ export async function GET(request: Request) {
         select: {
             id: true,
             content: true,
-            imageUrl: true,
-            imageAlt: true,
             createdAt: true,
             author: {
                 select: {
@@ -49,8 +54,6 @@ export async function GET(request: Request) {
         post: {
             id: post.id,
             content: post.content,
-            imageUrl: post.imageUrl,
-            imageAlt: post.imageAlt,
             createdAt: post.createdAt,
             author: post.author,
         },

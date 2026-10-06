@@ -1,123 +1,113 @@
-﻿import { auth } from '@/auth';
+import { auth } from '@/auth';
 import { prisma } from '@/lib/db';
 import TestTabs from '@/components/test/TestTabs';
+import {
+    ASSESSMENT_DEFINITIONS,
+    ASSESSMENT_SUMMARIES,
+    isSelfAssessmentKey,
+} from '@/lib/selfAssessmentDefinitions';
+import type { SelfAssessmentKey } from '@/lib/selfAssessmentTypes';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export default async function TestPage() {
+function resolveTab(value: string | string[] | undefined): SelfAssessmentKey {
+    const tab = Array.isArray(value) ? value[0] : value;
+    if (tab === 'ocd-profile') return 'ocd';
+    return isSelfAssessmentKey(tab) ? tab : 'depression';
+}
+
+function toResultView(result: {
+    id: string;
+    createdAt: Date;
+    totalScore: number | null;
+    functionScore: number;
+    subscaleScores: unknown;
+    safetyFlags: unknown;
+}) {
+    return {
+        id: result.id,
+        createdAt: result.createdAt.toISOString(),
+        totalScore: result.totalScore,
+        functionScore: result.functionScore,
+        subscaleScores: result.subscaleScores as Record<string, number>,
+        safetyFlags: Array.isArray(result.safetyFlags)
+            ? result.safetyFlags.filter((value): value is string => typeof value === 'string')
+            : [],
+    };
+}
+
+export default async function TestPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ tab?: string | string[] }>;
+}) {
+    const params = await searchParams;
+    const activeTab = resolveTab(params.tab);
+    const definition = ASSESSMENT_DEFINITIONS[activeTab];
+
     const session = await auth();
-    let userId = session?.user?.id ?? null;
-    if (!userId && session?.user?.email) {
+    if (!session?.user) redirect('/login');
+    let userId: string | null = session.user.id ?? null;
+    const sessionEmail = session.user.email;
+    if (!userId && sessionEmail) {
         const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
+            where: { email: sessionEmail },
             select: { id: true },
         });
         userId = user?.id ?? null;
     }
+    if (!userId) redirect('/login');
 
-    const ybocsResults = userId
-        ? await prisma.ybocsResult.findMany({
-              where: { userId },
-              orderBy: { createdAt: 'asc' },
-              select: {
-                  id: true,
-                  createdAt: true,
-                  totalScore: true,
-                  obsessionsScore: true,
-                  compulsionsScore: true,
+    const resultSelect = {
+        id: true,
+        createdAt: true,
+        totalScore: true,
+        functionScore: true,
+        subscaleScores: true,
+        safetyFlags: true,
+    } as const;
+
+    const results = userId
+        ? await prisma.selfAssessmentResult.findMany({
+              where: {
+                  userId,
+                  assessmentKey: activeTab,
               },
+              orderBy: { createdAt: 'asc' },
+              select: resultSelect,
           })
         : [];
 
-    const iesrResults = userId
-        ? await prisma.iesrResult.findMany({
-              where: { userId },
-              orderBy: { createdAt: 'asc' },
-              select: {
-                  id: true,
-                  createdAt: true,
-                  totalScore: true,
-                  intrusionScore: true,
-                  avoidanceScore: true,
-                  hyperarousalScore: true,
-              },
-          })
-        : [];
-
-    const itqResults = userId
-        ? await prisma.itqResult.findMany({
-              where: { userId },
-              orderBy: { createdAt: 'asc' },
-              select: {
-                  id: true,
-                  createdAt: true,
-                  eventTiming: true,
-                  ptsdScore: true,
-                  dsoScore: true,
-                  reScore: true,
-                  avScore: true,
-                  thScore: true,
-                  adScore: true,
-                  nscScore: true,
-                  drScore: true,
-                  ptsdFunctional: true,
-                  dsoFunctional: true,
-                  ptsdMet: true,
-                  dsoMet: true,
-                  resultLabel: true,
-              },
-          })
-        : [];
-
-    const lsasResults = userId
-        ? await prisma.lsasResult.findMany({
-              where: { userId },
-              orderBy: { createdAt: 'asc' },
-              select: {
-                  id: true,
-                  createdAt: true,
-                  totalScore: true,
-                  fearScore: true,
-                  avoidScore: true,
-                  resultLabel: true,
-              },
-          })
-        : [];
+    const ocdProfileResults =
+        userId && activeTab === 'ocd'
+            ? await prisma.selfAssessmentResult.findMany({
+                  where: {
+                      userId,
+                      assessmentKey: 'ocd-profile',
+                  },
+                  orderBy: { createdAt: 'asc' },
+                  select: resultSelect,
+              })
+            : [];
 
     return (
         <div className="min-h-screen border-r border-border">
-            <div className="sticky top-0 z-10 backdrop-blur-md bg-background/80 border-b border-border h-14 flex items-center px-4">
-                <h1 className="font-bold text-base">心理検査</h1>
+            <div className="sticky top-0 z-10 flex h-14 items-center border-b border-border bg-background/80 px-4 backdrop-blur-md">
+                <h1 className="text-base font-bold">セルフチェック</h1>
             </div>
 
-            {!session?.user && (
-                <div className="p-6 text-sm text-zinc-400">
-                    テストを保存するにはログインが必要です
-                </div>
-            )}
-
-            <div className="p-4 space-y-6">
-                <div className="text-xs text-zinc-500 leading-relaxed border border-border rounded-2xl p-4">
-                    このテストは自己チェック用です。診断や治療の代わりにはなりません。保存した結果は本人の心理検査ページだけに表示し、公開プロフィールや通常の管理画面には表示しません。
-                </div>
+            <div className="p-4">
                 <TestTabs
-                    ybocsResults={ybocsResults.map((result) => ({
-                        ...result,
-                        createdAt: result.createdAt.toISOString(),
-                    }))}
-                    iesrResults={iesrResults.map((result) => ({
-                        ...result,
-                        createdAt: result.createdAt.toISOString(),
-                    }))}
-                    itqResults={itqResults.map((result) => ({
-                        ...result,
-                        createdAt: result.createdAt.toISOString(),
-                    }))}
-                    lsasResults={lsasResults.map((result) => ({
-                        ...result,
-                        createdAt: result.createdAt.toISOString(),
-                    }))}
+                    definition={definition}
+                    tabs={ASSESSMENT_SUMMARIES}
+                    canSave={Boolean(session?.user)}
+                    results={results.map(toResultView)}
+                    ocdProfileDefinition={
+                        activeTab === 'ocd' ? ASSESSMENT_DEFINITIONS['ocd-profile'] : undefined
+                    }
+                    ocdProfileResults={ocdProfileResults.map(toResultView)}
                 />
             </div>
         </div>

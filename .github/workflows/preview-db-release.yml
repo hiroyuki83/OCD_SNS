@@ -7,6 +7,11 @@ on:
         description: 'Type MIGRATE_COCO_PREVIEW to authorize Preview DB migration'
         required: true
         type: string
+      seed_users:
+        description: 'Reset/upsert Preview test users after migration'
+        required: true
+        type: boolean
+        default: false
 
 concurrency:
   group: coco-preview-db-release
@@ -17,16 +22,16 @@ permissions:
 
 jobs:
   migrate-preview:
-    if: ${{ github.ref_name == 'feature/sanction-appeals-20260928' && inputs.confirmation == 'MIGRATE_COCO_PREVIEW' }}
+    if: ${{ github.ref_name == 'preview' && inputs.confirmation == 'MIGRATE_COCO_PREVIEW' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     environment: preview
     env:
       VERCEL_ENV: preview
-      VERCEL_GIT_COMMIT_REF: ${{ github.ref_name }}
+      VERCEL_GIT_COMMIT_REF: preview
       PREVIEW_MIGRATION_CONFIRM: ${{ inputs.confirmation }}
       PREVIEW_ALLOW_BASELINE: '0'
-      PREVIEW_SEED_USERS: '1'
+      PREVIEW_SEED_USERS: ${{ inputs.seed_users && '1' || '0' }}
       DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
       PREVIEW_DATABASE_URL: ${{ secrets.PREVIEW_DATABASE_URL }}
       POSTGRES_URL_NON_POOLING: ${{ secrets.PREVIEW_DATABASE_URL }}
@@ -34,14 +39,36 @@ jobs:
       PREVIEW_TEST_PASSWORD: ${{ secrets.PREVIEW_TEST_PASSWORD }}
 
     steps:
-      - name: Checkout approved Preview release branch
+      - name: Checkout fixed Preview branch
         uses: actions/checkout@v6
+        with:
+          ref: preview
 
       - name: Use Node.js
         uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
+
+      - name: Verify Preview release secrets before any DB write
+        shell: bash
+        env:
+          SEED_USERS: ${{ inputs.seed_users }}
+        run: |
+          set -euo pipefail
+          [ -n "${PREVIEW_DATABASE_URL:-}" ] || {
+            echo "PREVIEW_DATABASE_URL is not configured in the GitHub preview environment."
+            exit 1
+          }
+          [ "${DATABASE_URL}" = "${PREVIEW_DATABASE_URL}" ] || {
+            echo "DATABASE_URL must exactly match PREVIEW_DATABASE_URL."
+            exit 1
+          }
+          if [ "${SEED_USERS}" = "true" ] && [ -z "${PREVIEW_TEST_PASSWORD:-}" ]; then
+            echo "seed_users=true requires PREVIEW_TEST_PASSWORD in the GitHub preview environment."
+            exit 1
+          fi
+          echo "Preview release prerequisites are present. Secret values are not printed."
 
       - name: Install dependencies
         run: npm ci
@@ -58,8 +85,23 @@ jobs:
       - name: Verify Preview schema
         run: npm run preview:db:verify
 
-      - name: Seed Preview test users
+      - name: Seed Preview test users when explicitly requested
+        if: ${{ inputs.seed_users }}
         run: npm run seed:preview
 
       - name: Confirm migration status
         run: npx prisma migrate status
+
+      - name: Emit Preview DB release summary
+        shell: bash
+        env:
+          SEED_USERS: ${{ inputs.seed_users }}
+        run: |
+          {
+            echo "## CoCo Preview DB release"
+            echo
+            echo "- branch: preview"
+            echo "- migration guard: MIGRATE_COCO_PREVIEW"
+            echo "- seed users requested: ${SEED_USERS}"
+            echo "- Production DB: untouched"
+          } >> "${GITHUB_STEP_SUMMARY}"

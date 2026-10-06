@@ -5,6 +5,10 @@ export default NextAuth(authConfig).auth;
 
 export const config = {
     matcher: [
+        '/',
+        '/user/:path*',
+        '/post/:path*',
+        '/explore/:path*',
         '/admin/:path*',
         '/moderation/:path*',
         '/bookmarks/:path*',

@@ -1,6 +1,9 @@
 import Feed from "@/components/feed/Feed";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
+import { getFeedData, type FeedTab } from "@/lib/feedData";
+import { parsePageNumber } from "@/lib/pagination";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -8,51 +11,58 @@ export const revalidate = 0;
 export default async function Home({
   searchParams,
 }: {
-  searchParams?: { compose?: string; tab?: string };
+  searchParams: Promise<{ compose?: string; tab?: string; page?: string }>;
 }) {
-  const focusCompose = searchParams?.compose === "1";
+  const params = await searchParams;
+  const focusCompose = params.compose === "1";
+  const tab: FeedTab = params.tab === "following" ? "following" : "for-you";
+  const requestedPage = parsePageNumber(params.page);
+
   const session = await auth();
-  let userId = session?.user?.id ?? null;
-  let avatarUrl: string | null = null;
-  if (!userId && session?.user?.email) {
+  if (!session?.user) redirect("/login");
+  let userId: string | null = session.user.id ?? null;
+
+  const sessionEmail = session.user.email;
+  if (!userId && sessionEmail) {
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      select: { id: true, avatarUrl: true },
+      where: { email: sessionEmail },
+      select: { id: true },
     });
     userId = user?.id ?? null;
-    avatarUrl = user?.avatarUrl ?? null;
-  } else if (userId) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { avatarUrl: true },
-    });
-    avatarUrl = user?.avatarUrl ?? null;
   }
+  if (!userId) redirect("/login");
 
   const now = new Date();
-  const announcements = await prisma.announcement.findMany({
-    where: {
-      isActive: true,
-      AND: [
-        { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
-        { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
-      ],
-    },
-    orderBy: { createdAt: "desc" },
-    take: 3,
-    select: {
-      id: true,
-      title: true,
-      body: true,
-      href: true,
-    },
-  });
+  const [initialData, announcements] = await Promise.all([
+    getFeedData({
+      userId,
+      tab,
+      requestedPage,
+    }),
+    prisma.announcement.findMany({
+      where: {
+        isActive: true,
+        AND: [
+          { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+          { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      select: {
+        id: true,
+        title: true,
+        body: true,
+        href: true,
+      },
+    }),
+  ]);
 
   return (
     <Feed
+      key={`${tab}:${initialData.page}`}
       focusCompose={focusCompose}
-      initialViewerId={userId}
-      initialViewerAvatarUrl={avatarUrl}
+      initialData={initialData}
       announcements={announcements}
     />
   );

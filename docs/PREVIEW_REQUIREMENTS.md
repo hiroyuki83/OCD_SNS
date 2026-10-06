@@ -1,10 +1,10 @@
 # CoCo Preview 要件定義
 
-最終更新: 2026-10-02
-対象基準ブランチ: `main`
-現在の実装ブランチ: `main`
+最終更新: 2026-10-03
+対象基準ブランチ: `preview`
+mainへの昇格元: `preview`
 
-この文書を CoCo Preview 版の仕様上の正本（source of truth）とする。
+この文書を CoCo の固定Preview受入環境に関する要件の正本（source of truth）とする。
 仕様変更があった場合は、この文書と `PREVIEW_ROADMAP.md` を更新する。
 
 ## 1. サービスの位置づけ
@@ -317,28 +317,121 @@ MODERATOR:
 
 ## 15. Preview / Production
 
-Preview と Production の DB を分離する。
+Preview と Production は、branch・deployment・DB・Secret・test userを分離する。
 
-### DB構成
+### 15.1 固定Preview環境
 
-常設DBは原則として以下の2系統とする。
+Production前の正式な受入環境は以下に固定する。
 
-- Production DB
-- 共有Preview DB（Neon project: `coco-preview`）
+- GitHub branch: `preview`
+- Vercel固定Preview URL: `https://coco-git-preview-hiroyuki-desperado-yahoocojps-projects.vercel.app`
+- Vercel target: Preview
+- 共有Preview DB: Neon project `coco-preview`
+- Production deployment / Production DBとは完全に分離する
 
-PRごとに恒久DBを作成しない。
-schema変更・破壊的migrationの検証が必要な場合のみ一時的なNeon branchを作成し、検証完了またはPR終了後に削除する。
+feature / fix branchから作られる一時的なVercel Preview deploymentは実装途中の確認には使用してよいが、main統合前の正式な受入環境とはみなさない。
 
-Preview seed は以下の条件を満たす場合のみ実行する。
+固定Preview URLが最新 `preview` HEADを配信していることを `CoCo Preview Acceptance Ready` で確認してから実操作受入を開始する。
 
+### 15.2 Preview DB接続要件
+
+Preview runtimeのDB接続は `PREVIEW_DATABASE_URL` のみを使用する。
+
+`VERCEL_ENV=preview` の場合、以下へのフォールバックを禁止する。
+
+- `DATABASE_URL`
+- `POSTGRES_PRISMA_URL`
+- `POSTGRES_URL_NON_POOLING`
+
+`PREVIEW_DATABASE_URL` が未設定の場合はfail closedとし、アプリをProduction DBへ接続してはならない。
+
+固定Preview deploymentでは、Vercelの `PREVIEW_DATABASE_URL` が `preview` branchへ適用されていることを `CoCo Preview Environment Bootstrap` で検証する。
+
+Production DBにPreview test user seed、Preview migration、Preview動作確認用writeを実行してはならない。
+
+### 15.3 Preview DB migration
+
+Preview DB migrationは固定 `preview` branchからのみ実行する。
+
+migration実行条件:
+
+- Git refが `preview`
 - `VERCEL_ENV=preview`
-- `PREVIEW_SEED_USERS=1`
+- `PREVIEW_MIGRATION_CONFIRM=MIGRATE_COCO_PREVIEW`
 - `DATABASE_URL === PREVIEW_DATABASE_URL`
+- 接続host / database名が承認済みPreview DBと一致
+- read-only preflightが成功
 
-Production DB に Preview seed を実行してはならない。
+Preview DB release workflowでは、GitHub `preview` environmentの `PREVIEW_DATABASE_URL` を使用する。
+Vercel Preview runtime側の同名Secretと同じ共有Preview DBを指すよう同期する。
 
-Neon project `coco-preview` 内のdefault branch名が `production` であっても、それはPreview専用project内のbranchであり、CoCo Production DBとは別物として扱う。
-運用上の誤認を減らすため、将来的にPreview側default branch名は `preview` へ変更する。
+GitHub側Secretが未設定の場合は、DB write前に停止する。
+
+### 15.4 Preview test user
+
+Preview test usersは共有Preview DBへseedして維持する。
+
+標準test user:
+
+- `coco.preview.public1@example.com`
+- `coco.preview.public2@example.com`
+- `coco.preview.private@example.com`
+- `coco.preview.appeal@example.com`
+- `coco.preview.moderator@example.com`
+- `coco.preview.moderator2@example.com`
+- `coco.preview.admin@example.com`
+- `coco.preview.admin2@example.com`
+- `coco.preview.admin3@example.com`
+- `coco.preview.admin4@example.com`
+- `coco.preview.admin5@example.com`
+
+test userの共通パスワードは `PREVIEW_TEST_PASSWORD` で管理し、GitHub文書・ソースコードへ平文保存しない。
+
+通常のmigrationではtest usersを再seedしない。
+再seedが必要な場合だけ `seed_users=true` を明示する。
+
+再seed時には以下を行う。
+
+- test userのpasswordを `PREVIEW_TEST_PASSWORD` へ揃える
+- email verifiedを有効化
+- role / privacy状態をseed定義へ戻す
+- staff TOTP状態を未設定へ戻す
+- test用sanction / appeal / recovery code等を初期化する
+- sessionVersionを更新して既存sessionを失効させる
+
+### 15.5 Preview staff MFA
+
+ADMIN / MODERATORはPreviewでもTOTP 2段階認証を使用する。
+
+固定 `preview` branchにはVercel branch-scoped Secret `STAFF_MFA_ENCRYPTION_KEY` を1つ設定し、デプロイ間で同じ値を維持する。
+
+`STAFF_MFA_ENCRYPTION_KEY` をデプロイごとに再生成してはならない。
+再生成すると既存の暗号化済みTOTP secretを復号できなくなるためである。
+
+Preview test usersを明示的に再seedした場合は、staff MFA状態が未設定へ戻ることを前提とする。
+
+### 15.6 PreviewとProductionの昇格経路
+
+標準の昇格順は以下とする。
+
+1. feature / fix branchで実装
+2. `preview` へ統合
+3. 固定Preview URLが最新 `preview` HEADを配信していることを確認
+4. CI / E2E / smoke / runtime error確認
+5. USER / ADMIN / MODERATORとして実操作受入
+6. 問題があればmainへ入れずPreview側で修正
+7. 受入完了後に `preview -> main` をmerge
+8. Production releaseは別工程で明示実行
+
+main mergeだけではProduction releaseとみなさない。
+
+### 15.7 Preview branch保持
+
+`preview` は長期運用のacceptance branchとして保持する。
+
+repository branch cleanupでは削除禁止とし、inventoryでは `retained-preview` と分類する。
+
+短時間に `preview` へ複数の直接pushを重ねるとVercel deploymentの完了順によって固定aliasが一時的に古いcommitへ向く可能性があるため、通常の変更はfeature / fix branchでまとめてから `preview` へ統合する。
 
 ## 16. バックアップ・復旧
 
@@ -375,11 +468,11 @@ feature / integration branch上で実装・CI・E2E・Preview検証を完了し�
 以下をすべて満たした場合のみmainへmergeする。
 
 1. GitHub CI / E2Eが成功
-2. 最新commitがVercel Previewへ同期済み
-3. Preview DB migrationが成功
-4. Preview seedが成功
-5. Preview smoke testが成功
-6. 主要機能のPreview受入確認が成功
+2. 最新commitが固定 `preview` branchへ統合済み
+3. 固定Preview aliasがその `preview` HEAD SHAを配信していることを確認済み
+4. schema変更がある場合のみPreview DB migrationが成功
+5. test-user再seedが必要な場合のみseedが成功
+6. Preview smoke testと主要機能の実操作受入確認が成功
 7. Preview runtime errorに重大な未解決エラーがない
 8. main mergeによるProduction自動deployの有無を確認済み
 9. 自動Production deployが有効な場合、意図しない本番反映を防止する措置を完了済み
@@ -455,3 +548,46 @@ main merge後に以下を行う。
 5. Preview 確認
 
 チャットで仕様が確定した場合も、GitHub 上の文書を更新して記録する。
+
+
+## 20. 2026-10-03 固定Preview環境への移行記録
+
+2026-10-03にProduction前の受入環境を長期 `preview` branchへ固定した。
+
+実施内容:
+
+- 固定Vercel Preview aliasを作成
+- `preview` pushによるPreview deployを有効化
+- `main` pushによるProduction自動deployは無効のまま維持
+- 固定Preview aliasと `preview` HEAD SHAの一致を自動検証
+- `/login` smokeを自動確認
+- `preview` branchをrepository cleanupの削除対象外へ変更
+- branch-scoped `STAFF_MFA_ENCRYPTION_KEY` を固定
+- Preview DB migrationとtest-user seedを分離
+- Preview DB preflight / verifyを現在の受入済みmigration baselineへ更新
+
+### Preview DB誤接続インシデントと再発防止
+
+固定 `preview` branch導入直後、Vercel上の `PREVIEW_DATABASE_URL` が旧 `security-integration-final-20260926` branchにのみ紐付いていた。
+
+そのため固定Preview runtimeでは `PREVIEW_DATABASE_URL` が見えず、従来のDB selectorがProduction用 `DATABASE_URL` へフォールバックした。
+結果としてPreview test usersが見えず、ログインは `CredentialsSignin` となった。
+
+確認された事項:
+
+- Preview test usersは消失していなかった
+- Preview専用DB自体は正常だった
+- Production DBへの意図的なwriteは実施していない
+- 原因はVercel environment variableのbranch bindingだった
+
+対応:
+
+- 既存 `PREVIEW_DATABASE_URL` の値は変更せず、branch bindingを `preview` へ移行
+- runtime / migration DB selectorをfail-closedへ変更
+- Previewで `PREVIEW_DATABASE_URL` が無ければProduction系DB URLへフォールバックしない
+- Environment Bootstrapで `PREVIEW_DATABASE_URL` のbranch適用を検証
+- 固定Previewから共有Preview DBのtest dataが取得できることを確認
+- 一時診断endpointは確認後に削除
+
+このインシデントを受け、Section 15のDB分離・fail-closed要件を恒久要件とする。
+

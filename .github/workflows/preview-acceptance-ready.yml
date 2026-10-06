@@ -1,0 +1,96 @@
+name: CoCo Preview Acceptance Ready
+
+on:
+  push:
+    branches:
+      - preview
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-preview-acceptance-ready
+  cancel-in-progress: true
+
+jobs:
+  verify-fixed-preview:
+    if: ${{ github.ref_name == 'preview' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: preview
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      TEAM_ID: team_P1Z1wvYF1h42LIl0YfgXoOPI
+      FIXED_PREVIEW_HOST: coco-git-preview-hiroyuki-desperado-yahoocojps-projects.vercel.app
+      EXPECTED_SHA: ${{ github.sha }}
+
+    steps:
+      - name: Verify Vercel API secret
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${VERCEL_TOKEN:-}" ] || {
+            echo "VERCEL_TOKEN is not configured."
+            exit 1
+          }
+
+      - name: Wait for fixed Preview alias to resolve to this commit
+        id: alias
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 60); do
+            response="$(curl --fail-with-body --silent --show-error \
+              --request GET \
+              --url "https://api.vercel.com/v13/deployments/${FIXED_PREVIEW_HOST}?withGitRepoInfo=true&teamId=${TEAM_ID}" \
+              --header "Authorization: Bearer ${VERCEL_TOKEN}")" || {
+                echo "Vercel deployment lookup failed on attempt ${attempt}; retrying."
+                sleep 10
+                continue
+              }
+
+            actual_sha="$(jq -r '.meta.githubCommitSha // .gitSource.sha // ""' <<<"${response}")"
+            state="$(jq -r '.readyState // .status // ""' <<<"${response}")"
+            deployment_id="$(jq -r '.id // ""' <<<"${response}")"
+
+            echo "attempt=${attempt} state=${state} sha=${actual_sha:-unknown}"
+
+            if [ "${state}" = "READY" ] && [ "${actual_sha}" = "${EXPECTED_SHA}" ]; then
+              echo "deployment_id=${deployment_id}" >> "${GITHUB_OUTPUT}"
+              echo "Fixed Preview alias now points to the expected preview HEAD."
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "Fixed Preview alias did not converge to expected SHA ${EXPECTED_SHA} within the timeout."
+          exit 1
+
+      - name: Smoke fixed Preview URL
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            --max-time 30 \
+            "https://${FIXED_PREVIEW_HOST}/login" >/dev/null
+          echo "Fixed Preview /login returned successfully."
+
+      - name: Emit acceptance-ready summary
+        shell: bash
+        env:
+          DEPLOYMENT_ID: ${{ steps.alias.outputs.deployment_id }}
+        run: |
+          {
+            echo "## CoCo Preview acceptance-ready: PASS"
+            echo
+            echo "- branch: preview"
+            echo "- expected SHA: `${EXPECTED_SHA}`"
+            echo "- fixed Preview host: `${FIXED_PREVIEW_HOST}`"
+            echo "- deployment: `${DEPLOYMENT_ID}`"
+            echo "- /login smoke: PASS"
+            echo
+            echo "This check confirms that the fixed Preview alias is serving the current preview HEAD."
+          } >> "${GITHUB_STEP_SUMMARY}"

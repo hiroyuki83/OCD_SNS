@@ -3,7 +3,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 
-const SELF_TEST_PRISMA_ACCESS = /prisma\.(?:ybocsResult|iesrResult|itqResult|lsasResult)\b/;
+const SELF_TEST_PRISMA_ACCESS =
+  /prisma\.(?:selfAssessmentResult|ybocsResult|iesrResult|itqResult|lsasResult)\b/;
 
 function collectSourceFiles(root: string): string[] {
   if (!existsSync(root)) return [];
@@ -52,62 +53,33 @@ test('public profile and user API do not read psychological self-test models', (
   );
 });
 
-test('self-test history queries are owner-scoped by userId', () => {
+test('generic self-assessment history query is owner-scoped by userId and assessmentKey', () => {
   const page = readFileSync(join(process.cwd(), 'src', 'app', 'test', 'page.tsx'), 'utf8');
-  for (const model of ['ybocsResult', 'iesrResult', 'itqResult', 'lsasResult']) {
-    const modelQuery = new RegExp(
-      String.raw`prisma\.${model}\.findMany\(\{[\s\S]*?where:\s*\{\s*userId\s*\}`,
-    );
-    assert.match(page, modelQuery, `${model} history must be scoped to the authenticated user`);
-  }
+  assert.match(
+    page,
+    /prisma\.selfAssessmentResult\.findMany\(\{[\s\S]*?where:\s*\{[\s\S]*?userId,[\s\S]*?assessmentKey:\s*activeTab/,
+  );
 });
 
-
-test('self-test submissions derive ownership from the authenticated session, not FormData', () => {
-  const actions = readFileSync(join(process.cwd(), 'src', 'app', 'lib', 'actions.ts'), 'utf8');
-
-  for (const actionName of ['submitYbocs', 'submitIesr', 'submitItq', 'submitLsas']) {
-    const start = actions.indexOf(`export async function ${actionName}`);
-    assert.ok(start >= 0, `${actionName} must exist`);
-
-    const nextExport = actions.indexOf('\nexport ', start + 1);
-    const body = actions.slice(start, nextExport >= 0 ? nextExport : actions.length);
-
-    assert.match(body, /const session = await auth\(\)/, `${actionName} must authenticate`);
-    assert.match(body, /userId = session\?\.user\?\.id/, `${actionName} must resolve session userId`);
-    assert.doesNotMatch(body, /formData\.get\(['"]userId['"]\)/, `${actionName} must not accept owner userId from FormData`);
-    assert.match(body, /data:\s*\{\s*userId,/, `${actionName} must persist with the authenticated userId`);
-  }
+test('generic self-assessment submission derives ownership from the authenticated session', () => {
+  const actions = readFileSync(join(process.cwd(), 'src', 'app', 'test', 'actions.ts'), 'utf8');
+  assert.match(actions, /const userId = await resolveUserId\(\)/);
+  assert.match(actions, /await prisma\.selfAssessmentResult\.create/);
+  assert.match(actions, /userId,/);
+  assert.doesNotMatch(actions, /formData\.get\(['"]userId['"]\)/);
 });
 
-test('self-test deletion is owner-scoped for every model', () => {
-  const actions = readFileSync(join(process.cwd(), 'src', 'app', 'lib', 'actions.ts'), 'utf8');
-  const start = actions.indexOf('export async function deleteSelfTestResult');
-  assert.ok(start >= 0, 'deleteSelfTestResult must exist');
-
-  const nextExport = actions.indexOf('\nexport ', start + 1);
-  const body = actions.slice(start, nextExport >= 0 ? nextExport : actions.length);
-
-  assert.match(body, /const session = await auth\(\)/);
-  assert.match(body, /userId = session\?\.user\?\.id/);
-  assert.doesNotMatch(body, /formData\.get\(['"]userId['"]\)/);
-
-  for (const model of ['ybocsResult', 'iesrResult', 'itqResult', 'lsasResult']) {
-    const ownerScopedDelete = new RegExp(
-      String.raw`prisma\.${model}\.deleteMany\(\{\s*where:\s*\{\s*id:\s*resultId,\s*userId\s*\}\s*\}\)`,
-    );
-    assert.match(body, ownerScopedDelete, `${model} deletion must require id + authenticated userId`);
-  }
+test('generic self-assessment deletion is owner and assessment scoped', () => {
+  const actions = readFileSync(join(process.cwd(), 'src', 'app', 'test', 'actions.ts'), 'utf8');
+  assert.match(
+    actions,
+    /prisma\.selfAssessmentResult\.deleteMany\(\{[\s\S]*?id:\s*resultId,[\s\S]*?userId,[\s\S]*?assessmentKey/,
+  );
 });
 
-test('ITQ free-text event description is not persisted', () => {
-  const actions = readFileSync(join(process.cwd(), 'src', 'app', 'lib', 'actions.ts'), 'utf8');
-  const start = actions.indexOf('export async function submitItq');
-  assert.ok(start >= 0, 'submitItq must exist');
-
-  const nextExport = actions.indexOf('\nexport ', start + 1);
-  const body = actions.slice(start, nextExport >= 0 ? nextExport : actions.length);
-
-  assert.match(body, /eventDescription:\s*null/);
-  assert.doesNotMatch(body, /formData\.get\(['"]eventDescription['"]\)/);
+test('legacy copyrighted questionnaire forms are no longer served from the test components directory', () => {
+  const root = join(process.cwd(), 'src', 'components', 'test');
+  for (const file of ['YbocsForm.tsx', 'IesrForm.tsx', 'ItqForm.tsx', 'LsasForm.tsx']) {
+    assert.equal(existsSync(join(root, file)), false, file + ' should be removed');
+  }
 });

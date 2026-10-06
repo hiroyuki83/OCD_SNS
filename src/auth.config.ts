@@ -1,6 +1,10 @@
 import type { NextAuthConfig } from 'next-auth';
 
 const protectedPrefixes = [
+    '/',
+    '/user',
+    '/post',
+    '/explore',
     '/admin',
     '/moderation',
     '/bookmarks',

@@ -13,6 +13,7 @@ import NotificationsReadMarker from '@/components/layout/NotificationsReadMarker
 import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
 import WarningAppealForm from '@/components/notifications/WarningAppealForm';
+import { redirect } from 'next/navigation';
 
 const notificationFilters = ['all', 'social', 'warnings'] as const;
 type NotificationFilter = (typeof notificationFilters)[number];
@@ -36,30 +37,18 @@ export default async function NotificationsPage({
 }) {
     const resolvedSearchParams = await searchParams;
     const session = await auth();
-    const userId = session?.user?.id;
+    if (!session?.user) redirect('/login');
 
-    if (!session?.user) {
-        return (
-            <div className="p-6 text-sm text-zinc-400">
-                通知を見るには <Link href="/login" className="text-[#1d9bf0] hover:underline">ログイン</Link> が必要です
-            </div>
-        );
+    let resolvedUserId: string | null = session.user.id ?? null;
+    const sessionEmail = session.user.email;
+    if (!resolvedUserId && sessionEmail) {
+        const user = await prisma.user.findUnique({
+            where: { email: sessionEmail },
+            select: { id: true },
+        });
+        resolvedUserId = user?.id ?? null;
     }
-
-    const resolvedUserId = userId
-        ? userId
-        : session.user.email
-          ? (
-                await prisma.user.findUnique({
-                    where: { email: session.user.email },
-                    select: { id: true },
-                })
-            )?.id
-          : null;
-
-    if (!resolvedUserId) {
-        return <div className="p-6 text-sm text-zinc-400">通知を取得できませんでした。</div>;
-    }
+    if (!resolvedUserId) redirect('/login');
 
     const notificationActorFilter: Prisma.UserWhereInput = {
         AND: [
