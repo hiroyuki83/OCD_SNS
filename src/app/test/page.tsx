@@ -50,9 +50,10 @@ export default async function TestPage({
     const session = await auth();
     if (!session?.user) redirect('/login');
     let userId = session.user.id ?? null;
-    if (!userId && session?.user?.email) {
+    const sessionEmail = session.user.email;
+    if (!userId && sessionEmail) {
         const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
+            where: { email: sessionEmail },
             select: { id: true },
         });
         userId = user?.id ?? null;
