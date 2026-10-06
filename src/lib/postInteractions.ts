@@ -251,3 +251,234 @@ export async function togglePostInteraction(
 
   return { ok: false, reason: 'CONFLICT' };
 }
+
+export type DesiredPostInteractionAction = PostInteractionAction;
+
+async function setLikeState(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  postId: string,
+  active: boolean,
+): Promise<InteractionState> {
+  if (active) {
+    await tx.like.createMany({
+      data: [{ userId, postId }],
+      skipDuplicates: true,
+    });
+  } else {
+    await tx.like.deleteMany({ where: { userId, postId } });
+  }
+
+  const count = await tx.like.count({ where: { postId } });
+  return { ok: true, active, count };
+}
+
+async function setBookmarkState(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  postId: string,
+  active: boolean,
+): Promise<InteractionState> {
+  if (active) {
+    await tx.bookmark.createMany({
+      data: [{ userId, postId }],
+      skipDuplicates: true,
+    });
+  } else {
+    await tx.bookmark.deleteMany({ where: { userId, postId } });
+  }
+
+  return { ok: true, active };
+}
+
+async function setReactionState(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  postId: string,
+  type: ReactionType,
+  active: boolean,
+): Promise<InteractionState> {
+  if (active) {
+    await tx.reaction.createMany({
+      data: [{ userId, postId, type }],
+      skipDuplicates: true,
+    });
+  } else {
+    await tx.reaction.deleteMany({
+      where: { userId, postId, type },
+    });
+  }
+
+  const count = await tx.reaction.count({ where: { postId, type } });
+  const synced = await tx.post.updateMany({
+    where: { id: postId, deletedAt: null, isHidden: false },
+    data:
+      type === ReactionType.WAKARU
+        ? { wakaruCount: count }
+        : { ganbattaCount: count },
+  });
+  if (synced.count !== 1) throw new InteractionConflictError();
+
+  return { ok: true, active, count };
+}
+
+async function runDesiredStateOnce(
+  userId: string,
+  postId: string,
+  action: DesiredPostInteractionAction,
+  active: boolean,
+): Promise<InteractionState> {
+  return prisma.$transaction(
+    async (tx) => {
+      const viewer = await tx.user.findUnique({
+        where: { id: userId },
+        select: { status: true, suspendedUntil: true },
+      });
+      if (
+        !viewer ||
+        isSuspensionActive(viewer.status, viewer.suspendedUntil)
+      ) {
+        return { ok: false as const, reason: 'NOT_FOUND' as const };
+      }
+
+      const post = await getAccessiblePost(tx, userId, postId);
+      if (!post) return { ok: false as const, reason: 'NOT_FOUND' as const };
+
+      if (action === 'like') {
+        return setLikeState(tx, userId, postId, active);
+      }
+      if (action === 'bookmark') {
+        return setBookmarkState(tx, userId, postId, active);
+      }
+      return setReactionState(
+        tx,
+        userId,
+        postId,
+        action === 'wakaru' ? ReactionType.WAKARU : ReactionType.GANBATTA,
+        active,
+      );
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
+}
+
+export async function setPostInteraction(
+  userId: string,
+  postId: string,
+  action: DesiredPostInteractionAction,
+  active: boolean,
+): Promise<InteractionState> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await runDesiredStateOnce(userId, postId, action, active);
+    } catch (error) {
+      const retryable =
+        error instanceof InteractionConflictError ||
+        (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034');
+      if (!retryable) throw error;
+      if (attempt === 2) return { ok: false, reason: 'CONFLICT' };
+    }
+  }
+
+  return { ok: false, reason: 'CONFLICT' };
+}
+
+export async function syncPostInteractionNotification(
+  userId: string,
+  postId: string,
+  action: DesiredPostInteractionAction,
+) {
+  if (action === 'bookmark') return;
+
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: {
+      id: true,
+      authorId: true,
+      deletedAt: true,
+      isHidden: true,
+      author: {
+        select: {
+          notifyLikes: true,
+          notifyReactions: true,
+        },
+      },
+    },
+  });
+
+  if (!post || post.deletedAt || post.isHidden || post.authorId === userId) {
+    if (post) {
+      await prisma.notification.deleteMany({
+        where: {
+          userId: post.authorId,
+          actorId: userId,
+          postId,
+          type:
+            action === 'like'
+              ? 'LIKE'
+              : action === 'wakaru'
+                ? ReactionType.WAKARU
+                : ReactionType.GANBATTA,
+        },
+      });
+    }
+    return;
+  }
+
+  const notificationType =
+    action === 'like'
+      ? 'LIKE'
+      : action === 'wakaru'
+        ? ReactionType.WAKARU
+        : ReactionType.GANBATTA;
+
+  const active =
+    action === 'like'
+      ? Boolean(
+          await prisma.like.findUnique({
+            where: { userId_postId: { userId, postId } },
+            select: { id: true },
+          }),
+        )
+      : Boolean(
+          await prisma.reaction.findUnique({
+            where: {
+              userId_postId_type: {
+                userId,
+                postId,
+                type:
+                  action === 'wakaru'
+                    ? ReactionType.WAKARU
+                    : ReactionType.GANBATTA,
+              },
+            },
+            select: { id: true },
+          }),
+        );
+
+  const notificationsEnabled =
+    action === 'like'
+      ? post.author.notifyLikes
+      : post.author.notifyReactions;
+
+  await prisma.notification.deleteMany({
+    where: {
+      type: notificationType,
+      userId: post.authorId,
+      actorId: userId,
+      postId,
+    },
+  });
+
+  if (active && notificationsEnabled) {
+    await prisma.notification.create({
+      data: {
+        type: notificationType,
+        userId: post.authorId,
+        actorId: userId,
+        postId,
+      },
+    });
+  }
+}
+
