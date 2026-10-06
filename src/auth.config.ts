@@ -4,6 +4,7 @@ const protectedPrefixes = [
     '/',
     '/user',
     '/post',
+    '/explore',
     '/admin',
     '/moderation',
     '/bookmarks',
