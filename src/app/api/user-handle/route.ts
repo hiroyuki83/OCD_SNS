@@ -17,7 +17,10 @@ export async function GET(request: Request) {
     }
 
     const session = await auth();
-    let viewerId = session?.user?.id ?? null;
+    if (!session?.user) {
+        return privateJson({ user: null }, { status: 401 });
+    }
+    let viewerId = session.user.id ?? null;
     if (!viewerId && session?.user?.email) {
         const viewer = await prisma.user.findUnique({
             where: { email: session.user.email },
