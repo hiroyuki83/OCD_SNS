@@ -1,13 +1,7 @@
 'use client';
 
-import { useFormStatus } from 'react-dom';
+import { useState } from 'react';
 import { Bookmark, CircleDot, Heart, Sparkles } from 'lucide-react';
-import {
-  addGanbatta,
-  addWakaru,
-  toggleBookmark,
-  toggleLike,
-} from '@/app/lib/actions';
 
 type PostActionKind = 'like' | 'wakaru' | 'ganbatta' | 'bookmark';
 
@@ -51,48 +45,6 @@ const configs = {
   }
 >;
 
-function SubmitButton({
-  action,
-  active,
-  count,
-  compactLabel,
-}: {
-  action: PostActionKind;
-  active: boolean;
-  count?: number;
-  compactLabel?: string;
-}) {
-  const { pending } = useFormStatus();
-  const config = configs[action];
-  const Icon = config.Icon;
-
-  return (
-    <button
-      type="submit"
-      aria-pressed={active}
-      disabled={pending}
-      aria-disabled={pending}
-      className={
-        'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ' +
-        (active ? config.activeClass : config.inactiveClass)
-      }
-    >
-      <Icon
-        className={'h-4 w-4 ' + config.iconClass}
-        fill={
-          active && (action === 'like' || action === 'bookmark')
-            ? 'currentColor'
-            : 'none'
-        }
-      />
-      <span>{pending ? '処理中…' : (compactLabel ?? config.label)}</span>
-      {typeof count === 'number' && !pending ? (
-        <span className="tabular-nums text-zinc-500">{count}</span>
-      ) : null}
-    </button>
-  );
-}
-
 export default function ProfilePostActionForm({
   postId,
   action,
@@ -106,23 +58,102 @@ export default function ProfilePostActionForm({
   count?: number;
   compactLabel?: string;
 }) {
-  const serverAction =
-    action === 'like'
-      ? toggleLike
-      : action === 'wakaru'
-        ? addWakaru
-        : action === 'ganbatta'
-          ? addGanbatta
-          : toggleBookmark;
+  const [localActive, setLocalActive] = useState(active);
+  const [localCount, setLocalCount] = useState(count);
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const config = configs[action];
+  const Icon = config.Icon;
+
+  const setOptimisticState = (nextActive: boolean, nextCount?: number) => {
+    setLocalActive(nextActive);
+    if (typeof nextCount === 'number') {
+      setLocalCount(Math.max(0, nextCount));
+      return;
+    }
+    if (action === 'bookmark') return;
+
+    setLocalCount((current) => {
+      if (typeof current !== 'number') return current;
+      if (localActive === nextActive) return current;
+      return Math.max(0, current + (nextActive ? 1 : -1));
+    });
+  };
+
+  const run = async () => {
+    if (pending) return;
+
+    const previousActive = localActive;
+    const previousCount = localCount;
+    const desiredActive = !previousActive;
+
+    setPending(true);
+    setFailed(false);
+    setOptimisticState(desiredActive);
+
+    try {
+      const response = await fetch('/api/post-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postId,
+          action,
+          active: desiredActive,
+        }),
+      });
+
+      if (!response.ok) throw new Error('failed');
+
+      const payload = await response.json();
+      if (typeof payload?.active !== 'boolean') {
+        throw new Error('invalid response');
+      }
+
+      setLocalActive(payload.active);
+      if (typeof payload?.count === 'number') {
+        setLocalCount(Math.max(0, payload.count));
+      }
+    } catch {
+      setLocalActive(previousActive);
+      setLocalCount(previousCount);
+      setFailed(true);
+    } finally {
+      setPending(false);
+    }
+  };
 
   return (
-    <form action={serverAction.bind(null, postId)}>
-      <SubmitButton
-        action={action}
-        active={active}
-        count={count}
-        compactLabel={compactLabel}
-      />
-    </form>
+    <div className="inline-flex flex-col items-start">
+      <button
+        type="button"
+        onClick={run}
+        aria-pressed={localActive}
+        disabled={pending}
+        aria-disabled={pending}
+        className={
+          'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ' +
+          (localActive ? config.activeClass : config.inactiveClass)
+        }
+      >
+        <Icon
+          className={'h-4 w-4 ' + config.iconClass}
+          fill={
+            localActive && (action === 'like' || action === 'bookmark')
+              ? 'currentColor'
+              : 'none'
+          }
+        />
+        <span>{compactLabel ?? config.label}</span>
+        {typeof localCount === 'number' ? (
+          <span className="tabular-nums text-zinc-500">{localCount}</span>
+        ) : null}
+      </button>
+      {failed ? (
+        <span className="sr-only" role="status" aria-live="polite">
+          更新できませんでした。元の状態に戻しました。
+        </span>
+      ) : null}
+    </div>
   );
 }
