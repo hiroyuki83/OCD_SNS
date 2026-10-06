@@ -25,6 +25,9 @@ export async function GET(request: Request) {
         });
         userId = user?.id ?? null;
     }
+    if (!userId) {
+        return privateJson({ ok: false }, { status: 401 });
+    }
 
     const data = await getFeedData({
         userId,
