@@ -57,6 +57,7 @@ export default async function TestPage({
         });
         userId = user?.id ?? null;
     }
+    if (!userId) redirect('/login');
 
     const resultSelect = {
         id: true,
