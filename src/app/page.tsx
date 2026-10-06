@@ -29,6 +29,7 @@ export default async function Home({
     });
     userId = user?.id ?? null;
   }
+  if (!userId) redirect("/login");
 
   const now = new Date();
   const [initialData, announcements] = await Promise.all([
