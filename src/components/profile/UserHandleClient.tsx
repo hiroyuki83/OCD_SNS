@@ -140,81 +140,123 @@ export default function UserHandleClient() {
         }
     }, [profile]);
 
-    const reconcilePostAction = (
+    const setLocalPostAction = (
         postId: string,
         action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark',
         active: boolean,
-        count: number | undefined,
+        count?: number,
     ) => {
         setProfile((current) => {
             if (!current) return current;
+
             return {
                 ...current,
                 posts: current.posts.map((post) => {
                     if (post.id !== postId) return post;
+
                     if (action === 'like') {
-                        return {
-                            ...post,
-                            liked: active,
-                            likeCount: typeof count === 'number' ? Math.max(0, count) : post.likeCount,
-                        };
+                        const nextCount =
+                            typeof count === 'number'
+                                ? Math.max(0, count)
+                                : post.liked === active
+                                  ? post.likeCount
+                                  : Math.max(0, post.likeCount + (active ? 1 : -1));
+                        return { ...post, liked: active, likeCount: nextCount };
                     }
+
                     if (action === 'bookmark') {
-                        return {
-                            ...post,
-                            bookmarked: active,
-                            bookmarkCount:
-                                typeof count === 'number' ? Math.max(0, count) : post.bookmarkCount,
-                        };
+                        return { ...post, bookmarked: active };
                     }
+
                     if (action === 'wakaru') {
+                        const nextCount =
+                            typeof count === 'number'
+                                ? Math.max(0, count)
+                                : post.wakaruReacted === active
+                                  ? post.wakaruCount
+                                  : Math.max(0, post.wakaruCount + (active ? 1 : -1));
                         return {
                             ...post,
                             wakaruReacted: active,
-                            wakaruCount:
-                                typeof count === 'number' ? Math.max(0, count) : post.wakaruCount,
+                            wakaruCount: nextCount,
                         };
                     }
+
+                    const nextCount =
+                        typeof count === 'number'
+                            ? Math.max(0, count)
+                            : post.ganbattaReacted === active
+                              ? post.ganbattaCount
+                              : Math.max(0, post.ganbattaCount + (active ? 1 : -1));
                     return {
                         ...post,
                         ganbattaReacted: active,
-                        ganbattaCount:
-                            typeof count === 'number' ? Math.max(0, count) : post.ganbattaCount,
+                        ganbattaCount: nextCount,
                     };
                 }),
             };
         });
     };
 
-    const runPostAction = async (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
+    const runPostAction = async (
+        postId: string,
+        action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark',
+    ) => {
+        if (pendingPostAction || !profile?.viewerId) return;
+
+        const currentPost = profile.posts.find((post) => post.id === postId);
+        if (!currentPost) return;
+
+        const currentActive =
+            action === 'like'
+                ? currentPost.liked
+                : action === 'bookmark'
+                  ? currentPost.bookmarked
+                  : action === 'wakaru'
+                    ? currentPost.wakaruReacted
+                    : currentPost.ganbattaReacted;
+        const desiredActive = !currentActive;
+
         const actionKey = `${postId}:${action}`;
-        if (pendingPostAction) return;
         setPendingPostAction(actionKey);
         setPostActionMessage(null);
+        setLocalPostAction(postId, action, desiredActive);
+
         try {
             const res = await fetch('/api/post-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ postId, action }),
+                body: JSON.stringify({
+                    postId,
+                    action,
+                    active: desiredActive,
+                }),
             });
+
             if (!res.ok) {
-                setPostActionMessage(
-                    await apiFailureMessage(res, '投稿への操作に失敗しました。'),
+                const message = await apiFailureMessage(
+                    res,
+                    '投稿への操作に失敗しました。',
                 );
-                await fetchProfile();
+                setLocalPostAction(postId, action, currentActive);
+                setPostActionMessage(message);
                 return;
             }
+
             const payload = await res.json();
-            if (typeof payload?.active !== 'boolean') throw new Error('invalid response');
-            reconcilePostAction(
+            if (typeof payload?.active !== 'boolean') {
+                throw new Error('invalid response');
+            }
+
+            setLocalPostAction(
                 postId,
                 action,
                 payload.active,
                 typeof payload?.count === 'number' ? payload.count : undefined,
             );
         } catch {
+            setLocalPostAction(postId, action, currentActive);
             setPostActionMessage('通信エラーのため操作を完了できませんでした。');
-            await fetchProfile();
         } finally {
             setPendingPostAction(null);
         }
