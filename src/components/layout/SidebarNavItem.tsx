@@ -87,7 +87,7 @@ export default function SidebarNavItem({
             aria-label={count > 0 ? `${label}、未読${count}件` : label}
             title={!mobile ? label : undefined}
             className={
-                'group relative flex h-12 w-full items-center rounded-xl transition-colors ' +
+                'group relative flex h-12 w-full items-center rounded-full transition-colors ' +
                 (active
                     ? 'bg-sky-50 text-sky-600'
                     : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950')
