@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { getFeedData, type FeedTab } from "@/lib/feedData";
 import { parsePageNumber } from "@/lib/pagination";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -18,7 +19,8 @@ export default async function Home({
   const requestedPage = parsePageNumber(params.page);
 
   const session = await auth();
-  let userId = session?.user?.id ?? null;
+  if (!session?.user) redirect("/login");
+  let userId = session.user.id ?? null;
 
   if (!userId && session?.user?.email) {
     const user = await prisma.user.findUnique({
