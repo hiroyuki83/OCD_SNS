@@ -13,7 +13,10 @@ export async function GET(request: Request) {
     const requestedPage = parsePageNumber(searchParams.get('page'));
 
     const session = await auth();
-    let userId = session?.user?.id ?? null;
+    if (!session?.user) {
+        return privateJson({ ok: false }, { status: 401 });
+    }
+    let userId = session.user.id ?? null;
 
     if (!userId && session?.user?.email) {
         const user = await prisma.user.findUnique({
