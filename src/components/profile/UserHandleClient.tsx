@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import HashtagText from '@/components/shared/HashtagText';
 import { formatPostTime } from '@/lib/formatTime';
@@ -87,7 +87,8 @@ export default function UserHandleClient() {
     const [localBlockedBy, setLocalBlockedBy] = useState(false);
     const [reportingUser, setReportingUser] = useState(false);
     const [pendingRelationAction, setPendingRelationAction] = useState<'follow' | 'block' | 'mute' | null>(null);
-    const [pendingPostAction, setPendingPostAction] = useState<string | null>(null);
+    const inFlightPostActionKeys = useRef(new Set<string>());
+    const desiredPostActionState = useRef(new Map<string, boolean>());
     const [relationMessage, setRelationMessage] = useState<string | null>(null);
     const [postActionMessage, setPostActionMessage] = useState<string | null>(null);
     const [reactionPickerPostId, setReactionPickerPostId] = useState<string | null>(null);
@@ -198,16 +199,17 @@ export default function UserHandleClient() {
         });
     };
 
-    const runPostAction = async (
+    const runPostAction = (
         postId: string,
         action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark',
     ) => {
-        if (pendingPostAction || !profile?.viewerId) return;
+        if (!profile?.viewerId) return;
 
         const currentPost = profile.posts.find((post) => post.id === postId);
         if (!currentPost) return;
 
-        const currentActive =
+        const actionKey = `${postId}:${action}`;
+        const renderedActive =
             action === 'like'
                 ? currentPost.liked
                 : action === 'bookmark'
@@ -215,51 +217,76 @@ export default function UserHandleClient() {
                   : action === 'wakaru'
                     ? currentPost.wakaruReacted
                     : currentPost.ganbattaReacted;
-        const desiredActive = !currentActive;
+        const currentDesired =
+            desiredPostActionState.current.get(actionKey) ?? renderedActive;
+        const nextDesired = !currentDesired;
 
-        const actionKey = `${postId}:${action}`;
-        setPendingPostAction(actionKey);
+        desiredPostActionState.current.set(actionKey, nextDesired);
         setPostActionMessage(null);
-        setLocalPostAction(postId, action, desiredActive);
+        setLocalPostAction(postId, action, nextDesired);
 
-        try {
-            const res = await fetch('/api/post-action', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    postId,
-                    action,
-                    active: desiredActive,
-                }),
-            });
+        if (inFlightPostActionKeys.current.has(actionKey)) return;
+        inFlightPostActionKeys.current.add(actionKey);
 
-            if (!res.ok) {
-                const message = await apiFailureMessage(
-                    res,
-                    '投稿への操作に失敗しました。',
+        void (async () => {
+            try {
+                while (desiredPostActionState.current.has(actionKey)) {
+                    const targetActive =
+                        desiredPostActionState.current.get(actionKey);
+                    if (typeof targetActive !== 'boolean') break;
+
+                    const res = await fetch('/api/post-action', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            postId,
+                            action,
+                            active: targetActive,
+                        }),
+                    });
+
+                    if (!res.ok) {
+                        throw new Error(
+                            await apiFailureMessage(
+                                res,
+                                '投稿への操作に失敗しました。',
+                            ),
+                        );
+                    }
+
+                    const payload = await res.json();
+                    if (typeof payload?.active !== 'boolean') {
+                        throw new Error('invalid response');
+                    }
+
+                    const latestDesired =
+                        desiredPostActionState.current.get(actionKey);
+
+                    if (latestDesired === targetActive) {
+                        desiredPostActionState.current.delete(actionKey);
+                        setLocalPostAction(
+                            postId,
+                            action,
+                            payload.active,
+                            typeof payload?.count === 'number'
+                                ? payload.count
+                                : undefined,
+                        );
+                        break;
+                    }
+                }
+            } catch (error) {
+                desiredPostActionState.current.delete(actionKey);
+                setPostActionMessage(
+                    error instanceof Error && error.message !== 'failed'
+                        ? error.message
+                        : '通信エラーのため操作を完了できませんでした。',
                 );
-                setLocalPostAction(postId, action, currentActive);
-                setPostActionMessage(message);
-                return;
+                await fetchProfile();
+            } finally {
+                inFlightPostActionKeys.current.delete(actionKey);
             }
-
-            const payload = await res.json();
-            if (typeof payload?.active !== 'boolean') {
-                throw new Error('invalid response');
-            }
-
-            setLocalPostAction(
-                postId,
-                action,
-                payload.active,
-                typeof payload?.count === 'number' ? payload.count : undefined,
-            );
-        } catch {
-            setLocalPostAction(postId, action, currentActive);
-            setPostActionMessage('通信エラーのため操作を完了できませんでした。');
-        } finally {
-            setPendingPostAction(null);
-        }
+        })();
     };
 
     const reportUser = async () => {
@@ -557,7 +584,6 @@ export default function UserHandleClient() {
                                                 type="button"
                                                 onClick={(event) => { event.stopPropagation(); runPostAction(post.id, 'like'); }}
                                                 aria-pressed={post.liked}
-                                                disabled={pendingPostAction !== null}
                                                 className={
                                                     'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:opacity-50 ' +
                                                     (post.liked
@@ -587,7 +613,6 @@ export default function UserHandleClient() {
                                                 type="button"
                                                 onClick={(event) => { event.stopPropagation(); runPostAction(post.id, 'wakaru'); }}
                                                 aria-pressed={post.wakaruReacted}
-                                                disabled={pendingPostAction !== null}
                                                 className={
                                                     'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:opacity-50 ' +
                                                     (post.wakaruReacted
@@ -614,7 +639,6 @@ export default function UserHandleClient() {
                                                 type="button"
                                                 onClick={(event) => { event.stopPropagation(); runPostAction(post.id, 'ganbatta'); }}
                                                 aria-pressed={post.ganbattaReacted}
-                                                disabled={pendingPostAction !== null}
                                                 className={
                                                     'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:opacity-50 ' +
                                                     (post.ganbattaReacted
@@ -656,7 +680,6 @@ export default function UserHandleClient() {
                                             type="button"
                                             onClick={(event) => { event.stopPropagation(); runPostAction(post.id, 'bookmark'); }}
                                             aria-pressed={post.bookmarked}
-                                            disabled={pendingPostAction !== null}
                                             className={
                                                 'flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:opacity-50 ' +
                                                 (post.bookmarked
