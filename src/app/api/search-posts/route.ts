@@ -30,13 +30,19 @@ export async function GET(request: Request) {
     const insensitive: Prisma.QueryMode = 'insensitive';
 
     const session = await auth();
-    let viewerId = session?.user?.id ?? null;
+    if (!session?.user) {
+        return privateJson({ posts: [] }, { status: 401 });
+    }
+    let viewerId = session.user.id ?? null;
     if (!viewerId && session?.user?.email) {
         const viewer = await prisma.user.findUnique({
             where: { email: session.user.email },
             select: { id: true },
         });
         viewerId = viewer?.id ?? null;
+    }
+    if (!viewerId) {
+        return privateJson({ posts: [] }, { status: 401 });
     }
 
     const now = new Date();
