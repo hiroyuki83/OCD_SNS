@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Bookmark, CircleDot, Heart, Sparkles } from 'lucide-react';
 
 type PostActionKind = 'like' | 'wakaru' | 'ganbatta' | 'bookmark';
@@ -60,67 +60,93 @@ export default function ProfilePostActionForm({
 }) {
   const [localActive, setLocalActive] = useState(active);
   const [localCount, setLocalCount] = useState(count);
-  const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
+  const localActiveRef = useRef(active);
+  const localCountRef = useRef(count);
+  const desiredActiveRef = useRef<boolean | null>(null);
+  const inFlightRef = useRef(false);
 
   const config = configs[action];
   const Icon = config.Icon;
 
   const setOptimisticState = (nextActive: boolean, nextCount?: number) => {
+    const previousActive = localActiveRef.current;
+    localActiveRef.current = nextActive;
     setLocalActive(nextActive);
+
     if (typeof nextCount === 'number') {
-      setLocalCount(Math.max(0, nextCount));
+      const normalized = Math.max(0, nextCount);
+      localCountRef.current = normalized;
+      setLocalCount(normalized);
       return;
     }
+
     if (action === 'bookmark') return;
 
-    setLocalCount((current) => {
-      if (typeof current !== 'number') return current;
-      if (localActive === nextActive) return current;
-      return Math.max(0, current + (nextActive ? 1 : -1));
-    });
+    const current = localCountRef.current;
+    if (typeof current !== 'number' || previousActive === nextActive) return;
+
+    const updated = Math.max(0, current + (nextActive ? 1 : -1));
+    localCountRef.current = updated;
+    setLocalCount(updated);
   };
 
-  const run = async () => {
-    if (pending) return;
+  const run = () => {
+    const currentDesired =
+      desiredActiveRef.current ?? localActiveRef.current;
+    const nextDesired = !currentDesired;
 
-    const previousActive = localActive;
-    const previousCount = localCount;
-    const desiredActive = !previousActive;
-
-    setPending(true);
+    desiredActiveRef.current = nextDesired;
     setFailed(false);
-    setOptimisticState(desiredActive);
+    setOptimisticState(nextDesired);
 
-    try {
-      const response = await fetch('/api/post-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          postId,
-          action,
-          active: desiredActive,
-        }),
-      });
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
 
-      if (!response.ok) throw new Error('failed');
+    void (async () => {
+      try {
+        while (desiredActiveRef.current !== null) {
+          const targetActive = desiredActiveRef.current;
 
-      const payload = await response.json();
-      if (typeof payload?.active !== 'boolean') {
-        throw new Error('invalid response');
+          const response = await fetch('/api/post-action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              postId,
+              action,
+              active: targetActive,
+            }),
+          });
+
+          if (!response.ok) throw new Error('failed');
+
+          const payload = await response.json();
+          if (typeof payload?.active !== 'boolean') {
+            throw new Error('invalid response');
+          }
+
+          if (desiredActiveRef.current === targetActive) {
+            desiredActiveRef.current = null;
+            setOptimisticState(
+              payload.active,
+              typeof payload?.count === 'number'
+                ? payload.count
+                : undefined,
+            );
+            break;
+          }
+        }
+      } catch {
+        desiredActiveRef.current = null;
+        localActiveRef.current = active;
+        setLocalActive(active);
+        localCountRef.current = count;
+        setLocalCount(count);
+        setFailed(true);
+      } finally {
+        inFlightRef.current = false;
       }
-
-      setLocalActive(payload.active);
-      if (typeof payload?.count === 'number') {
-        setLocalCount(Math.max(0, payload.count));
-      }
-    } catch {
-      setLocalActive(previousActive);
-      setLocalCount(previousCount);
-      setFailed(true);
-    } finally {
-      setPending(false);
-    }
+    })();
   };
 
   return (
@@ -129,10 +155,8 @@ export default function ProfilePostActionForm({
         type="button"
         onClick={run}
         aria-pressed={localActive}
-        disabled={pending}
-        aria-disabled={pending}
         className={
-          'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ' +
+          'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors ' +
           (localActive ? config.activeClass : config.inactiveClass)
         }
       >
