@@ -8,6 +8,7 @@ export const config = {
         '/',
         '/user/:path*',
         '/post/:path*',
+        '/explore/:path*',
         '/admin/:path*',
         '/moderation/:path*',
         '/bookmarks/:path*',
