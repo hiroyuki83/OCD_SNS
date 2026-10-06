@@ -10,6 +10,24 @@ export const FEED_PAGE_SIZE = 30;
 
 export type FeedTab = 'for-you' | 'following';
 
+type FeedPostRow = Prisma.PostGetPayload<{
+    include: {
+        author: {
+            select: {
+                id: true;
+                name: true;
+                handle: true;
+                avatarUrl: true;
+                isPrivate: true;
+            };
+        };
+        likes: { select: { id: true } };
+        bookmarks: { select: { id: true } };
+        reactions: { select: { type: true } };
+        _count: { select: { likes: true } };
+    };
+}>;
+
 export async function getFeedData({
     userId,
     tab,
@@ -109,7 +127,7 @@ export async function getFeedData({
     let totalPages = 1;
     let hasPrevious = false;
     let hasNext = false;
-    let posts;
+    let posts: FeedPostRow[];
 
     if (tab === 'following') {
         if (followingIds.length === 0) {
