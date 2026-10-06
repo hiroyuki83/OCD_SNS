@@ -8,6 +8,7 @@ import PaginationLinks from '@/components/shared/PaginationLinks';
 import { clampPage, parsePageNumber } from '@/lib/pagination';
 import { DeletePostForm, PrivacyToggleForm } from '@/components/profile/ProfileDangerActions';
 import ProfilePostActionForm from '@/components/profile/ProfilePostActionForm';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,22 +18,18 @@ export default async function ProfilePage({
     searchParams?: { page?: string };
 }) {
     const session = await auth();
-    let userId = session?.user?.id ?? null;
-    if (!userId && session?.user?.email) {
+    if (!session?.user) redirect('/login');
+
+    let userId: string | null = session.user.id ?? null;
+    const sessionEmail = session.user.email;
+    if (!userId && sessionEmail) {
         const user = await prisma.user.findUnique({
-            where: { email: session.user.email },
+            where: { email: sessionEmail },
             select: { id: true, name: true, email: true },
         });
         userId = user?.id ?? null;
     }
-
-    if (!session?.user || !userId) {
-        return (
-            <div className="p-6 text-sm text-zinc-400">
-                プロフィールを見るには <Link href="/login" className="text-[#1d9bf0] hover:underline">ログイン</Link> が必要です
-            </div>
-        );
-    }
+    if (!userId) redirect('/login');
 
     const user = await prisma.user.findUnique({
         where: { id: userId },
