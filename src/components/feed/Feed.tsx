@@ -131,111 +131,116 @@ export default function Feed({
         };
     }, [fetchFeed]);
 
-    const applyLocalPostAction = (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
-        setData((prev) => ({
-            ...prev,
-            posts: prev.posts.map((post) => {
-                if (post.id !== postId) return post;
-                if (action === 'like') {
-                    const nextLiked = !post.liked;
-                    return {
-                        ...post,
-                        liked: nextLiked,
-                        likeCount: Math.max(0, post.likeCount + (nextLiked ? 1 : -1)),
-                    };
-                }
-                if (action === 'bookmark') {
-                    return {
-                        ...post,
-                        bookmarked: !post.bookmarked,
-                    };
-                }
-                if (action === 'wakaru') {
-                    const nextWakaru = !post.wakaruReacted;
-                    return {
-                        ...post,
-                        wakaruReacted: nextWakaru,
-                        wakaruCount: Math.max(0, post.wakaruCount + (nextWakaru ? 1 : -1)),
-                    };
-                }
-                const nextGanbatta = !post.ganbattaReacted;
-                return {
-                    ...post,
-                    ganbattaReacted: nextGanbatta,
-                    ganbattaCount: Math.max(0, post.ganbattaCount + (nextGanbatta ? 1 : -1)),
-                };
-            }),
-        }));
-    };
-
-    const reconcileLocalPostAction = (
+    const setLocalPostAction = (
         postId: string,
         action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark',
         active: boolean,
-        count: number | undefined,
+        count?: number,
     ) => {
         setData((prev) => ({
             ...prev,
             posts: prev.posts.map((post) => {
                 if (post.id !== postId) return post;
+
                 if (action === 'like') {
-                    return {
-                        ...post,
-                        liked: active,
-                        likeCount: typeof count === 'number' ? Math.max(0, count) : post.likeCount,
-                    };
+                    const nextCount =
+                        typeof count === 'number'
+                            ? Math.max(0, count)
+                            : post.liked === active
+                              ? post.likeCount
+                              : Math.max(0, post.likeCount + (active ? 1 : -1));
+                    return { ...post, liked: active, likeCount: nextCount };
                 }
+
                 if (action === 'bookmark') {
-                    return {
-                        ...post,
-                        bookmarked: active,
-                    };
+                    return { ...post, bookmarked: active };
                 }
+
                 if (action === 'wakaru') {
+                    const nextCount =
+                        typeof count === 'number'
+                            ? Math.max(0, count)
+                            : post.wakaruReacted === active
+                              ? post.wakaruCount
+                              : Math.max(0, post.wakaruCount + (active ? 1 : -1));
                     return {
                         ...post,
                         wakaruReacted: active,
-                        wakaruCount: typeof count === 'number' ? Math.max(0, count) : post.wakaruCount,
+                        wakaruCount: nextCount,
                     };
                 }
+
+                const nextCount =
+                    typeof count === 'number'
+                        ? Math.max(0, count)
+                        : post.ganbattaReacted === active
+                          ? post.ganbattaCount
+                          : Math.max(0, post.ganbattaCount + (active ? 1 : -1));
                 return {
                     ...post,
                     ganbattaReacted: active,
-                    ganbattaCount:
-                        typeof count === 'number' ? Math.max(0, count) : post.ganbattaCount,
+                    ganbattaCount: nextCount,
                 };
             }),
         }));
     };
 
-    const runPostAction = async (postId: string, action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark') => {
+    const runPostAction = async (
+        postId: string,
+        action: 'like' | 'wakaru' | 'ganbatta' | 'bookmark',
+    ) => {
         if (!data.viewerId || !postId || postId.length > 128) return;
+
+        const currentPost = data.posts.find((post) => post.id === postId);
+        if (!currentPost) return;
+
+        const currentActive =
+            action === 'like'
+                ? currentPost.liked
+                : action === 'bookmark'
+                  ? currentPost.bookmarked
+                  : action === 'wakaru'
+                    ? currentPost.wakaruReacted
+                    : currentPost.ganbattaReacted;
+        const desiredActive = !currentActive;
+
         const actionKey = `${postId}:${action}`;
         if (pendingPostActionKeys.current.has(actionKey)) return;
+
         pendingPostActionKeys.current.add(actionKey);
         setPendingPostActions((prev) => {
             const next = new Set(prev);
             next.add(actionKey);
             return next;
         });
-        applyLocalPostAction(postId, action);
+
+        setLocalPostAction(postId, action, desiredActive);
+
         try {
             const res = await fetch('/api/post-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ postId, action }),
+                body: JSON.stringify({
+                    postId,
+                    action,
+                    active: desiredActive,
+                }),
             });
             if (!res.ok) throw new Error('failed');
+
             const payload = await res.json();
-            if (typeof payload?.active !== 'boolean') throw new Error('invalid response');
-            reconcileLocalPostAction(
+            if (typeof payload?.active !== 'boolean') {
+                throw new Error('invalid response');
+            }
+
+            setLocalPostAction(
                 postId,
                 action,
                 payload.active,
                 typeof payload?.count === 'number' ? payload.count : undefined,
             );
         } catch {
-            await fetchFeed();
+            setLocalPostAction(postId, action, currentActive);
         } finally {
             pendingPostActionKeys.current.delete(actionKey);
             setPendingPostActions((prev) => {
