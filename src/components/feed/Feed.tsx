@@ -19,7 +19,6 @@ type FeedPost = {
     wakaruCount: number;
     ganbattaCount: number;
     likeCount: number;
-    bookmarkCount: number;
     liked: boolean;
     bookmarked: boolean;
     wakaruReacted: boolean;
@@ -52,31 +51,21 @@ type AnnouncementNotice = {
 
 export default function Feed({
     focusCompose = false,
-    initialViewerId = null,
-    initialViewerAvatarUrl = null,
+    initialData,
     announcements = [],
 }: {
     focusCompose?: boolean;
-    initialViewerId?: string | null;
-    initialViewerAvatarUrl?: string | null;
+    initialData: FeedResponse;
     announcements?: AnnouncementNotice[];
 }) {
     const searchParams = useSearchParams();
     const router = useRouter();
     const initialTab = searchParams.get('tab') === 'following' ? 'following' : 'for-you';
     const [tab, setTab] = useState<'for-you' | 'following'>(initialTab);
-    const [data, setData] = useState<FeedResponse>({
-        posts: [],
-        viewerId: initialViewerId,
-        viewerAvatarUrl: initialViewerAvatarUrl,
-        totalCount: 0,
-        page: 1,
-        totalPages: 1,
-        hasPrevious: false,
-        hasNext: false,
-    });
-    const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
-    const [hasLoaded, setHasLoaded] = useState(false);
+    const [data, setData] = useState<FeedResponse>(initialData);
+    const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+    const [hasLoaded, setHasLoaded] = useState(true);
+    const skipInitialFetchRef = useRef(true);
     const [reportingPostId, setReportingPostId] = useState<string | null>(null);
     const [reactionPickerPostId, setReactionPickerPostId] = useState<string | null>(null);
     const pendingPostActionKeys = useRef(new Set<string>());
@@ -92,10 +81,6 @@ export default function Feed({
     const fetchFeed = useMemo(
         () => async (signal?: AbortSignal) => {
             setStatus('loading');
-            setData((prev) => ({
-                ...prev,
-                posts: [],
-            }));
             try {
                 const requestedPage =
                     tab === 'following' ? searchParams.get('page') ?? '1' : '1';
@@ -126,16 +111,6 @@ export default function Feed({
                 setHasLoaded(true);
             } catch {
                 if (signal?.aborted) return;
-                setData({
-                    posts: [],
-                    viewerId: null,
-                    viewerAvatarUrl: null,
-                    totalCount: 0,
-                    page: 1,
-                    totalPages: 1,
-                    hasPrevious: false,
-                    hasNext: false,
-                });
                 setStatus('error');
                 setHasLoaded(true);
             }
@@ -144,6 +119,11 @@ export default function Feed({
     );
 
     useEffect(() => {
+        if (skipInitialFetchRef.current) {
+            skipInitialFetchRef.current = false;
+            return;
+        }
+
         const controller = new AbortController();
         fetchFeed(controller.signal);
         return () => {
@@ -165,11 +145,9 @@ export default function Feed({
                     };
                 }
                 if (action === 'bookmark') {
-                    const nextBookmarked = !post.bookmarked;
                     return {
                         ...post,
-                        bookmarked: nextBookmarked,
-                        bookmarkCount: Math.max(0, post.bookmarkCount + (nextBookmarked ? 1 : -1)),
+                        bookmarked: !post.bookmarked,
                     };
                 }
                 if (action === 'wakaru') {
@@ -211,8 +189,6 @@ export default function Feed({
                     return {
                         ...post,
                         bookmarked: active,
-                        bookmarkCount:
-                            typeof count === 'number' ? Math.max(0, count) : post.bookmarkCount,
                     };
                 }
                 if (action === 'wakaru') {
