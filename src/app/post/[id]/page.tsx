@@ -9,6 +9,7 @@ import ProfilePostActionForm from '@/components/profile/ProfilePostActionForm';
 import { DeletePostForm } from '@/components/profile/ProfileDangerActions';
 import ReportPostButton from '@/components/report/ReportPostButton';
 import { logOperationalError } from '@/lib/operationalError';
+import { redirect } from 'next/navigation';
 
 export default async function PostPage({
     params,
@@ -68,7 +69,8 @@ export default async function PostPage({
 
     try {
         session = await auth();
-        userId = session?.user?.id;
+        if (!session?.user) redirect('/login');
+        userId = session.user.id;
         if (!userId && session?.user?.email) {
             const viewer = await prisma.user.findUnique({
                 where: { email: session.user.email },
